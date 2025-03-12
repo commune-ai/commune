@@ -1,15 +1,16 @@
 {
     "name": "commune",
     "version": "0.0.1", 
-    "code_url":  "https://github.com/commune-ai/commune.git",
-    "modules": {
-        "modules": "https://github.com/commune-ai/modules.git",
-        "app": "https://github.com/commune-ai/app.git",
-        "chain": "https://github.com/commune-ai/chain.git"
+    "url": {
+        "code": "commune-ai/commune.git",
+        "app": "communeai.org"
     },
-    "description": "A module is a folder of code that consists of at least an api and optionally an app interface.",
-    "free": false,
-    "endpoints": ["forward"],
+    "modules": {
+        "modules": "commune-ai/modules",
+        "app": "commune-ai/app",
+        "chain": "commune-ai/chain"
+    },
+    "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
         "do": "docker",
@@ -17,8 +18,8 @@
         "openrouter":  "model.openrouter",
         "or" : "model.openrouter",
         "r" :  "remote",
-        "s" :  "subspace",
-        "subspace": "subspace", 
+        "ch" :  "chain",
+        "chain": "chain", 
         "client": "server.client",
         "local": "server",
         "executor": "server.executor", 
@@ -30,7 +31,7 @@
                 "run_epoch",
                 "setup_vali",
                 "from_module",
-                ["epoch", "run_epoch"]
+                {"from": "run_epoch", "to": "epoch"}
             ],
             "py": [
                 "envs", 
@@ -128,14 +129,13 @@
             ],
             "docker":
                 ["ps"],
-            "subspace": [
+            "chain": [
                 ["s2e", "subnet2emission"], 
                 "e",
                 "emissions",
                 "transfer_stake",
                 "stake_transfer",
                 "switch",
-                "switchnet",
                 "subnet",
                 "update_module",
                 "staketo", 
@@ -154,13 +154,18 @@
                 "subnet_params",
                 "global_params",
                 "balance",
-                "get_balance",
+                {"from": "balance", "to": "bal"},
                 "get_stake",
                 "my_stake_to",
                 "is_registered",
                 "update_subnet"
             ],
-            "agent": [ "models",  "model2info", "reduce", "generate"],
+            "agent": [ 
+            "models",  
+            "model2info", 
+            "reduce", 
+            "generate"
+        ],
             "builder": ["build"]
         }
         

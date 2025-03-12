@@ -164,6 +164,8 @@ cool shortcuts
 c module/ cals the module forward function
 c module/forward calls the forward cuntion
 c module/add a=1 b=1 equals c module/add 1 1 
+c # just goes to commune repo
+
 
 
 c ai what is the point of love 
@@ -173,6 +175,5 @@ Limitatons
 - Lists and dictionaries are not supported 
 - Only positional arguments are supported
 - Only one function can be called at a time
-
 
 

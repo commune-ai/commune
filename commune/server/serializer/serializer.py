@@ -33,7 +33,6 @@ class Serializer:
                             'serialized': True}
         return self.process_output(result, mode=mode)
 
-
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
@@ -99,14 +98,8 @@ class Serializer:
             return True
         else:
             return False
-
-    def dirpath(self):
-        return os.path.dirname(__file__)
-
     def serializer_map(self):
-        type_path = self.dirpath() + '/types'
-        module_paths = c.objects(type_path)
-        return {p.split('.')[-2]: c.obj(p)() for p in module_paths}
+        return {p.split('.')[-2]: c.obj(p)() for p in c.objects(os.path.dirname(__file__) + '/types')}
 
     def types(self):
         return list(self.serializer_map().keys())
@@ -128,8 +121,6 @@ class Serializer:
         data_json_str = json.dumps(data)
         data_json_bytes = msgpack.packb(data_json_str)
         return data_json_bytes
-    
-
     
     def str2dict(self, data:str) -> bytes:
         if isinstance(data, bytes):

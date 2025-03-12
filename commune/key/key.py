@@ -39,13 +39,8 @@ from .utils import (extract_derive_path,
                      b64encode, 
                      mnemonic_to_ecdsa_private_key, 
                      ecdsa_sign, 
-                     ecdsa_verify)
-
-class KeyType:
-    ED25519 = 0
-    SR25519 = 1
-    ECDSA = 2
-
+                     ecdsa_verify, 
+                     KeyType)
 
 class Key:
 
@@ -905,8 +900,8 @@ class Key:
             return 1
         return 0
 
-
-
+    
+    
     
 
 

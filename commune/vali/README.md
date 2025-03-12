@@ -7,7 +7,7 @@ scoreboard = vali.scoreboard()
 ```
 ## Configuration Options
 
-- `network`: Network type ('local', 'bittensor', 'subspace', etc.), to specify the subnet, use {network}/{subnet} (default: 'subspace/storage')
+- `network`: Network type ('local', 'bittensor', 'chain', etc.), to specify the subnet, use {network}/{subnet} (default: 'chain/storage')
 - `subnet`: Subnet name  (default: None)
 - `batch_size`: Size of parallel processing batches (default: 128)
 - `max_workers`: Number of parallel workers (default: 4)

@@ -1,6 +1,7 @@
 import os
 import inspect
 import json
+import yaml
 import shutil
 import time
 import sys
@@ -11,14 +12,15 @@ from copy import deepcopy
 from typing import *
 import nest_asyncio
 nest_asyncio.apply()
-config = json.load(open(__file__.replace(__file__.split('/')[-1], 'config.json')))
+
+
+config_types = ['json', 'yaml']
+config_path = __file__.replace(__file__.split('/')[-1], 'config.json')
+config = json.load(open(config_path)) 
 
 class c:
-
     # config attributes
     repo_name  = config['name']# the name of the library
-    description = config['description'] # the description of the library
-    free = config["free"] # if the server is free 
     endpoints = config['endpoints']
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
     port_range = config['port_range'] # the port range between 50050 and 50150
@@ -26,13 +28,16 @@ class c:
     routes = config['routes']
 
     # path attributes
-    root_path  = os.path.dirname(__file__)
+    core_path  = os.path.dirname(__file__)
     repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
     modules_path = lib_path + '/modules'
     app_path = lib_path + '/app'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
+    cache_path = f'{storage_path}/cache'
+    module_cache = {}
+    _obj = None
     cache = {} # cache for module objects
 
     def merge_modules(self, path='./modules', to_path='~/modules', **kwargs) -> Dict:
@@ -44,6 +49,38 @@ class c:
             print(p_path,'-->' , to_p_path)
         return {'success': True, 'message': 'modules merged', 'path': to_path}
 
+    def go(self, module=None, **kwargs):
+        if module == None:
+            path = c.lib_path
+        else:
+            try:
+                path = c.dirpath(module)
+            except:
+                path = c.modules_path + '/' + module
+        if path.split('/')[-1] == path.split('/')[-2]:
+            path = '/'.join(path.split('/')[:-1])
+        assert os.path.exists(path), f'{path} does not exist'
+        return c.cmd(f'code {path}', **kwargs)
+
+    @staticmethod
+    def obj2module(obj:'Object', verbose=False):
+        obj.resolve_module = lambda *args, **kwargs : c.resolve_module(obj)
+        obj.module_name = lambda *args, **kwargs : c.module_name(obj)
+        obj.storage_dir = lambda *args, **kwargs : c.storage_dir(obj)
+        obj.filepath = lambda *args, **kwargs : c.filepath(obj)
+        obj.dirpath = lambda *args, **kwargs : c.dirpath(obj)
+        obj.code = lambda *args, **kwargs : c.code(obj)
+        obj.info = lambda *args, **kwargs: c.info(obj)
+        obj.cid = lambda *args, **kwargs : c.cid(obj)
+        obj.schema = lambda *args, **kwargs : c.schema(obj)
+        obj.fns = lambda *args, **kwargs : c.fns(obj)
+        obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
+        obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
+        if not hasattr(obj, 'config_path'):
+            obj.config_path = lambda *args, **kwargs : c.config_path(obj)
+        if not hasattr(obj, 'config'):
+            obj.config = lambda *args, **kwargs : c.config(obj)
+        return obj
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -51,6 +88,7 @@ class c:
                trials=1, 
                verbose=False,
                cache=True, **kwargs ) -> str:
+        
         t0 = time.time()  
         path = path or 'module'
         if path in ['module', c.repo_name[0]]:
@@ -59,55 +97,26 @@ class c:
         tree = c.tree()
         simp_path = path
         module = tree.get(path, path)
-        if not cache or (not module in c.module_cache):
-            try:
-                module_obj = c.obj2module(c.obj(module)) # if the model
-            except Exception as e:
-                tree = c.tree(update=1)
-                if not module in tree:
-                    matching_keys = [k for k in tree.keys() if module in k] # 
-                    if len(matching_keys) > 0:                        
-                        if any([path == k for k in matching_keys]):
-                            return [c.module(k) for k in matching_keys]
-                        module = tree[matching_keys[0]]
-                sys.path.insert(0, c.pwd())
-                module_obj = c.obj2module(c.obj(module))
 
-            
-            c.module_cache[module] = module_obj
-        module_obj = c.module_cache[module]
-        module_obj = module_obj(**params) if params != None else module_obj
+        if not cache or (not module in c.module_cache):
+            if not module in tree:
+                tree = c.tree(update=1)
+                assert module in tree or module in tree.values(), f'{module} not in {tree}'
+            obj = c.obj(module) # if the model
+            is_obj_module = all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
+            if not is_obj_module: # if the object is not a module, then it is a function
+                obj = c.obj2module(obj)
+            c.module_cache[module] = obj
+        else:
+            obj = c.module_cache[module]
+        if isinstance(obj, dict):
+            print('Params({})'.format(obj))
+            obj = obj(**params) 
         c.print(f'Module(name={obj_path} objpath={obj_path} loadtime={(c.time() - t0):.2f}') if verbose else ''
-        return module_obj
+        return obj
     
     get_agent = block =  get_block = get_module =  mod =  module
     
-    @classmethod
-    def obj2module(cls, obj:'Object', verbose=False, core_features=core_features):
-        module = obj
-        if c.is_object_module(obj):
-            return module
-        c.print(f'obj2module({obj})', verbose=verbose)
-        module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
-        module.module_name = lambda *args, **kwargs : c.module_name(module)
-        module.storage_dir = lambda *args, **kwargs : c.storage_dir(module)
-        module.filepath = lambda *args, **kwargs : c.filepath(module)
-        module.dirpath = lambda *args, **kwargs : c.dirpath(module)
-        module.code = lambda *args, **kwargs : c.code(module)
-        module.info = lambda *args, **kwargs: c.info(module)
-        module.code_hash = lambda *args, **kwargs : c.code_hash(module)
-        module.schema = lambda *args, **kwargs : c.schema(module)
-        module.fns = lambda *args, **kwargs : c.fns(module)
-        if not hasattr(module, 'fn2code'):
-            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-        if not hasattr(module, 'fn2hash'): 
-            module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
-        if not hasattr(module, 'config_path'):
-            module.config_path = lambda *args, **kwargs : c.config_path(module)
-        if not hasattr(module, 'config'):
-            module.config = lambda *args, **kwargs : c.config(module)
-        return module
-
     @classmethod
     def filepath(cls, obj=None) -> str:
         return inspect.getfile(cls.resolve_module(obj))
@@ -193,7 +202,12 @@ class c:
 
     @classmethod
     def config_path(cls, obj = None) -> str:
-        return c.dirpath(obj) + '/config.json'
+        json_path =  c.dirpath(obj) + '/config.json'
+        yaml_path =  c.dirpath(obj) + '/config.yaml'
+        if os.path.exists(json_path):
+            return json_path
+        elif os.path.exists(yaml_path):
+            return yaml_path
 
     @classmethod
     def sandbox(cls, path='./', filename='sandbox.py'):
@@ -203,19 +217,11 @@ class c:
         return {'success': False, 'message': 'sandbox not found'}
     
     sand = sandbox
-    cache_path = f'{storage_path}/cache'
-    module_cache = {}
-    _obj = None
-
     
     @classmethod
     def storage_dir(cls, module=None):
         module = cls.resolve_module(module)
         return f'{c.storage_path}/{module.module_name()}'
-
-    @classmethod
-    def is_object_module(cls, obj) -> bool:
-        return all([hasattr(obj, k) for k in c.core_features])
 
     @staticmethod
     def config_paths(path='./'):
@@ -276,7 +282,6 @@ class c:
             module =  cls(*argv.args, **argv.kwargs)   
         else:
             module = cls  
-        print(argv)
         return getattr(module, argv.fn)(*argv.args, **argv.kwargs)     
         
     @classmethod
@@ -286,9 +291,14 @@ class c:
         return c.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
 
     @classmethod
-    def fn(cls,fn:str, params=None, args=None, kwargs=None, module:str = None) -> Any:
+    def run_fn(cls,fn:str, params:Optional[dict]=None, args=None, kwargs=None, module='module') -> Any:
+        """
+        get a fucntion from a strings
+        """
         if '/' in fn:
             module, fn = fn.split('/')
+        else:
+            assert hasattr(module, fn), f'{fn} not in {module}'
         module = c.module(module)
         fn_obj = getattr(module, fn)
         is_self_method = 'self' in c.get_args(fn_obj)
@@ -305,9 +315,32 @@ class c:
         return fn_obj(*args, **kwargs)
     
     # UNDER CONSTRUCTION (USE WITH CAUTION)
-    run_fn = fn
-    def forward(self, *args, **kwargs):
-        return c.ask(*args, **kwargs)
+
+    def get_args_kwargs(self,params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
+        """
+        resolve params as args 
+        """
+        params = params or {}
+        args = args or []
+        kwargs = kwargs or {}
+        if isinstance(params, list):
+            args = params
+        elif isinstance(params, dict):
+            if 'args' in params and 'kwargs' in params and len(params) == 2:
+                args = params['args']
+                kwargs = params['kwargs']
+            else:
+                kwargs = params
+        return args, kwargs
+
+    def forward(self, fn:str='info', params:dict=None, args:list=None, kwargs:dict=None) -> Any:
+        assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
+        if hasattr(self, fn):
+            fn_obj = getattr(self, fn)
+        else:
+            fn_obj = c.fn(fn)
+        args, kwargs = self.get_args_kwargs(params, args, kwargs)
+        return fn_obj(*args, **kwargs)
     
     tests_path = f'{lib_path}/tests'
         # return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
@@ -354,7 +387,12 @@ class c:
     @classmethod
     def keys(cls,key:str = None , **kwargs) -> None:
         from commune.key import Key
-        return Key.get_key(key, **kwargs)
+        return Key.keys(key, **kwargs)
+
+    @classmethod
+    def key2address(cls,key:str = None , **kwargs) -> None:
+        from commune.key import Key
+        return Key.key2address(key, **kwargs)
     
     @classmethod
     def files(cls, 
@@ -453,7 +491,7 @@ class c:
 
     @classmethod
     def utils(cls, search=None):
-        utils = c.path2fns(c.root_path + '/utils', tolist=True)
+        utils = c.path2fns(c.core_path + '/utils', tolist=True)
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
@@ -477,7 +515,7 @@ class c:
 
     @classmethod
     def get_utils(cls, search=None):
-        utils = c.path2fns(c.root_path + '/utils', tolist=True)
+        utils = c.path2fns(c.core_path + '/utils', tolist=True)
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
@@ -547,7 +585,12 @@ class c:
     def config(cls, module=None, to_munch=False, fn='__init__') -> 'Munch':
         path = c.config_path(module)
         if os.path.exists(path):
-            config = c.get_json(path)
+            if path.endswith('.json'):
+                config = c.get_json(path)
+            elif path.endswith('.yaml') or path.endswith('.yml'):
+                config = c.get_yaml(path)
+            else:
+                raise Exception(f'Invalid config file {path}')
         else:
             config =  c.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
         return c.dict2munch(config) if to_munch else config
@@ -844,71 +887,67 @@ class c:
     fn2cost = {}
 
     @classmethod
-    def fn_schema(cls, fn:str = '__init__', **kwargs)->dict:
+    def fnschema(cls, fn:str = '__init__', include_code=False, **kwargs)->dict:
         '''
         Get function schema of function in cls
         '''     
         schema = {}
-
-        fn = c.get_fn(fn)
-        if not callable(fn):
-            return {'fn_type': 'property', 'type': type(fn).__name__}
-        inout_schema = {}
-        for k,v in dict(inspect.signature(fn)._parameters).items():
-            inout_schema[k] = {
+        fn_obj = c.get_fn(fn)
+        if not callable(fn_obj):
+            return {'fn_type': 'property', 'type': type(fn_obj).__name__}
+        fn_signature = inspect.signature(fn_obj)
+        schema['input'] = {}
+        for k,v in dict(fn_signature._parameters).items():
+            schema['input'][k] = {
                     'value': "_empty"  if v.default == inspect._empty else v.default, 
                     'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
             }
-        output_schema = {
+        schema['output'] = {
             'value': None,
-            'type': str(fn.__annotations__.get('return', None) if hasattr(fn, '__annotations__') else None)
+            'type': str(fn_obj.__annotations__.get('return', None) if hasattr(fn_obj, '__annotations__') else None)
         }
-        schema['input'] = inout_schema
-        schema['output'] = output_schema
-        schema['docs'] = fn.__doc__
-        schema['path'] = inspect.getfile(fn)
-        fn_name = fn.__name__
-
-        if hasattr(fn, '__cost__'):
-            schema['cost'] = fn.__cost__
-
-        schema['filebounds'] = inspect.getsourcelines(fn)
-        schema['filebounds'] = {'start': schema['filebounds'][1], 'end': len(schema['filebounds'][0]) + schema['filebounds'][1], 'length': len(schema['filebounds'][0])}
+        schema['docs'] = fn_obj.__doc__
+        schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__
+        schema['name'] = fn_obj.__name__
+        schema['source'] = c.source(fn_obj, include_code=include_code)
         return schema
 
 
+
+    
     @classmethod
-    def getdocs(cls, obj = None):
-        obj = c.resolve_obj(obj)
-        return obj.__doc__
+    def source(cls, obj, include_code=True):
+        """
+        Get the source code of a function
+        """
+        sourcelines = inspect.getsourcelines(obj)
+        source = ''.join(sourcelines[0])
+        return {
+                             'start': sourcelines[1], 
+                             'length': len(sourcelines[0]),
+                             'path': inspect.getfile(obj),
+                             'code': source if include_code else None,
+                             'hash': c.hash(source),
+                             'end': len(sourcelines[0]) + sourcelines[1]
+                             }
 
     @classmethod
-    def sourcelines(cls, obj = None):
-        obj = c.resolve_obj(obj)
-        return inspect.getsourcelines(obj)
-
-
-    @classmethod
-    def schema(cls, module = None, **kwargs)->dict:
+    def schema(cls, obj = None, **kwargs)->dict:
         '''
         Get function schema of function in cls
-        '''     
-        schema = {}
-        if '/' in str(module):
-            return c.fn_schema(module, **kwargs)
-        module = c.resolve_module(module)
-        fns = c.fns(module)
-        for fn in fns:
-            schema[fn] = c.fn_schema(getattr(module, fn))
+        '''   
+        if '/' in str(obj) or callable(obj):
+            schema = c.fnschema(obj, **kwargs)
+        else:
+            module = c.resolve_module(obj)
+            schema = {fn: c.fnschema(getattr(module, fn)) for fn in c.fns(obj)}
         return schema
-
-        
+ 
     @classmethod
     def resolve_obj(cls, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        if obj == None:
-            obj = cls
+        obj = obj or cls
         if isinstance(obj, str) and '/' in obj:
-            obj = c.get_fn(obj)
+            obj = c.fn(obj)
         else:
             obj = cls.resolve_module(obj)
         return obj
@@ -930,10 +969,14 @@ class c:
         return c.codemap(module=module, search=search,**kwargs)
 
     @classmethod
-    def codehash(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        return c.hash(c.code_map(module=module, search=search,**kwargs))
+    def code_hash_map(cls, module , search=None, *args, **kwargs) ->  Dict[str, str]:
+        return {k:c.hash(str(v)) for k,v in c.code_map(module=module, search=search,**kwargs).items()}
 
-    code_hash = codehash
+    @classmethod
+    def codehash(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+        return c.hash(self.code_hash_map(module=module, search=search,**kwargs))
+
+    cid = codehash
     @classmethod
     def getsource(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
@@ -951,8 +994,8 @@ class c:
     def module_hash(cls, module=None,  *args, **kwargs):
         return c.hash(c.code_map(module or cls.module_name(), **kwargs))
     @classmethod
-    def code_hash(cls, module=None,  *args, **kwargs):
-        return c.hash(c.code(module or cls.module_name(), **kwargs))
+    def cid(cls, module=None,  *args, **kwargs):
+        return c.hash(c.code(module, **kwargs))
 
     @classmethod
     def get_params(cls, fn):
@@ -1007,8 +1050,7 @@ class c:
         return dir(obj)
     
     @classmethod
-    def fns(cls, 
-                      obj: Any = None,
+    def fns(cls, obj: Any = None,
                       search = None,
                       splitter_options = ["   def " , "    def "] ,
                       include_hidden = False,
@@ -1024,7 +1066,6 @@ class c:
         obj = cls.resolve_module(obj)
         text = inspect.getsource(obj)
         functions = []
-        # just
         for splitter in splitter_options:
             for line in text.split('\n'):
                 if f'"{splitter}"' in line: # removing edge case
@@ -1060,7 +1101,7 @@ class c:
     @classmethod 
     def info(cls, module:str='module',  # fam
             lite: bool =True, 
-            max_age : Optional[int]=None, 
+            max_age : Optional[int]=1000, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
             relative=True,
@@ -1108,7 +1149,10 @@ class c:
         module2error = c.get(error_path, {})
         module2info = c.get(path, module2info, max_age=max_age, update=update)
         if len(module2info) == 0:
-            for m in c.modules():
+            modules = c.modules()
+            progress = c.tqdm(len(modules))
+            for m in modules:
+                progress.update(1)
                 try:
                     module2info[m] = c.info(m)
                 except Exception as e:
@@ -1166,7 +1210,7 @@ class c:
         return executor.submit(fn=fn, params=params, args=args, kwargs=kwargs, timeout=timeout)
 
     @classmethod
-    def get_fn(cls, fn:str, splitter='/', default_fn='forward') -> 'Callable':
+    def get_fn(cls, fn:str, splitter='/', params=None, default_fn='forward') -> 'Callable':
         """
         Gets the function from a string or if its an attribute 
         """
@@ -1189,12 +1233,15 @@ class c:
             args = c.get_args(fn_obj)
             if 'self' in args:
                 fn_obj = getattr(module(), fn.split('/')[-1])
-
-            
         else:
             fn_obj = fn
         # assert fn_obj != None, f'{fn} is not a function or object'
+        if params != None:
+            return fn_obj(**params)
         return fn_obj
+    @classmethod
+    def fn(cls, fn:str, splitter='/', params=None, default_fn='forward') -> 'Callable':
+        return c.get_fn(fn, splitter=splitter, params=params, default_fn=default_fn)
 
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
@@ -1212,6 +1259,7 @@ class c:
             method_type_map[method_type].append(attr_name)
         if mode != None:
             method_type_map = method_type_map[mode]
+        
         return method_type_map
 
     @classmethod
@@ -1300,50 +1348,6 @@ class c:
     def mnemonic(cls, words=24):
         return c.mod('key').generate_mnemonic(words=words)
       
-    @staticmethod
-    def path2classes(path='./',
-                     class_prefix = 'class ', 
-                     file_extension = '.py',
-                     tolist = False,
-                     depth=4,
-                     relative=False,
-                     class_suffix = ':', **kwargs) :
-        path = c.abspath(path)
-        path2classes = {}
-        if os.path.isdir(path) and depth > 0:
-            for p in c.ls(path):
-                try:
-                    for k,v in c.path2classes(p, depth=depth-1).items():
-                        if len(v) > 0:
-                            path2classes[k] = v
-                except Exception as e:
-                    pass
-        elif os.path.isfile(path) and path.endswith('.py'):
-            code = c.get_text(path)
-            classes = []
-            file_path = c.path2objectpath(path)
-            for line in code.split('\n'):
-                if line.startswith(class_prefix) and line.strip().endswith(class_suffix):
-                    new_class = line.split(class_prefix)[-1].split('(')[0].strip()
-                    if new_class.endswith(class_suffix):
-                        new_class = new_class[:-1]
-                    if ' ' in new_class:
-                        continue
-                    classes += [new_class]
-            if file_path.startswith(path):
-                file_path = file_path[len(path)+1:]
-            if '/' in file_path:
-                file_path = file_path.replace('/', '.')
-            if relative:
-                path = c.path2relative(path)
-            path2classes =  {path:  [file_path + '.' + cl for cl in classes]}
-        if tolist: 
-            classes = []
-            for k,v in path2classes.items():
-                classes.extend(v)
-            return classes
-   
-        return path2classes
 
 
     @staticmethod
@@ -1393,7 +1397,52 @@ class c:
         if name_chunks[0] == c.repo_name:
             name_chunks = name_chunks[1:]
         return '.'.join(name_chunks)
-        
+
+    @staticmethod
+    def path2classes(path='./',
+                     class_prefix = 'class ', 
+                     file_extension = '.py',
+                     tolist = False,
+                     depth=4,
+                     relative=False,
+                     class_suffix = ':', **kwargs) :
+        path = c.abspath(path)
+        path2classes = {}
+        if os.path.isdir(path) and depth > 0:
+            for p in c.ls(path):
+                try:
+                    for k,v in c.path2classes(p, depth=depth-1).items():
+                        if len(v) > 0:
+                            path2classes[k] = v
+                except Exception as e:
+                    pass
+        elif os.path.isfile(path) and path.endswith('.py'):
+            code = c.get_text(path)
+            classes = []
+            file_path = c.path2objectpath(path)
+            for line in code.split('\n'):
+                if line.startswith(class_prefix) and line.strip().endswith(class_suffix):
+                    new_class = line.split(class_prefix)[-1].split('(')[0].strip()
+                    if new_class.endswith(class_suffix):
+                        new_class = new_class[:-1]
+                    if ' ' in new_class:
+                        continue
+                    classes += [new_class]
+            if file_path.startswith(path):
+                file_path = file_path[len(path)+1:]
+            if '/' in file_path:
+                file_path = file_path.replace('/', '.')
+            if relative:
+                path = c.path2relative(path)
+            path2classes =  {path:  [file_path + '.' + cl for cl in classes]}
+        if tolist: 
+            classes = []
+            for k,v in path2classes.items():
+                classes.extend(v)
+            return classes
+   
+        return path2classes
+
     @classmethod
     def path2fns(cls, path = './', tolist=False, **kwargs):
         fns = []
@@ -1429,20 +1478,13 @@ class c:
         return objs
 
     @classmethod
-    def objects(cls, path:str = './', depth=10, search=None, **kwargs):
-        return c.objs(path=path, depth=depth, search=search, **kwargs)
+    def lsfns(cls, path:str = './', depth=10, search=None, **kwargs) -> List[str]:
+        functions = c.path2fns(path, tolist=True)
+        return functions
 
     @classmethod
-    def ensure_sys_path(cls):
-        if not hasattr(c, 'included_pwd_in_path'):
-            c.included_pwd_in_path = False
-        if  not c.included_pwd_in_path:
-            paths = [ c.pwd(), c.modules_path]
-            for p in paths:
-                if not p in sys.path:
-                    sys.path.insert(0, p)
-            c.included_pwd_in_path = True
-        return sys.path
+    def objects(cls, path:str = './', depth=10, search=None, **kwargs):
+        return c.objs(path=path, depth=depth, search=search, **kwargs)
 
     @classmethod
     def import_module(cls, import_path:str ) -> 'Object':
@@ -1552,8 +1594,18 @@ class c:
 
     @classmethod
     def core_tree(cls, **kwargs):
-        tree =  c.get_tree(c.lib_path, **kwargs)
+        tree =  c.get_tree(c.core_path, **kwargs)
         return {k:v for k,v in tree.items() if 'modules.' not in v}
+
+    @classmethod
+    def core_readmes(cls, **kwargs):
+        return cls.readmes(c.lib_path, **kwargs)
+
+    @classmethod
+    def core_readme2text(cls, **kwargs):
+        return cls.readme2text(c.lib_path, **kwargs)
+    
+
     @classmethod
     def local_tree(cls , depth=4, **kwargs):
         return c.get_tree(c.pwd(), depth=depth, **kwargs)
@@ -1569,13 +1621,6 @@ class c:
             c.put(tree_cache_path, tree)
         return tree
 
-    def test(self, module=None):
-        path = c.test_path
-        if module != None:
-            path = path + '/' + module  + '_test.py'
-        assert os.path.exists(path), f'Path {path} does not exist'        
-        return c.cmd(f"pytest {path}")
-    
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
@@ -1614,7 +1659,10 @@ class c:
         if search != None:
             modules = [m for m in modules if search in m]     
         return modules
-    blocks = mods = modules
+
+    @classmethod
+    def mods(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:   
+        return cls.modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs)
 
     @classmethod
     def check_info(cls,info, features=['key', 'hash', 'time', 'founder', 'name', 'schema']):
@@ -1627,27 +1675,26 @@ class c:
         return True
 
     @classmethod
-    def new_module( cls,
+    def new( cls,
                    path : str ,
                    name= None, 
                    base_module : str = 'base', 
-                   update=1
+                   update=0
                    ):
         path = os.path.abspath(path)
-        path = path + '.py' if not path.endswith('.py') else path
+        path = path + '/module.py' if not path.endswith('.py') else path
         name = name or c.path2name(path)
-        base_module = c.module(base_module)
-        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
-        code = base_module.code()
-        code = code.replace(base_module.__name__,module_class_name)
+        base_module_obj = c.module(base_module)
+        code = c.code(base_module)
+        code = code.replace(base_module_obj.__name__, ''.join([m[0].capitalize() + m[1:] for m in name.split('.')]))
         dirpath = os.path.dirname(path)
-        assert os.path.exists(path) or update
+        assert os.path.exists(path) or update, f'Path {path} already exists'
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
-        c.put_text(path, code)
+        c.put_text(path, 'import commune as c \n'+code)
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
-    add_module = new_module
+    add_module = new_module = new
 
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
@@ -1725,11 +1772,7 @@ class c:
 
     def has_modules(self, path:str):
         return path in c.get_tree(c.modules_path)
-
-    def help(self, module:str, search=None):
-        module = c.module(module)
-        return module.help(search=search)
-                
+        
     @classmethod
     def module2fns(cls, path=None):
         tree = c.get_tree(path or cls.lib_path)
@@ -1785,6 +1828,52 @@ class c:
                 assert  fn not in from_to_map, f'Function {route}  already exists in {from_to_map[fn]}'
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
+
+
+    @classmethod
+    def test(cls, module='module', timeout=50):
+
+        if c.module_exists(module + '.test'):
+            module = module + '.test'
+
+        if module == 'module':
+            module = 'test'
+        Test = c.module(module)
+        test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
+        test = Test()
+        futures = []
+        for fn in test_fns:
+            print(f'Testing({fn})')
+            future = c.submit(getattr(test, fn), timeout=timeout)
+            futures += [future]
+        results = []
+        for future in c.as_completed(futures, timeout=timeout):
+            print(future.result())
+            results += [future.result()]
+        return results
+
+
+    @classmethod
+    def testmod(cls, module='module', timeout=50):
+
+        if c.module_exists(module + '.test'):
+            module = module + '.test'
+
+        if module == 'module':
+            module = 'test'
+        Test = c.module(module)
+        test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
+        test = Test()
+        futures = []
+        for fn in test_fns:
+            print(f'Testing({fn})')
+            future = c.submit(getattr(test, fn), timeout=timeout)
+            futures += [future]
+        results = []
+        for future in c.as_completed(futures, timeout=timeout):
+            print(future.result())
+            results += [future.result()]
+        return results
 
     @staticmethod
     def readmes( path='./', search=None):
@@ -1869,7 +1958,10 @@ class c:
 
 
     @classmethod
-    def add_routes(cls, routes:dict=None, verbose=False):
+    def sys_paths(cls):
+        return sys.path
+    @classmethod
+    def sync_routes(cls, routes:dict=None, verbose=False):
 
         """
         This ties other modules into the current module.
@@ -1882,7 +1974,9 @@ class c:
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
         def fn_generator(*args, route, **kwargs):
-            def fn(*args, **kwargs):
+            
+            def fn_wrapper(*args, **kwargs):
+                
                 try:
                     fn_obj = c.obj(route)
                 except: 
@@ -1891,13 +1985,14 @@ class c:
                         fn = route.split('/')[-1]
                     module = c.module(module)
                     fn_obj = getattr(module, fn)
-                    if c.classify_fn(fn_obj) == 'self':
+                    fn_args = c.get_args(fn_obj)
+                    if 'self' in fn_args:
                         fn_obj = getattr(module(), fn)
                 if callable(fn_obj):
                     return fn_obj(*args, **kwargs)
                 else:
                     return fn_obj
-            return fn(*args, **kwargs)
+            return fn_wrapper(*args, **kwargs)
 
         for module, fns in routes.items():
             for fn in fns: 
@@ -1914,7 +2009,7 @@ class c:
                     if verbose:
                         print(f'Warning: {to_fn} already exists')
                 else:
-                    fn_obj = partial(fn_generator, route=module + '/' + fn) 
+                    fn_obj = partial(fn_generator, route=f'{module}/{fn}') 
                     fn_obj.__name__ = fn
                     setattr(cls, to_fn, fn_obj)
         duration = time.time() - t0
@@ -1938,35 +2033,42 @@ class c:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-    @classmethod
-    def sync(cls, module:str = 'module', max_age=10000, update=False, **kwargs):
-        """
-        Initialize the module
-        """
-        c.add_routes()
-        def sync_module(module_name, module_code_url):
-            module_path = c.lib_path + '/' + module_name.replace('.','/')
-            if not os.path.exists(module_path):
-                os.makedirs(module_path, exist_ok=True)
-            shortengit = lambda x: ('/'.join(x.split('/')[-2:]))
-            shortenpath = lambda x: x if not x.startswith(c.lib_path) else x[len(c.lib_path)+1:]
-            c.print(f'Syncing({shortenpath(module_path)} <-- {shortengit(module_code_url)})')
-            if os.path.exists(module_path+'/.git'):
-                c.cmd(f'git pull', cwd=module_path)
-            else:
-                c.cmd(f'git clone {module_code_url} {module_path}')
-            return True
-        tqdm = c.tqdm(len(config['modules'].items()), desc='Syncing Modules')
-        for module_name, module_code_url in config['modules'].items():
-            modules_flag_path = 'sync_modules/' + module_name
-            modules_flag = c.get(modules_flag_path, max_age=max_age, update=update)
-            if modules_flag != None:
-                continue
-            sync_module(module_name, module_code_url)
-            c.put(modules_flag_path, True)
-            tqdm.update(1)
-        return {'success': True, 'msg': 'synced config'}
 
+    @staticmethod
+    def giturl(url:str='commune-ai/commune'):
+        gitprefix = 'https://github.com/'
+        gitsuffix = '.git'
+        if not url.startswith(gitprefix):
+            url = gitprefix + url
+        if not url.endswith(gitsuffix):
+            url = url + gitsuffix
+        return url
+
+    @staticmethod
+    def sync_module(name, url, max_age=10000, update=False):
+        modules_flag_path = 'sync_modules/' + name
+        modules_flag = c.get(modules_flag_path, max_age=max_age, update=update)
+        if modules_flag != None:
+            return True
+        url = c.giturl(url)
+        module_path = c.modules_path + '/' + name.replace('.','/') if name != 'modules' else c.modules_path
+        c.print(f'Sync({url} --> {module_path})')
+        if not os.path.exists(module_path):
+            os.makedirs(module_path, exist_ok=True)
+        if os.path.exists(module_path+'/.git'):
+            cmd = f'git pull {url} {module_path}' 
+        else:
+            cmd = f'git clone {url} {module_path}'
+        c.cmd(cmd, cwd=module_path)
+        c.put(modules_flag_path, True)
+        return True
+
+    @staticmethod
+    def sync_modules(max_age=100, update=False):
+        results = []
+        for module_name, module_url in config['modules'].items():
+            results.append(c.sync_module(module_name, module_url, max_age=max_age, update=update))
+        return results
 
     def add_tags(self, module='openrouter', goal='RETURN TAGS AS A LIST AS THE CONTENT'):
         text = f'''
@@ -1976,8 +2078,6 @@ class c:
         {goal}
         --FORMAT--
         <START_OUTPUT>JSON(data=['tag1', 'tag2'])<END_OUTPUT>
-
-
         '''
         model = c.module('openrouter')()
         output = ''
@@ -1987,6 +2087,38 @@ class c:
         
         output = output.split('START_OUTPUT>')[-1].split('<END_OUTPUT')[0]
         return json.loads(output)
+
+    @classmethod
+    def ensure_sys_path(cls):
+        if not hasattr(c, 'included_pwd_in_path'):
+            c.included_pwd_in_path = False
+        if  not c.included_pwd_in_path:
+            paths = [c.modules_path, c.pwd()]
+            for p in paths:
+                if not p in sys.path:
+                    sys.path.append(p)
+            c.included_pwd_in_path = True
+        return sys.path
+
+
+    def help(self, obj:str, search=None):
+        code = c.code(module)
+        prompt = f'help({obj})'
+        return c.ask(code, prompt=prompt, search=search)
+
+    @classmethod
+    def sync(cls, module:str = 'module', max_age=1000, update=False, **kwargs):
+        """
+        Initialize the module
+        """
+        c.sync_routes()
+        c.sync_modules(max_age=max_age, update=update)
+        c.ensure_sys_path()
+        return {'success': True, 'msg': 'synced config'}
+
+
+
+
 
 c.sync()
 Module = c # Module is alias of c

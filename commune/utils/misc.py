@@ -218,7 +218,6 @@ def check_word( word:str)-> str:
         progress.update(1)
     return False
 
-
 def colors():
     return ['black', 'red', 'green', 
             'yellow', 'blue', 'magenta', 
@@ -234,10 +233,7 @@ def random_color():
     return random.choice(colors())
 randcolor = randcolour = colour = color = random_colour = random_color
 
-
-
-
-    
+  
 def hash( x, mode: str='sha256',*args,**kwargs) -> str:
     import hashlib
     x = python2str(x)
@@ -453,6 +449,15 @@ def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
         x = Munch(x)
     return x 
 
+def munch( x:'Munch', recursive:bool=True)-> dict:
+    from munch import Munch
+    if isinstance(x, Munch):
+        x = dict(x)
+        for k,v in x.items():
+            if isinstance(v, Munch) and recursive:
+                x[k] = munch2dict(v)
+    return x 
+
 def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     from munch import Munch
     if isinstance(x, Munch):
@@ -469,10 +474,9 @@ def time(t=None) -> float:
 def timestamp(t=None) -> float:
     return int(time())
 
-def time2date(self, time:float=None):
+def time2date(self, x:float=None):
     import datetime
-    time = time or time()
-    return datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
 
 def datetime2time( x:str):
     import datetime

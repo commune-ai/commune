@@ -133,7 +133,6 @@ def nest_asyncio():
     import nest_asyncio
     nest_asyncio.apply()
 
-
 def memory_usage(fmt='gb'):
     fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
     import psutil

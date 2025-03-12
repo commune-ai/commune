@@ -17,7 +17,92 @@ class Client:
         self.key  = c.get_key(key)
         self.url = module if c.is_url(module) else c.namespace().get(module,module)
         self.session = requests.Session()
+
+
+    def forward(self, 
+                fn  = 'info', 
+                params: Optional[Union[list, dict]] = None, # if you want to pass params as a list or dict
+                # if you want to pass positional arguments to the function, use args 
+                args : Optional[list] = [], 
+                kwargs : Optional[dict] = {},      
+                ## adduitional parameters
+                timeout:int=2,  # the timeout for the request
+                key : str = None,  # the key to use for the request
+                mode: str  = 'http', # the mode of the request
+                stream: bool = False, # if the response is a stream
+                **_extra_kwargs 
+    ):
+        key = self.get_key(key) # step 1: get the key
+        url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
+        params = self.get_params(params=params, args=args, kwargs=kwargs) # step 3: get the params
+        headers = self.get_headers(key=key, fn=fn, params=params)
+        return  self.get_result(url=url, params=params,  headers=headers, timeout=timeout, stream=stream)
         
+    def get_url(self, fn:str, mode='http'):
+        if '/' in str(fn):  
+            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
+        else:
+            url, fn = self.url, fn
+        if not c.is_url(url):
+            url = c.namespace().get(url, url)
+        assert c.is_url(url), f'{url}'
+        url = url if url.startswith(mode) else f'{mode}://{url}'
+        url = f"{url}/{fn}/"
+        return url
+
+    def get_key(self,key=None):
+        if key == None:
+            return self.key
+        if isinstance(key, str):
+            key = c.get_key(key)
+        return key
+
+    def get_params(self, params=None, args=[], kwargs={}):
+        params = params or {}
+        args = args or []
+        kwargs = kwargs or {}
+        if params:
+            if isinstance(params, dict):
+                kwargs = {**kwargs, **params}
+            elif isinstance(params, list):
+                args = params
+            else:
+                raise Exception(f'Invalid params {params}')
+        params = {"args": args, "kwargs": kwargs}
+        return params
+ 
+    def get_headers(self, fn:str, params:dict, key) -> dict:
+        # sign the request
+        time_str = str(c.time()) # get the current time
+        data_hash = c.hash({'fn': fn, 'params': params, 'time': time_str}) # hash the data
+        headers =  {
+            'key': key.ss58_address, # the key to use
+            'crypto_type': str(key.crypto_type), # the crypto type
+            'time': time_str, # the time of the request
+            'data_hash': data_hash, # the hash of the data for easy verification
+            'signature':  key.sign(data_hash).hex(), # the signature of the data as string (0x...)
+            'Content-Type': 'application/json', # the content type
+        } 
+        return headers
+
+    def get_result(self, url, params, headers, timeout, stream):
+        response = self.session.post(url, json=params,  headers=headers, timeout=timeout, stream=stream)
+        ## handle the response
+        if response.status_code != 200:
+            raise Exception(response.text)
+        if 'text/event-stream' in response.headers.get('Content-Type', ''):
+            result = self.stream(response)
+        if 'application/json' in response.headers.get('Content-Type', ''):
+            result = response.json()
+        elif 'text/plain' in response.headers.get('Content-Type', ''):
+            result = response.text
+        else:
+            # if the response is not json or text, return the content
+            result = response.content
+            if response.status_code != 200:
+                raise Exception(result)
+        return result
+
     @classmethod
     def call(cls, 
                 fn:str = 'info',
@@ -45,93 +130,6 @@ class Client:
                                                             params=params,
                                                             timeout=timeout, 
                                                             key=key)
-
-    def get_url(self, fn:str, mode='http'):
-        if '/' in str(fn):  
-            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-        else:
-            url, fn = self.url, fn
-        if not c.is_url(url):
-            url = c.namespace().get(url, url)
-        assert c.is_url(url), f'{url}'
-        url = url if url.startswith(mode) else f'{mode}://{url}'
-        url = f"{url}/{fn}/"
-        return url
-
-    def get_request(self,params: Union[list, dict] = None, 
-                    key = None,
-                    args = None, 
-                    kwargs = None):
-        params = params or {}
-        args = args or []
-        kwargs = kwargs or {}
-        if params:
-            if isinstance(params, dict):
-                kwargs = {**kwargs, **params}
-            elif isinstance(params, list):
-                args = params
-            else:
-                raise Exception(f'Invalid params {params}')
-        params = {"args": args, "kwargs": kwargs}
-        time_str = str(c.time()) # get the current time
-        headers =  {
-            'key': key.ss58_address,
-            'crypto_type': str(key.crypto_type),
-            'time': time_str,
-            'signature':  key.sign({'params': params, 'time': time_str}).hex(),
-            'Content-Type': 'application/json',
-        } 
-
-
-        return {'params': params, 'headers': headers}
-    
-        
-
-    def forward(self, 
-                fn  = 'info', 
-                params: Optional[Union[list, dict]] = None, # if you want to pass params as a list or dict
-                timeout:int=2,  
-                key : str = None,  
-                mode: str  = 'http', 
-                stream:bool = False, 
-                # if you want to pass positional arguments to the function, use args 
-                args : Optional[list] = [], 
-                kwargs : Optional[dict] = {},              
-    ):
-                
-        key = self.resolve_key(key)
-        url = self.get_url(fn=fn, mode=mode)
-        request = self.get_request(params=params, key=key, args=args, kwargs=kwargs  )
-        response = self.session.post(
-                                url, 
-                                json=request['params'], 
-                                headers=request['headers'], 
-                                timeout=timeout, 
-                                stream=stream
-                                )
-        return self.process_response(response)
-
-        
-    def resolve_key(self,key=None):
-        if key == None:
-            key = self.key
-        if isinstance(key, str):
-            key = c.get_key(key)
-        return key
-    
-    def process_response(self, response):
-        if 'text/event-stream' in response.headers.get('Content-Type', ''):
-            return self.stream(response)
-        if 'application/json' in response.headers.get('Content-Type', ''):
-            result = response.json()
-        elif 'text/plain' in response.headers.get('Content-Type', ''):
-            result = response.text
-        else:
-            # if the response is not json or text, return the content
-            result = response.content
-            if response.status_code != 200:
-                raise Exception(result)
-        return result
 
     def stream(self, response):
         def process_stream_line(line , stream_prefix = 'data: '):
@@ -167,7 +165,6 @@ class Client:
         """
         Create a client instance.
         """
-        
         class ClientVirtual:
             def __init__(self, client):
                 self.client = client

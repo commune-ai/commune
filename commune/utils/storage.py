@@ -94,10 +94,14 @@ def put_text(path:str, text:str) -> dict:
     # get size
     return {'success': True, 'path': f'{path}', 'size': len(text)*8}
 
-def get_text( path: str, **kwargs ) -> str:
+def get_text( path: str, default=None, **kwargs ) -> str:
     # Get the absolute path of the file
-    with open(path, 'r') as file:
-        content = file.read()
+    try:
+        with open(path, 'r') as file:
+            content = file.read()
+    except Exception as e:
+        print(f'ERROR IN GET_TEXT --> {e}')
+        content = default 
     return content
 
 def put_json(path:str, data:dict, key=None) -> dict:

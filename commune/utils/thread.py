@@ -8,9 +8,7 @@ def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:boo
     is_singleton = bool(not isinstance(futures, list))
 
     futures = [futures] if is_singleton else futures
-    # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
-    #     return gather(futures, timeout=timeout)
-        
+
     if len(futures) == 0:
         return []
     if is_coroutine(futures[0]):

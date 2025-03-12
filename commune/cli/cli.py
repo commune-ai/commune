@@ -43,6 +43,7 @@ class Cli:
         else:
             module = default_module
         if module.endswith('.py'):
+            
             module = module[:-3]
         if module in c.shortcuts:
             old_module = module
@@ -79,3 +80,5 @@ class Cli:
                     print(item, end='')
         else:
             print(output)
+
+        return output

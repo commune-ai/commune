@@ -39,6 +39,13 @@ ETH_DERIVATION_PATH = "m/44'/60'/0'/0"
 JUNCTION_ID_LEN = 32
 RE_JUNCTION = r'(\/\/?)([^/]+)'
 
+
+class KeyType:
+    ED25519 = 0
+    SR25519 = 1
+    ECDSA = 2
+
+
 class PublicKey:
     def __init__(self, private_key):
         self.point = int.from_bytes(private_key, byteorder='big') * BIP32_CURVE.generator

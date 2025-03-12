@@ -102,7 +102,7 @@ Create and manage distributed networks:
 c.serve('mymodule', network='local')
 
 # Join a subnet
-c.serve('mymodule', network='subspace', netuid=0)
+c.serve('mymodule', network='chain', netuid=0)
 ```
 
 ### 3. Validation System
