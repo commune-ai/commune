@@ -25,8 +25,6 @@ class c:
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
     port_range = config['port_range'] # the port range between 50050 and 50150
     shortcuts = config["shortcuts"]
-    routes = config['routes']
-
     # path attributes
     core_path  = os.path.dirname(__file__)
     repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
@@ -74,6 +72,7 @@ class c:
         obj.cid = lambda *args, **kwargs : c.cid(obj)
         obj.schema = lambda *args, **kwargs : c.schema(obj)
         obj.fns = lambda *args, **kwargs : c.fns(obj)
+        obj.help = lambda *args, **kwargs : c.help(*args, mod=obj.module_name(), **kwargs)
         obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
         obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
         if not hasattr(obj, 'config_path'):
@@ -119,6 +118,9 @@ class c:
     def getfile(cls, obj=None) -> str:
         return inspect.getfile(cls.resolve_module(obj))
     
+    @classmethod
+    def pytest(cls, path:str = core_path + '/test.py'):
+        return c.cmd(f'pytest {path}')
 
     @classmethod
     def path(cls, obj=None) -> str:
@@ -458,12 +460,14 @@ class c:
         return obj2file
 
     @classmethod
-    def encrypt(cls,data: Union[str, bytes], password: str = None, key: str = None,  **kwargs ) -> bytes:
-        return c.get_key(key).encrypt(data, password=password,**kwargs)
+    def encrypt(cls,data: Union[str, bytes], key: str = None, password: str = None, **kwargs ) -> bytes:
+        key = c.get_key(key) 
+        return key.encrypt(data, password=password)
 
     @classmethod
     def decrypt(cls, data: Any,  password : str = None, key: str = None, **kwargs) -> bytes:
-        return c.get_key(key).decrypt(data, password=password)
+        key = c.get_key(key)
+        return key.decrypt(data, password=password)
     
     @classmethod
     def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
@@ -541,27 +545,14 @@ class c:
         return {'success': True, 'message': 'added utils'}
 
     @classmethod
-    def get_routes(cls):
-        routes = cls.routes
+    def routes(cls):
+        routes = config['routes']
         for util in  c.utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
             routes[k] = routes.get(k , [])
             routes[k].append(v)
         return routes
-
-    @classmethod 
-    def fn2route(cls):
-        routes = cls.get_routes()
-        fn2route = {}
-        tree = c.tree()
-        for module, fns in routes.items():
-            is_module = bool( module in tree)
-            splitter = '/' if  is_module else '/'
-            for fn in fns:
-                fn2route[fn] =  module + splitter + fn
-        fn2route = dict(sorted({k: v for k, v in fn2route.items() if v != ''}.items(), key=lambda x: x[0]))
-        return fn2route
 
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
@@ -578,8 +569,18 @@ class c:
         return c.objects(search=search, **kwargs)
 
     @classmethod
+    def name2config(cls,**kwargs):
+        return {p.split('/')[-2]:p for p in c.configs(c.modules_path)}
+
+    @classmethod
     def config(cls, module=None, to_munch=False, fn='__init__') -> 'Munch':
-        path = c.config_path(module)
+        # if os.path.exists(c.modules_path + '/' in module):
+
+        name2config = c.name2config()
+        if module in name2config:
+            path = name2config[module]
+        else: 
+            path = c.config_path(module)
         if os.path.exists(path):
             if path.endswith('.json'):
                 config = c.get_json(path)
@@ -1821,25 +1822,12 @@ class c:
                 fn2module[f] = m
         return fn2module
 
-    def routes_from_to(self):
-        routes = c.routes
-        from_to_map = {}
-        for m, fns in routes.items():
-            for fn in fns:
-                route = m + '/' + fn
-                assert  fn not in from_to_map, f'Function {route}  already exists in {from_to_map[fn]}'
-                from_to_map[fn] = m + '/' + fn
-        return from_to_map
-
-
     @classmethod
     def test(cls, module='module', timeout=50):
-
-        if c.module_exists(module + '.test'):
-            module = module + '.test'
-
         if module == 'module':
             module = 'test'
+        elif c.module_exists(module + '.test'):
+            module = module + '.test'
         Test = c.module(module)
         test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
         test = Test()
@@ -1851,19 +1839,21 @@ class c:
             future2fn[future] = fn
         results = []
 
-        failed_resilts = []
-
+        failed = []
+        fn2result = {}
         for future in c.as_completed(future2fn, timeout=timeout):
             print(future.result())
             fn = future2fn.pop(future)
             result = future.result()
-            is_successful = all([not c.is_error(r) for r in result])
-            if is_successful:
-                results += [result]
+            fn2result[fn] = result
+            failed.extend([r for r in result if c.is_error(r)])
+            if len(failed) > 0:
+                failed += failed
             else:
-                raise Exception(f'Failed Test {fn} {result}')
-
-        return results
+                results += [future.result()]
+        if len(failed) > 0:
+            return {'success': False, 'failed': failed}
+        return {'success': True, 'results': results}
 
 
     @classmethod
@@ -1986,7 +1976,7 @@ class c:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        routes = cls.get_routes()
+        routes = cls.routes()
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
@@ -2102,6 +2092,10 @@ class c:
         c.put(modules_flag_path, True)
         return True
 
+    @classmethod
+    def live(self):
+        return c.servers()
+
     @staticmethod
     def sync_modules(max_age=10, update=False):
         results = []
@@ -2139,14 +2133,60 @@ class c:
             c.included_pwd_in_path = True
         return sys.path
 
-
-    def help(self, obj:str, search=None):
-        code = c.code(module)
-        prompt = f'help({obj})'
-        return c.ask(code, prompt=prompt, search=search)
+    @classmethod
+    def core_context(cls):
+        return c.readme2text(c.core_path)
 
     @classmethod
-    def sync(cls, module:str = 'module', max_age=10, update=False, **kwargs):
+    def help(cls, *question, mod:str='module', model='google/gemini-2.0-flash-001',  search=None):
+        x = {
+            'code_map': c.code(mod),
+            'core_context': c.core_context(),
+            'question' : ' '.join(question), 
+            'goal': 'respond in the output field',
+            'output': None
+        }
+        output = ''
+        for ch in  c.ask(str(x), process_text=False, model=model):
+            print(ch, end='')
+            output += ch
+        return output
+
+    def sumtext(self, text, split_size=100000):
+        text_size = len(text)
+        if text_size < split_size:
+            return [text]
+        else:   
+            return [text[i:i+split_size] for i in range(0, text_size, split_size)]
+        future2idx = {}
+        futures = []
+        for idx, chunk in enumerate(chunks):
+            future = c.submit(c.cond, [chunk])
+            future2idx[future] = idx
+        for f in c.as_completed(future2idx):
+            idx = future2idx.pop(f)
+            chunks[idx] = f.result()
+        return chunks
+
+    def sumpath(self, path='./', split_size=100000):
+        text_size = len(text)
+        if text_size < split_size:
+            return [text]
+        else:   
+            return [text[i:i+split_size] for i in range(0, text_size, split_size)]
+        future2idx = {}
+        futures = []
+        for idx, chunk in enumerate(chunks):
+            future = c.submit(c.cond, [chunk])
+            future2idx[future] = idx
+        for f in c.as_completed(future2idx):
+            idx = future2idx.pop(f)
+            chunks[idx] = f.result()
+        return chunks
+
+
+    @classmethod
+    def sync(cls, max_age=10, update=False, **kwargs):
         """
         Initialize the module
         """
@@ -2154,10 +2194,6 @@ class c:
         c.sync_modules(max_age=max_age, update=update)
         c.ensure_sys_path()
         return {'success': True, 'msg': 'synced config'}
-
-
-
-
 
 c.sync()
 Module = c # Module is alias of c

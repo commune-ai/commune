@@ -125,7 +125,8 @@
                 "rm_servers",
                 "namespace",
                 "servers", 
-                "history"
+                "history", 
+                {"from": "history", "to": "h"}
             ],
             "docker":
                 ["ps"],

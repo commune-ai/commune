@@ -8,7 +8,6 @@ import os
 import commune as c
 
 class Client:
-    default_fn = 'info'
     def __init__( self,  
                  module : str = 'module',  
                  key : Optional[str]= None,  
@@ -30,11 +29,11 @@ class Client:
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
                 stream: bool = False, # if the response is a stream
-                **_extra_kwargs 
+                **extra_kwargs 
     ):
         key = self.get_key(key) # step 1: get the key
         url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
-        params = self.get_params(params=params, args=args, kwargs=kwargs) # step 3: get the params
+        params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
         headers = self.get_headers(key=key, fn=fn, params=params)
         return  self.get_result(url=url, params=params,  headers=headers, timeout=timeout, stream=stream)
         
@@ -57,10 +56,11 @@ class Client:
             key = c.get_key(key)
         return key
 
-    def get_params(self, params=None, args=[], kwargs={}):
+    def get_params(self, params=None, args=[], kwargs={}, extra_kwargs={}):
         params = params or {}
         args = args or []
         kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)
         if params:
             if isinstance(params, dict):
                 kwargs = {**kwargs, **params}
@@ -113,6 +113,7 @@ class Client:
                 network:str = 'local',
                 key: Optional[str] = None, # defaults to module key (c.default_key)
                 timeout=40,
+                default_fn = 'info',
                 **extra_kwargs) -> None:
         
         if not fn.startswith('http'):
@@ -121,7 +122,7 @@ class Client:
                 fn = fn.split('/')[-1]
             else:
                 module = fn 
-                fn = cls.default_fn
+                fn = default_fn
         kwargs = (params or kwargs) or {}
         kwargs = {**kwargs, **extra_kwargs}
         return cls(module=module, network=network).forward(fn=fn, 

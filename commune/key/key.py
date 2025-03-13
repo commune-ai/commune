@@ -265,19 +265,14 @@ class Key:
         path = path or 'module'
         if not cls.key_exists(path):
             if create_if_not_exists:
-                key = cls.add_key(path, **kwargs)
-                c.print(f'key does not exist, generating new key -> {path}')
+                key = cls.add_key(path, **kwargs) # create key
             else:
                 raise ValueError(f'key does not exist at --> {path}')
         key_json = cls.get_key_data(path)
-        if isinstance(key_json, str):
-            key_json = key_json.replace("'", '"')
-        # if key is encrypted, decrypt it
         if cls.is_encrypted(key_json):
             if prompt_password and password == None:
                 password = input(f'enter password to decrypt {path} ')
             key_json = c.decrypt(data=key_json, password=password)
-
         key_json = json.loads(key_json) if isinstance(key_json, str) else key_json
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
@@ -356,8 +351,8 @@ class Key:
     @classmethod
     def get_key_path(cls, key):
         path = cls.resolve_path(key)
-        if not path.endswith('.json'):
-            path += '.json'
+        if not path.endswith('.json') :
+                path += '.json'
         return path
 
     @classmethod
@@ -519,7 +514,11 @@ class Key:
         key.set_crypto_type(crypto_type)
         return key
 
-    str2key = pwd2key = password2key = from_password = from_password
+    @classmethod
+    def str2key(cls, password:str, crypto_type=2, **kwargs):
+        return cls.from_password(password, crypto_type=crypto_type, **kwargs)
+
+    str2key = from_password
 
     @classmethod
     def from_uri(
@@ -860,13 +859,11 @@ class Key:
                 new_key2path[k_name] = new_k_path
                 print(f'migrating {k_path} to {new_k_path}')
                 # c.mv(k_path, new_k_path)
-                # assert os.path.exists(new_k_path), f'failed to migrate {k_name} to {new_k_path}'
                 # assert not os.path.exists(k_path), f'failed to remove {k_path}'
             except Exception as e:
                 c.print(f'failed to migrate {k_name} due to {e}', color='red')
                 
         return new_key2path
-
     @classmethod
     def crypto_name2type(cls, name:str):
         crypto_type_map = cls.crypto_type_map

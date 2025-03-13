@@ -80,6 +80,8 @@ class Server:
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
     def send_request(self, fn, request, timeout=10):
+        
+        # 
         headers = dict(request.headers)
         headers['time'] = float(headers.get('time', c.time()))
         headers['key'] = headers.get('key', headers.get('url', None))
@@ -104,15 +106,17 @@ class Server:
         rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
         
         # submit the request to the executor
-        future = self.executor.submit(self.forward, 
-                                      {"fn": fn, "params":params, "headers": headers} , 
-                                      priority=rate_limit)
+        future = self.executor.submit(self.forward, {"fn": fn, "params":params, "headers": headers} ,  priority=rate_limit)
         self.futures.append(future)
-
-        # wait for the response
         result =  c.wait(future, timeout=timeout)
         self.futures.remove(future)
         return result
+
+    def fleet(self, module='module', n=2, timeout=10):
+        if '::' not in module:
+            module = module + '::'
+        names = [module+str(i) for i in range(n)]
+        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
         
     def forward(self, fn:str, params:dict, headers:dict) -> dict:   
         t0 = c.time()
@@ -137,9 +141,11 @@ class Server:
                 'duration': t1 - float(headers['time']), # the duration of the request (in seconds) by subtracting the time the request was made from the current time
                 'cost': fn_obj.__dict__['__cost__'] if callable(fn_obj) else 1, # the cost of the function
             }
+            data_hash = c.hash(data)
             data['server'] = {
+                'data_hash': data_hash,
                 'key': self.module.key.ss58_address,
-                'signature': c.sign(c.hash(data), key=self.module.key, mode='str')
+                'signature': c.sign(data_hash, key=self.module.key, mode='str')
             }
             self.save_call(data)
         return result 
@@ -427,7 +433,7 @@ class Server:
             c.put(modules_path, modules)
         if search != None:
             modules = [m for m in modules if search in m['name']]
-        return modules
+        return [m for m in modules if not c.is_error(m)]
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
@@ -527,7 +533,7 @@ class Server:
         import datetime
         return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
 
-    def history(self, address = 'module' , df=0):
+    def history(self, address = 'module' , df=True):
         history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
         if df:
             df =  c.df(history)
@@ -540,6 +546,8 @@ class Server:
             return df
 
         return history
+
+    h = history
 
     def clear_history(self, address = 'module' ):
         paths = self.call_paths(address)
