@@ -2,13 +2,11 @@
 
 import commune as c
 import os
-
-
+import torch, time
 
 class Test:
     def test_serializer(self):
         self = c.module('serializer')()
-        import torch, time
         data_list = [
             torch.ones(1000),
             torch.zeros(1000),

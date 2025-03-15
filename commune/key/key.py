@@ -669,9 +669,9 @@ class Key:
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
+               address = None,
                public_key:Optional[str]= None, 
                max_age = None,
-               address = None,
                **kwargs
                ) -> bool:
         """
@@ -683,7 +683,6 @@ class Key:
         public_key: public key in bytes or hex string format
         """
         data = c.copy(data)
-
         if isinstance(data, dict):
             if 'data' in data and 'signature' in data and 'address' in data:
                 signature = data['signature']
@@ -692,10 +691,9 @@ class Key:
             else:
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
-
         if not isinstance(data, str):
             data = python2str(data)
-        if address != None and self.valid_ss58_address(address):
+        if self.valid_ss58_address(address):
             public_key = ss58_decode(address)
         if public_key == None:
             public_key = self.public_key
@@ -817,8 +815,9 @@ class Key:
         Checks if the given address is a valid ss58 address.
         """
         try:
-            return is_valid_ss58_address( address , valid_ss58_format=Key.ss58_format )
+            return isinstance(address, str) and is_valid_ss58_address( address , valid_ss58_format=Key.ss58_format )
         except Exception as e:
+            print(f'error in {valid_ss58_address}', e)
             return False
           
     @classmethod
@@ -889,7 +888,6 @@ class Key:
             crypto_type = crypto_type.lower()
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)  
-
 
     def version(self):
         path = self.get_key_path('module')

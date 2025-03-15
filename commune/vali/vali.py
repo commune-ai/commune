@@ -18,8 +18,8 @@ class Vali:
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
                     batch_size : int = 128, # the batch size of the most parallel tasks
                     score : Union['callable', int]= None, # score function
-                    key : str = None,
-                    tempo : int = 10 , 
+                    key : str = None, # the key for the module
+                    tempo : int = 10, # the time between epochs
                     max_sample_age : int = 3600, # the maximum age of the samples
                     timeout : int = 3, # timeout per evaluation of the module
                     update : bool =True, # update during the first epoch
@@ -35,11 +35,13 @@ class Vali:
         self.set_score(score)
         if run_loop:
             c.thread(self.run_loop) if run_loop else ''
+
     init_vali = __init__
 
     @classmethod
     def resolve_path(cls, path):
         return c.storage_path + f'/vali/{path}'
+
     def set_network(self, 
                     network:str = None, 
                     tempo:int=None, 
@@ -51,11 +53,12 @@ class Vali:
         if '/' in self.network:
             self.network, self.subnet = network.split('/')
         self.path = self.resolve_path((self.network + '/' + self.subnet) if self.subnet else self.network)
-        self.netmod = c.module(self.network)() 
-        self.params = self.netmod.params(subnet=self.subnet, max_age=self.tempo)
-        self.modules = self.netmod.modules(subnet=self.subnet, max_age=self.tempo)
+        self.network_module = c.module(self.network)() 
+        self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo)
+        self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo)
         self.key2module = {m['key']: m for m in self.modules if 'key' in m}
         self.name2module = {m['name']: m for m in self.modules if 'name' in m}
+        self.url2module = {m['url']: m for m in self.modules if 'url' in m}
         if search:
             self.modules = [m for m in self.modules if any(str(search) in str(v) for v in m.values())]
         return self.params
@@ -67,11 +70,11 @@ class Vali:
         if callable(score):
             setattr(self, 'score', score )
         assert callable(self.score), f'SCORE NOT SET {self.score}'
+        self.score_id = c.hash(c.code(self.score))
         return {'success': True, 'msg': 'Score function set'}
 
     def run_loop(self, step_time=2):
         while True:
-
             # wait until the next epoch
             seconds_until_epoch = int(self.epoch_time + self.tempo - c.time())
             if seconds_until_epoch > 0:
@@ -84,19 +87,25 @@ class Vali:
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
 
-    def score_module(self,  module:dict, **kwargs):
-        t0 = c.time() # the timestamp
-
-        # resolve the module
+    def get_module(self, module: Union[str, dict]):
         if isinstance(module, str):
             if module in self.key2module:
                 module = self.key2module[module]
             elif module in self.name2module:
                 module = self.name2module[module]
+            elif module in self.url2module:
+                module = self.url2module[module]
             else:
-                module = {'url': module}
-        client = c.client(module['url'], key=self.key)
+                raise ValueError(f'Module not found {module}')
+        path = self.get_module_path(module['key'])
+        module['path'] = path
+        return module
 
+    def score_module(self,  module:dict, **kwargs):
+        t0 = c.time() # the timestamp
+        # resolve the module
+        module = self.get_module(module)
+        client = c.client(module['url'], key=self.key)
         try:
             score = self.score(client, **kwargs)
         except Exception as e:
@@ -107,7 +116,9 @@ class Vali:
         module['score'] = score
         module['time'] = t0
         module['duration'] = c.time() - module['time']
-        module['path'] =  self.get_module_path(module['key'])
+        module['vali'] = self.key.key_address
+        module['vali_signature'] = c.sign(module['score'], key=self.key, mode='str')
+        module['score_id'] = self.score_id
         module['proof'] = c.sign(c.hash(module), key=self.key, mode='dict')
         self.verify_proof(module) # verify the proof
         if module['score'] > 0:
@@ -128,13 +139,11 @@ class Vali:
         assert proof['data'] == data_hash, f'Invalid Proof {proof}'
         assert c.verify(proof), f'Invalid Proof {proof}'
 
-    def score_batch(self, modules: List[dict]):
+    def score_batch(self, modules: List[Union[dict, str]]):
         results = []
         try:
             futures = []
             for m in modules:
-                c.print('SCORE MODULE', m)
-                # print(f'SCORE MODULE {m["name"]}')
                 future = c.submit(self.score_module, [m], timeout=self.timeout)
                 futures.append(future)
             results = c.wait(futures, timeout=self.timeout)
@@ -155,27 +164,22 @@ class Vali:
         self.epoch_time = c.time()
         self.vote(results)
         return c.df(results)
-    
-    @property
-    def votes_path(self):
-        return self.path + f'/votes'
-
 
     @property
     def vote_staleness(self):
         return c.time() - self.vote_time
 
     def vote(self, results):
-        if not bool(hasattr(self.netmod, 'vote')) :
+        if not bool(hasattr(self.network_module, 'vote')) :
             return {'success': False, 'msg': f'NOT VOTING NETWORK({self.network})'}
         if self.vote_staleness < self.tempo:
             return {'success': False, 'msg': f'Vote is too soon {self.vote_staleness}'}
         if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
+        # get the top modules
         assert all('score' in r for r in results), f'No score in results {results}'
         assert all('key' in r for r in results), f'No key in results {results}'
-
-        return self.netmod.vote(
+        return self.network_module.vote(
                     modules=[m['key'] for m in modules], 
                     weights=[m['score'] for m in modules],  
                     key=self.key, 
@@ -200,6 +204,7 @@ class Vali:
             if isinstance(r, dict) and 'key' and  r.get('score', 0) > 0  :
                 df += [{k: r.get(k, None) for k in keys}]
             else :
+                c.print(f'REMOVING({path})', color='red')
                 c.rm(path)
         df = c.df(df) 
         if len(df) > 0:
@@ -214,7 +219,6 @@ class Vali:
         if to_dict:
             return df.to_dict(orient='records')
         return df
-
 
     def module_paths(self):
         return c.ls(self.path) # fam

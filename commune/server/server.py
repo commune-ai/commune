@@ -14,7 +14,6 @@ import commune as c
 
 shortkey = lambda x: x[:3] + '...' + x[-2:]
 
-
 class Server:
 
     executor = 'server.executor' # the executor for the server to run the functions
@@ -39,11 +38,12 @@ class Server:
         run_api : Optional[bool] = False, # if the server should be run as an api
         tempo:int = 10000 , # (in seconds) the maximum age of the history
         timeout:int = 10, # (in seconds) the maximum time to wait for a response
+        info:Optional[dict]=None, # the info for the server
         ) -> 'Server':
         self.network = network or 'local'
         self.tempo = tempo
         self.proc_prefix = 'server/' + network + '/'
-        self.history_path = history_path or self.resolve_path('history')
+        self.history_path = history_path or self.get_path('history')
         if run_api:
             module = module or 'module'
             if isinstance(module, str):
@@ -57,13 +57,9 @@ class Server:
             self.module.free = self.module.free if hasattr(self.module, 'free') else False
             self.set_functions(functions) 
             self.set_port(port)
-            self.module.info =  {
-                "name": self.module.name,
-                "url": self.module.url,
-                "key": self.module.key.ss58_address,
-                "time": c.time(),
-                "schema": self.module.schema,
-            }
+            self.set_info(info)
+            c.put(self.history_path + '/' + name + '/info.json', info)
+
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.set_middleware(self.app)
@@ -147,10 +143,13 @@ class Server:
                 'key': self.module.key.ss58_address,
                 'signature': c.sign(data_hash, key=self.module.key, mode='str')
             }
-            self.save_call(data)
+            self.save_data(data)
         return result 
 
-    def save_call(self, data:dict):
+    def save_data(self, data:dict):
+        """
+        Save the data from the call
+        """
         address = self.module.name + '/'  + data['headers']["key"]
         calls_t0 = self.calls(address) # the number of calls before the call
         call_data_path = self.history_path + '/' + address +  f'/{data["fn"]}/{data["time"]}.json'
@@ -160,8 +159,37 @@ class Server:
         return {'success':True, 'message':f'Saved call data to {call_data_path}'}
 
     @classmethod
-    def resolve_path(cls, path):
+    def get_path(cls, path):
         return  c.storage_path + '/server/' + path
+
+    def set_info(self, info=None, required_info_features=['name', 'url', 'key', 'time', 'schema']):
+            
+        if info == None:
+            if hasattr(self.module, 'info') and isinstance(self.module.info, dict):
+                info = self.module.info 
+            else:
+
+                info = {   
+                    "name": self.module.name,
+                    "url": self.module.url,
+                    "key": self.module.key.ss58_address,
+                    "time": c.time(),
+                    "schema": self.module.schema,
+                }
+        assert isinstance(info, dict), f'Info must be a dict, not {type(info)}'
+        assert all([k in info for k in required_info_features]), f'Info must have keys name, url, key, time, schema'
+        c.print('Setting info -->', info)
+        info['signature'] = c.sign(info, key=self.module.key, mode='str')
+        self.verify_info(info)
+        self.module.info = info
+        return info
+
+    def verify_info(self, info:dict) -> bool:
+        info = c.copy(info)
+        assert isinstance(info, dict), f'Info must be a dict, not {type(info)}'
+        assert all([k in info for k in ['name', 'url', 'key', 'time', 'signature']]), f'Info must have keys name, url, key, time, signature'
+        signature= info.pop('signature')
+        return c.verify(info, signature=signature, address=info['key']), f'InvalidSignature({info})'
     
     def set_functions(self, functions:Optional[List[str]]):
         function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns']  
@@ -425,7 +453,7 @@ class Server:
                 timeout=8, 
                 **kwargs):
 
-        modules_path = f'{self.resolve_path(self.network)}/modules'
+        modules_path = f'{self.get_path(self.network)}/modules'
         modules = c.get(modules_path, max_age=max_age, update=update)
         if modules == None:
             futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
@@ -490,7 +518,7 @@ class Server:
         if role in role2rate:
             rate_limit = role2rate[role]
         else:
-            path = self.resolve_path(f'rate_limiter/{network}_state')
+            path = self.get_path(f'rate_limiter/{network}_state')
             self.state = c.get(path, max_age=self.tempo)
             if self.state == None:
                 self.state = c.module(network)().state()

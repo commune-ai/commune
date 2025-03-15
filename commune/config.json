@@ -1,10 +1,10 @@
 {
     "name": "commune",
-    "version": "0.0.1", 
-    "url": {
-        "code": "commune-ai/commune.git",
-        "app": "communeai.org"
-    },
+    "version": "1.0.0", 
+    "code": "commune-ai/commune.git",
+    "app": "communeai.org",
+    "core_modules": ["key", "chain", "server", "vali", "client", "cli"],
+    "test_modules": ["key", "chain", "server", "vali"],
     "modules": [
         "commune-ai/modules",
         "commune-ai/app",
@@ -13,9 +13,7 @@
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
-        "do": "docker",
-        "openai" : "model.openai", 
-        "openrouter":  "model.openrouter",
+        "d": "docker",
         "or" : "model.openrouter",
         "r" :  "remote",
         "ch" :  "chain",
@@ -140,7 +138,6 @@
                 "subnet",
                 "update_module",
                 "staketo", 
-                "network",
                 "get_staketo", 
                 "stakefrom",
                 "get_stakefrom",
@@ -155,7 +152,7 @@
                 "subnet_params",
                 "global_params",
                 "balance",
-                {"from": "balance", "to": "bal"},
+                ["balance","bal"],
                 "get_stake",
                 "my_stake_to",
                 "is_registered",

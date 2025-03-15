@@ -12,13 +12,13 @@ def new_event_loop() -> 'asyncio.AbstractEventLoop':
 
 def detailed_error(e) -> dict:
     tb = traceback.extract_tb(e.__traceback__)
-    file_name = tb[-1].filename
+    filename = tb[-1].filename
     line_no = tb[-1].lineno
     line_text = tb[-1].line
     response = {
         'success': False,
         'error': str(e),
-        'file_name': file_name.replace(os.path.expanduser('~'), '~'),
+        'filename': filename.replace(os.path.expanduser('~'), '~'),
         'line_no': line_no,
         'line_text': line_text
     }   
