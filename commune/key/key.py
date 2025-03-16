@@ -848,6 +848,14 @@ class Key:
             address = key
         return address
 
+    @property
+    def multiaddress(self):
+        return self.crypto_type_name +"/"+self.key_address
+
+    @classmethod
+    def multi(cls,key=None, **kwargs):
+        return cls.get_key(key, **kwargs).multiaddress
+
     def migration(self, write=True): 
         key2path = self.key2path()
         new_key2path = {}

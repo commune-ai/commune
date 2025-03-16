@@ -10,6 +10,7 @@
         "commune-ai/app",
         "commune-ai/chain"
     ],
+    "core_features": ["module_name", "module_class",  "filepath", "dirpath"],
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
@@ -68,6 +69,7 @@
                 "ss58_encode",
                 "ss58_decode",
                 "key2mem",
+                "multi",
                 "key_info",
                 "valid_ss58_address",
                 "add_key",

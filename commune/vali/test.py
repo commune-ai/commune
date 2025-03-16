@@ -1,8 +1,7 @@
 import commune as c
 
 class Test:
-    @staticmethod
-    def test(   n=2, 
+    def forward(self,  n=2, 
                 tag = 'vali_test_net',  
                 miner='module', 
                 trials = 5,

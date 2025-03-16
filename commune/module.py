@@ -13,26 +13,7 @@ from typing import *
 import nest_asyncio
 nest_asyncio.apply()
 
-config_types = ['json', 'yaml']
-config_path = __file__.replace(__file__.split('/')[-1], 'config.json')
-config = json.load(open(config_path)) 
-
 class c:
-    # config attributes
-    core_modules = config['core_modules'] # the core modules
-    test_modules = config['test_modules']
-    repo_name  = config['name']# the name of the library
-    endpoints = config['endpoints']
-    core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
-    port_range = config['port_range'] # the port range between 50050 and 50150
-    shortcuts =  shortys = config["shortcuts"]
-    storage_path = os.path.expanduser(f'~/.{repo_name}')
-    core_path  = corepath = os.path.dirname(__file__)
-    repo_path  = repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
-    lib_path  = libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
-    home_path = homepath  = os.path.expanduser('~') # the home path
-    modules_path = modspath = core_path + '/modules'
-    app_path = core_path + '/app'
 
     def merge_modules(self, path='./modules', to_path='~/modules', **kwargs) -> Dict:
         to_path = os.path.expanduser(to_path)
@@ -71,6 +52,7 @@ class c:
         obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
         obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
         obj.dir = lambda *args, **kwargs : c.dir(obj)
+        obj.chat = lambda *args, **kwargs : c.chat(obj)
         if not hasattr(obj, 'config_path'):
             obj.config_path = lambda *args, **kwargs : c.config_path(obj)
         if not hasattr(obj, 'config'):
@@ -125,7 +107,8 @@ class c:
         return inspect.getfile(cls.resolve_module(obj))
     
     @classmethod
-    def pytest(cls, path:str = core_path + '/test.py'):
+    def pytest(cls, path:str = None):
+        path = path or (c.core_path + '/test.py')
         return c.cmd(f'pytest {path}')
 
     @classmethod
@@ -225,7 +208,7 @@ class c:
     @classmethod
     def storage_dir(cls, module=None):
         module = cls.resolve_module(module)
-        return f'{c.storage_path}/{module.module_name()}'
+        return os.path.abspath(os.path.expanduser(f'~/.commune/{module.module_name()}'))
 
     @staticmethod
     def config_paths(path='./'):
@@ -250,6 +233,8 @@ class c:
     def resolve_module(cls, obj:str = None, default=None, fn_splitter='/', **kwargs):
         if obj == None:
             obj = cls
+        if c.object_exists(obj):
+            return c.obj(obj)
         elif isinstance(obj, str):
             obj = c.module(obj)
         return obj
@@ -360,9 +345,6 @@ class c:
         else:
             fn_obj = c.fn(fn)
         return fn_obj(**kwargs)
-    
-    tests_path = f'{lib_path}/tests'
-        # return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
 
     @classmethod
     def is_module_file(cls, module = None, exts=['py', 'rs', 'ts'], folder_filenames=['module', 'agent']) -> bool:
@@ -544,7 +526,7 @@ class c:
 
     @classmethod
     def routes(cls):
-        routes = config['routes']
+        routes = c.config()['routes']
         for util in  c.utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -571,24 +553,48 @@ class c:
         return {p.split('/')[-2]:p for p in c.configs(c.modules_path)}
 
     @classmethod
-    def config(cls, module=None, to_munch=False, fn='__init__') -> 'Munch':
-        # if os.path.exists(c.modules_path + '/' in module):
+    def cfg(cls, module=None, mode='dict', fn='__init__') -> 'Munch':
+        return cls.config(module=module, mode=mode, fn=fn)
 
-        name2config = c.name2config()
-        if module in name2config:
-            path = name2config[module]
-        else: 
-            path = c.config_path(module)
+    @classmethod
+    def config(cls, module=None, mode='dict', fn='__init__') -> 'Munch':
+        # if os.path.exists(c.modules_path + '/' in module):
+        path = None
+        if module == None:
+            dirpath = os.path.dirname(__file__)
+            for m in ['json', 'yaml']:
+                path = f'{dirpath}/config.{m}'
+                if os.path.exists(path):
+                    break
+        else:
+            name2config = c.name2config()
+            if module in name2config:
+                path = name2config[module]
+            else: 
+                path = c.config_path(module)
+
         if os.path.exists(path):
             if path.endswith('.json'):
-                config = c.get_json(path)
+                config = json.load(open(path, 'r'))
             elif path.endswith('.yaml') or path.endswith('.yml'):
-                config = c.get_yaml(path)
+                config = yaml.load(open(path, 'r'), Loader=yaml.FullLoader)
             else:
                 raise Exception(f'Invalid config file {path}')
         else:
             config =  c.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
-        return c.dict2munch(config) if to_munch else config
+        if mode == 'dict':
+            pass
+        elif mode == 'munch':
+            from munch import Munch
+            config =  Munch(config)
+        else:
+            raise Exception(f'Invalid mode {mode}')
+        return config
+
+    @classmethod
+    def dict2munch(cls, d:Dict) -> 'Munch':
+        from munch import Munch
+        return Munch(d)
 
     @classmethod
     def put_json(cls, 
@@ -609,7 +615,7 @@ class c:
 
     @classmethod
     def rm(cls, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/', './']):
-        avoid_paths = list(set((avoid_paths + [c.storage_dir])))
+        avoid_paths = list(set((avoid_paths)))
         path = cls.resolve_path(path)
         avoid_paths = [cls.resolve_path(p) for p in avoid_paths] 
         assert path not in avoid_paths, f'Cannot remove {path}'
@@ -1670,14 +1676,17 @@ class c:
                    base_module : str = 'base', 
                    update=0
                    ):
-        path = os.path.abspath(path)
-        path = path + '/module.py' if not path.endswith('.py') else path
-        name = name or c.path2name(path)
+        name = name or path
+        module_name = path.replace('.', '_')
+        dirpath = os.path.abspath(c.modules_path +'/'+ path.replace('.', '/'))
+        path = dirpath + '/' + module_name + '.py'
         base_module_obj = c.module(base_module)
         code = c.code(base_module)
         code = code.replace(base_module_obj.__name__, ''.join([m[0].capitalize() + m[1:] for m in name.split('.')]))
         dirpath = os.path.dirname(path)
-        assert os.path.exists(path) or update, f'Path {path} already exists'
+        if os.path.exists(path) and update:
+            print(f'Updating {path}')
+            c.rm(path)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
         c.put_text(path, 'import commune as c \n'+code)
@@ -1738,7 +1747,15 @@ class c:
         return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     @classmethod
-    def ask(cls, *args, **kwargs):
+    def chat(cls, *args, module=None, **kwargs):
+        if module != None:
+            args = [c.code(module)] + list(args)
+        return c.module("agent")().ask(*args, **kwargs) 
+
+    @classmethod
+    def ask(cls, *args, module=None, **kwargs):
+        if module != None:
+            args = [c.code(module)] + list(args)
         return c.module("agent")().ask(*args, **kwargs) 
 
     @classmethod
@@ -1971,7 +1988,6 @@ class c:
                 if isinstance(fn, dict):
                     to_fn = fn['to']
                     fn = fn['from']
-                    print(f'{fn} --> {to_fn}')
                 if isinstance(fn, str):
                     to_fn = fn
                 if hasattr(cls, to_fn):
@@ -2068,7 +2084,7 @@ class c:
             return synced_modules
         
         futures = []
-        for url in config['modules']:
+        for url in c.config()['modules']:
             params = {'url': url, 'max_age': max_age, 'update': update}
             futures += [c.submit(c.sync_module, params)]
         
@@ -2164,8 +2180,26 @@ class c:
     @classmethod
     def sync(cls, max_age=10, update=True, **kwargs):
         """
-        Initialize the module
+        Initialize the module by sycing with the config
         """
+        # config attributes
+        config = c.config()
+        c.core_modules = config['core_modules'] # the core modules
+        c.test_modules = config['test_modules']
+        c.repo_name  = config['name']# the name of the library
+        c.endpoints = config['endpoints']
+        c.core_features = config['core_features']
+        c.port_range = config['port_range'] # the port range between 50050 and 50150
+        c.shortcuts =  c.shortys = config["shortcuts"]
+        c.storage_path = os.path.expanduser(f'~/.{c.repo_name}')
+        c.core_path  = c.corepath = os.path.dirname(__file__)
+        c.repo_path  = c.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
+        c.lib_path  = c.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
+        c.home_path = c.homepath  = os.path.expanduser('~') # the home path
+        c.modules_path = c.modspath = c.core_path + '/modules'
+        c.app_path = c.core_path + '/app'
+        c.tests_path = f'{c.lib_path}/tests'
+
         c.sync_routes()
         c.sync_modules(max_age=max_age, update=update)
         c.sync_sys_path()

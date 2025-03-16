@@ -1387,103 +1387,6 @@ def proc(command:str,  *extra_commands, verbose:bool = False, **kwargs):
 
 
 
-def cmd(
-    command: Union[str, list],
-    *args,
-    verbose: bool = False,
-    env: Dict[str, str] = None,
-    sudo: bool = False,
-    password: str = None,
-    bash: bool = False,
-    return_process: bool = False,
-    stream: bool = False,
-    color: str = 'white',
-    cwd: str = None,
-    **kwargs
-) -> 'subprocess.Popen':
-    """
-    Execute a shell command with various options and handle edge cases.
-    """
-    import commune as c
-    def stream_output(process, verbose=verbose):
-        """Stream output from process pipes."""
-        try:
-            modes = ['stdout', 'stderr']
-            for mode in modes:
-                pipe = getattr(process, mode)
-                if pipe is None:
-                    continue
-                
-                # Read bytewise
-                while True:
-                    ch = pipe.read(1)
-                    if not ch:
-                        break
-                    try:
-                        ch_decoded = ch.decode('utf-8')
-                        if verbose:
-                            print(ch_decoded, end='', flush=True)
-                        yield ch_decoded
-                    except UnicodeDecodeError:
-                        continue
-        finally:
-            kill_process(process)
-
-    try:
-        # Handle command construction
-        if isinstance(command, list):
-            command = ' '.join(command)
-        
-        if args:
-            command = ' '.join([command] + list(map(str, args)))
-
-        # Handle sudo
-        if password is not None:
-            sudo = True
-        if sudo:
-            command = f'sudo {command}'
-
-        # Handle bash execution
-        if bash:
-            command = f'bash -c "{command}"'
-
-        # Handle working directory
-        cwd = os.getcwd() if cwd is None else cwd
-
-        # Handle environment variables
-        if env is None:
-            env = {}
-        env = {**os.environ, **env}
-
-        # Create process
-        process = subprocess.Popen(
-            shlex_split(command),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=cwd,
-            env=env,
-            **kwargs
-        )
-
-        if return_process:
-            return process
-
-        # Handle output streaming
-        streamer = stream_output(process)
-
-        if stream:
-            return streamer
-        else:
-            # Collect all output
-            text = ''
-            for ch in streamer:
-                text += ch
-            return text
-
-    except Exception as e:
-        if verbose:
-            print(f"Error executing command: {str(e)}")
-        raise
 def determine_type( x):
     x_type = type(x)
     x_type_name = x_type.__name__.lower()
@@ -2337,12 +2240,13 @@ def cmd(
             command = f'bash -c "{command}"'
 
         # Handle working directory
-        cwd = os.getcwd() if cwd is None else cwd
+        cwd = os.getcwd() if cwd is None else abspath(cwd)
 
         # Handle environment variables
         if env is None:
             env = {}
         env = {**os.environ, **env}
+
 
         # Create process
         process = subprocess.Popen(
@@ -2661,4 +2565,11 @@ def gather(jobs:list, timeout:int = 20, loop=None)-> list:
         return results[0]
     return results
 
-
+def rsa() -> str:
+    """
+    Generate an RSA key pair if it does not exist, and return the public key.
+    """ 
+    path = os.path.expanduser('~/.ssh/id_rsa.pub')
+    if not os.path.exists(path):
+        cmd('ssh-keygen -t rsa -b 4096 -C ')
+    return cmd(f'cat {path}')
