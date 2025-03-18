@@ -13,10 +13,11 @@ class Client:
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
                  **kwargs):
+
+        self.auth = c.module('server.auth.jwt')()
         self.key  = c.get_key(key)
         self.url = module if c.is_url(module) else c.namespace().get(module,module)
         self.session = requests.Session()
-
 
     def forward(self, 
                 fn  = 'info', 
@@ -34,7 +35,7 @@ class Client:
         key = self.get_key(key) # step 1: get the key
         url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
-        headers = self.get_headers(key=key, fn=fn, params=params)
+        headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
         return  self.get_result(url=url, params=params,  headers=headers, timeout=timeout, stream=stream)
         
     def get_url(self, fn:str, mode='http'):
@@ -70,20 +71,6 @@ class Client:
                 raise Exception(f'Invalid params {params}')
         params = {"args": args, "kwargs": kwargs}
         return params
- 
-    def get_headers(self, fn:str, params:dict, key) -> dict:
-        # sign the request
-        time_str = str(c.time()) # get the current time
-        data_hash = c.hash({'fn': fn, 'params': params, 'time': time_str}) # hash the data
-        headers =  {
-            'key': key.ss58_address, # the key to use
-            'crypto_type': str(key.crypto_type), # the crypto type
-            'time': time_str, # the time of the request
-            'data_hash': data_hash, # the hash of the data for easy verification
-            'signature':  key.sign(data_hash).hex(), # the signature of the data as string (0x...)
-            'Content-Type': 'application/json', # the content type
-        } 
-        return headers
 
     def get_result(self, url, params, headers, timeout, stream):
         response = self.session.post(url, json=params,  headers=headers, timeout=timeout, stream=stream)

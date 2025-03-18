@@ -258,10 +258,11 @@ class Key:
                 prompt_password:bool = False,
                 crypto_type=crypto_type, 
                 **kwargs):
-        if 'type' in kwargs:
-            crypto_type = kwargs.pop('type')
         if hasattr(path, 'key_address'):
             return path
+
+        if 'type' in kwargs:
+            crypto_type = kwargs.pop('type')
         path = path or 'module'
         if not cls.key_exists(path):
             if create_if_not_exists:
@@ -638,7 +639,7 @@ class Key:
             data = python2str(data)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
-        elif data[0:2] == '0x':
+        if isinstance(data, str) and data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
@@ -693,13 +694,17 @@ class Key:
                 assert address != None, 'address not found in data'
         if not isinstance(data, str):
             data = python2str(data)
-        if self.valid_ss58_address(address):
-            public_key = ss58_decode(address)
+        if address != None:
+            if self.valid_ss58_address(address):
+                public_key = ss58_decode(address)
+            else:
+                public_key = address
         if public_key == None:
             public_key = self.public_key
-        if isinstance(public_key, str):
-            public_key = bytes.fromhex(public_key.replace('0x', ''))
-
+        if isinstance(public_key, str) :
+            if public_key.startswith('0x'):
+                public_key = public_key[2:]
+            public_key = bytes.fromhex(public_key)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x': # hex string
@@ -728,18 +733,17 @@ class Key:
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
 
-    def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module') -> dict:
-        signature = c.sign(data, key=key)
-        key_address = self.get_key_address(key)
-        valid =  c.verify(data, signature=signature, address=key_address )
-        assert valid, 'failed to verify'
-        return {'signature':signature, 'address':self.get_key_address(key), 'key':key , 'data':data, 'valid':valid}
+    def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module',  crypto_type=1) -> dict:
+        signature = c.sign(data, key=key, crypto_type=crypto_type)
+        assert c.verify(data, signature=signature, address=self.get_key_address(key, crypto_type=crypto_type) , crypto_type=crypto_type), 'failed to verify signature'
+        return {'signature':signature, 'address':self.get_key_address(key), 'key':key , 'data':data, 'crypto_type':crypto_type}
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:
             password = self.private_key
         if isinstance(password, str):
             password = password.encode()
+        # if password is a key, use the key's private key as password
         return hashlib.sha256(password).digest()
 
     def encrypt(self, data, password=None):
@@ -836,8 +840,8 @@ class Key:
             return False
         
     @classmethod
-    def get_key_address(cls, key):
-        return cls.get_key(key).ss58_address
+    def get_key_address(cls, key, crypto_type='sr25519'):
+        return cls.get_key(key, crypto_type=crypto_type).ss58_address
 
     @classmethod
     def resolve_key_address(cls, key):

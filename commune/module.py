@@ -15,15 +15,6 @@ nest_asyncio.apply()
 
 class c:
 
-    def merge_modules(self, path='./modules', to_path='~/modules', **kwargs) -> Dict:
-        to_path = os.path.expanduser(to_path)
-        path = os.path.abspath(path)
-        for p in os.listdir(path):
-            p_path = os.path.join(path, p)
-            to_p_path = os.path.join(to_path, p)
-            print(p_path,'-->' , to_p_path)
-        return {'success': True, 'message': 'modules merged', 'path': to_path}
-
     def go(self, module=None, **kwargs):
         if module == None:
             path = c.lib_path
@@ -37,56 +28,53 @@ class c:
         assert os.path.exists(path), f'{path} does not exist'
         return c.cmd(f'code {path}', **kwargs)
 
-    @staticmethod
-    def obj2module(obj:'Object', verbose=False):
-        obj.resolve_module = lambda *args, **kwargs : c.resolve_module(obj)
-        obj.module_name = lambda *args, **kwargs : c.module_name(obj)
-        obj.storage_dir = lambda *args, **kwargs : c.storage_dir(obj)
-        obj.filepath = lambda *args, **kwargs : c.filepath(obj)
-        obj.dirpath = lambda *args, **kwargs : c.dirpath(obj)
-        obj.code = lambda *args, **kwargs : c.code(obj)
-        obj.info = lambda *args, **kwargs: c.info(obj)
-        obj.cid = lambda *args, **kwargs : c.cid(obj)
-        obj.schema = lambda *args, **kwargs : c.schema(obj)
-        obj.fns = lambda *args, **kwargs : c.fns(obj)
-        obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
-        obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
-        obj.dir = lambda *args, **kwargs : c.dir(obj)
-        obj.chat = lambda *args, **kwargs : c.chat(obj)
-        if not hasattr(obj, 'config_path'):
-            obj.config_path = lambda *args, **kwargs : c.config_path(obj)
-        if not hasattr(obj, 'config'):
-            obj.config = lambda *args, **kwargs : c.config(obj)
-        return obj
-        
+
     @classmethod
     def module(cls,path:str = 'module',  params : dict = None,  verbose=False,cache=True,  **kwargs ) -> str:
-       
         if not hasattr(c, 'module_cache'):
             c.module_cache = {}
         t0 = time.time()  
-        if path in ['module', c.repo_name[0], None]:
+        if path in ['module', c.repo_name[0], c.repo_name] or c.repo_name.startswith(path):
             return c      
+        path = path.replace('/','.')
         path = c.shortcuts.get(path, path)
         module = c.tree().get(path, path)
-        if not cache or (not module in c.module_cache):
-            try:
-                obj = c.obj(module) # if the model
-            except Exception as e:
-                if verbose:
-                    print(f'Error loading {module} {e}')
-                tree = c.tree(update=1)
-                if not module in tree:
-                    tree_keys = [k for k in tree.keys() if module in k.split('/')[-1]  ]
-                    if len(tree_keys) == 1:
-                        module = tree.get(tree_keys[0])
-                obj = c.obj(module)
-            is_obj_module = all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
-            if not is_obj_module: # if the object is not a module, then it is a function
-                obj = c.obj2module(obj)
-            c.module_cache[module] = obj
-        else:
-            obj = c.module_cache[module]
+        if (c.repo_name+'.'+c.repo_name) == module :
+            return c
+        try:
+            obj = c.obj(module) # if the model
+        except Exception as e:
+            if verbose:
+                print(f'Error loading {module} {e}')
+            tree = c.tree(update=1)
+            if not module in tree:
+                tree_keys = [k for k in tree.keys() if k.endswith(module) ]
+                if len(tree_keys) >= 1:
+                    module = tree.get(tree_keys[0])
+            obj = c.obj(module)
+        is_obj_module = all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
+        if not is_obj_module: # if the object is not a module, then it is a function
+            obj.resolve_module = lambda *args, **kwargs : c.resolve_module(obj)
+            obj.module_name = lambda *args, **kwargs : c.module_name(obj)
+            obj.storage_dir = lambda *args, **kwargs : c.storage_dir(obj)
+            obj.filepath = lambda *args, **kwargs : c.filepath(obj)
+            obj.dirpath = lambda *args, **kwargs : c.dirpath(obj)
+            obj.code = lambda *args, **kwargs : c.code(obj)
+            obj.info = lambda *args, **kwargs: c.info(obj)
+            obj.cid = lambda *args, **kwargs : c.cid(obj)
+            obj.schema = lambda *args, **kwargs : c.schema(obj)
+            obj.fns = lambda *args, **kwargs : c.fns(obj)
+            obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
+            obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
+            obj.dir = lambda *args, **kwargs : c.dir(obj)
+            obj.chat = lambda *args, **kwargs : c.chat(obj)
+            if not hasattr(obj, 'ask'):
+                obj.ask = lambda *args, **kwargs : c.ask(obj)
+            if not hasattr(obj, 'config_path'):
+                obj.config_path = lambda *args, **kwargs : c.config_path(obj)
+            if not hasattr(obj, 'config'):
+                obj.config = lambda *args, **kwargs : c.config(obj)
+
         if isinstance(params, dict):
             print('Params({})'.format(obj))
             obj = obj(**params) 
@@ -100,7 +88,6 @@ class c:
     @classmethod
     def filepath(cls, obj=None) -> str:
         return inspect.getfile(cls.resolve_module(obj))
-    
 
     @classmethod
     def getfile(cls, obj=None) -> str:
@@ -145,6 +132,9 @@ class c:
                 pass
         return obj2hash
 
+    @staticmethod
+    def abspath(path:str):
+        return os.path.abspath(os.path.expanduser(path))
     @staticmethod
     def path2hash(path:str='./') -> int:
         path = c.abspath(path)
@@ -401,7 +391,7 @@ class c:
               search:str = None, 
               avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
               endswith:str = None,
-              hidden:bool = True,
+              hidden:bool = False,
               startswith:str = None,
               **kwargs) -> List[str]:
         """
@@ -435,6 +425,7 @@ class c:
                 pass
         return obj2file
 
+
     @classmethod
     def encrypt(cls,data: Union[str, bytes], key: str = None, password: str = None, **kwargs ) -> bytes:
         key = c.get_key(key) 
@@ -446,16 +437,18 @@ class c:
         return key.decrypt(data, password=password)
     
     @classmethod
-    def sign(cls, data:dict  = None, key: str = None, mode='str', **kwargs) -> bool:
-        return c.get_key(key).sign(data,  mode=mode, **kwargs)
-
+    def sign(cls, data:dict  = None, key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
+        key = c.get_key(key, crypto_type=crypto_type)
+        return key.sign(data, mode=mode, **kwargs)
     @classmethod
     def size(cls, module) -> int:
         return len(str(c.code_map(module)))
 
     @classmethod
-    def verify(cls, data, key=None, **kwargs ) -> bool:  
-        return c.get_key(key).verify(data, **kwargs)
+    def verify(cls, data, signature=None, address=None,  crypto_type='sr25519',  key=None, **kwargs ) -> bool:  
+        key = c.get_key(key, crypto_type=crypto_type)
+        print(key)
+        return key.verify(data=data, signature=signature, address=address, **kwargs)
 
     @classmethod
     def is_pwd(cls, module:str = None):
@@ -927,7 +920,7 @@ class c:
         return {
                              'start': sourcelines[1], 
                              'length': len(sourcelines[0]),
-                             'path': inspect.getfile(obj),
+                             'path': inspect.getfile(obj).replace(c.home_path, '~'),
                              'code': source if include_code else None,
                              'hash': c.hash(source),
                              'end': len(sourcelines[0]) + sourcelines[1]
@@ -1160,6 +1153,10 @@ class c:
             c.put(path, module2info)
             c.put(error_path, module2error)
         return module2info
+
+    def pwd2key(self, pwd):
+        return c.module('key').str2key(pwd)
+
         
     def module2hash(self, search = None, max_age = None, **kwargs):
         infos = self.infos(search=search, max_age=max_age, **kwargs)
@@ -1508,6 +1505,9 @@ class c:
         object_name = None
         for splitter in splitters:
             key = key.replace(splitter, '.')
+        if (c.repo_name + '.' + c.repo_name) in key:
+            key = key.replace((c.repo_name + '.' + c.repo_name) ,c.repo_name)
+
         if key.split('.')[0] == c.repo_name[0]:
             key = key.replace(c.repo_name[0] + '.', c.repo_name + '.')
         module_path = '.'.join(key.split('.')[:-1])
@@ -1626,10 +1626,11 @@ class c:
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
+        core_tree = c.core_tree(update=update, max_age=max_age)
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
         modules_tree = c.modules_tree(update=update, max_age=max_age)
-        tree = {**modules_tree, **local_tree, **lib_tree }
+        tree = {**modules_tree, **local_tree, **core_tree }
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
@@ -1752,9 +1753,13 @@ class c:
             args = [c.code(module)] + list(args)
         return c.module("agent")().ask(*args, **kwargs) 
 
+
+    
+
     @classmethod
     def ask(cls, *args, module=None, **kwargs):
         if module != None:
+
             args = [c.code(module)] + list(args)
         return c.module("agent")().ask(*args, **kwargs) 
 
@@ -1826,37 +1831,27 @@ class c:
         return fn2module
 
     @classmethod
-    def test(cls, module='module', timeout=50):
-        if module == 'module':
-            module = 'test'
+    def test(cls, module=None, timeout=50, default_fns=['forward', 'test'], modules=[ 'server', 'vali','key', 'chain']):
+        if module == None:
+            test_results ={}
+            for m in modules:
+                test_results[m] = cls.test(m, timeout=timeout)
+            return test_results
         elif c.module_exists(module + '.test'):
             module = module + '.test'
         Test = c.module(module)
         test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
+        if len(test_fns) == 0:
+            for fn in default_fns:
+                if hasattr(Test, fn) and callable(getattr(Test, fn)):
+                    test_fns += [fn]
         test = Test()
-        futures = []
-        future2fn = {}
-        for fn in test_fns:
-            print(f'Testing({fn})')
-            future = c.submit(getattr(test, fn), timeout=timeout)
-            future2fn[future] = fn
-        results = []
-
-        failed = []
         fn2result = {}
-        for future in c.as_completed(future2fn, timeout=timeout):
-            print(future.result())
-            fn = future2fn.pop(future)
-            result = future.result()
-            fn2result[fn] = result
-            failed.extend([r for r in result if c.is_error(r)])
-            if len(failed) > 0:
-                failed += failed
-            else:
-                results += [future.result()]
-        if len(failed) > 0:
-            return {'success': False, 'failed': failed}
-        return {'success': True, 'results': results}
+        for fn in enumeratr(test_fns):
+            fn_path = f'{module}/{fn}'
+            print(f'-------- TESTING({fn_path}) ----------')
+            fn2result[fn] = getattr(test, fn)()
+        return fn2result
 
 
     @classmethod
@@ -1887,11 +1882,13 @@ class c:
     testmod = test_module
 
     @staticmethod
-    def readmes( path='./', search=None):
+    def readmes( path='./', search=None, avoid_terms=['/modules/']):
         files =  c.files(path)
-        return [f for f in files if f.endswith('.md')]
-
-
+        files = [f for f in files if f.endswith('.md')]
+        files = [f for f in files if all([avoid not in f for avoid in avoid_terms])]
+        if search != None:
+            files = [f for f in files if search in f]
+        return files
     config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']
 
     def is_config_module(self, module:str):
@@ -2186,7 +2183,7 @@ class c:
         config = c.config()
         c.core_modules = config['core_modules'] # the core modules
         c.test_modules = config['test_modules']
-        c.repo_name  = config['name']# the name of the library
+        c.repo_name  = config['name'] # the name of the library
         c.endpoints = config['endpoints']
         c.core_features = config['core_features']
         c.port_range = config['port_range'] # the port range between 50050 and 50150
@@ -2205,6 +2202,9 @@ class c:
         c.sync_sys_path()
 
         return {'success': True, 'msg': 'synced config'}
+
+
+    
 
 c.sync()
 Module = c # Module is alias of c

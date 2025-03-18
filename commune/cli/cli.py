@@ -6,7 +6,7 @@ from typing import Any
 print = c.print
 class Cli:
     desc = 'cli for running functions'
-    safety = True
+    safety = False
     ai_enabled = False
 
     def get_params(self, argv):

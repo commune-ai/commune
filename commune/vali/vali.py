@@ -112,7 +112,7 @@ class Vali:
             score = 0 
             module['error'] = c.detailed_error(e)
             if self.verbose:
-                print(f'ERROR({module["error"]})', color='red')
+                print(f'ERROR({module["error"]})')
         module['score'] = score
         module['time'] = t0
         module['duration'] = c.time() - module['time']
@@ -135,8 +135,6 @@ class Vali:
     def verify_proof(self, module:dict):
         module = c.copy(module)
         proof = module.pop('proof', None)
-        data_hash = c.hash(module)
-        assert proof['data'] == data_hash, f'Invalid Proof {proof}'
         assert c.verify(proof), f'Invalid Proof {proof}'
 
     def score_batch(self, modules: List[Union[dict, str]]):

@@ -1,305 +1,257 @@
-# Commune Module: A Comprehensive Guide
 
-This document provides a detailed guide to using the `commune` library for managing and serving code modules in Python. The `commune` library simplifies module management and deployment, allowing you to easily manage, serve, and interact with code modules.
+# What is a module
+
+In this tutorial, we'll explore how to use the `commune` library for module management in Python. The `commune` library provides functionalities for managing and serving code modules easily.
+
+To know what a module is make sure you have commune installed.
+
+To start a new module
+
+c new_module agi
+
+This will create a new module called agi in the modules directory of the commune project.
+
 
 ## Table of Contents
-
-- [Introduction to Modules](#introduction-to-modules)
-- [Installation](#installation)
-- [Setting Up Commune](#setting-up-commune)
-  - [With Docker](#with-docker)
-  - [Without Docker](#without-docker)
-- [Basic Usage](#basic-usage)
-  - [Creating a New Module](#creating-a-new-module)
-  - [Finding Modules](#finding-modules)
-  - [Serving Modules](#serving-modules)
-- [Commune CLI](#commune-cli)
-  - [CLI Syntax](#cli-syntax)
-  - [Examples](#examples)
-  - [CLI Tricks](#cli-tricks)
-  - [Limitations](#limitations)
+- [Finding Your Module](#finding-your-module)
 - [Module Management](#module-management)
-  - [Accessing Module Information](#accessing-module-information)
-  - [Viewing Module Configuration](#viewing-module-configuration)
-  - [Listing Module Functions](#listing-module-functions)
-  - [Function Schema](#function-schema)
-- [Key Management](#key-management)
-  - [Listing Keys](#listing-keys)
-  - [Adding and Removing Keys](#adding-and-removing-keys)
-  - [Getting Key Info](#getting-key-info)
-  - [Saving and Loading Keys](#saving-and-loading-keys)
-  - [Balance and Stake](#balance-and-stake)
-- [Server Management](#server-management)
-  - [Viewing Available Servers](#viewing-available-servers)
-  - [Viewing Server Logs](#viewing-server-logs)
-  - [Connecting to a Served Module](#connecting-to-a-served-module)
-  - [Restarting a Module](#restarting-a-module)
-- [Serializer](#serializer)
-- [Port Range](#port-range)
-- [Modules Folder](#modules-folder)
-- [Conclusion](#conclusion)
+- [Serving](#serving)
 
 ---
 
-## Introduction to Modules
+## Finding Your Module
 
-A module in `commune` is a self-contained unit of code that can be managed and served easily. Modules can be created, searched, and served using the `commune` library, providing a streamlined approach to code management.
+You can use the following steps to find and work with modules using the `commune` library.
 
-## Installation
-
-**Environment Requirements**
-
-- Python 3.10 or higher
-- Node.js 14 or higher
-- npm 6 or higher
-
-1.  **Clone the Commune Repository**:
-
-    ```bash
-    git clone https://github.com/commune-ai/commune.git
-    ```
-
-2.  **Install Commune**:
-
-    ```bash
-    pip install -e ./commune
-    ```
-
-3.  **Run Tests**:
-
-    To ensure the installation is working correctly, run the tests:
-
-    ```bash
-    c test
-    ```
-
-## Setting Up Commune
-
-### With Docker
-
-1.  **Install Docker**:
-
-    Ensure Docker is installed on your machine. Follow the official Docker installation guide for your operating system.
-
-2.  **Build the Docker Image**:
-
-    Navigate to the cloned Commune repository and build the Docker image using the provided `Dockerfile`. This can be done via the `docker-compose` file:
-
-    ```bash
-    make start
-    ```
-
-3.  **Start Container**:
-
-    Start a Docker container with the Commune image:
-
-    ```bash
-    make start
-    ```
-
-4.  **Enter the Container**:
-
-    Enter the Docker container:
-
-    ```bash
-    make enter
-    ```
-
-    To exit the container, run:
-
-    ```bash
-    exit
-    ```
-
-    To run commands inside the container:
-
-    ```bash
-    docker exec -it commune bash -c "c modules"
-    ```
-
-5.  **Kill the Container**:
-
-    To stop and remove the container:
-
-    ```bash
-    make down
-    ```
-
-### Without Docker
-
-1.  **Install Dependencies**:
-
-    Navigate to the cloned Commune repository and install the required dependencies:
-
-    ```bash
-    cd commune
-    pip install -e ./
-    ```
-
-2.  **Install npm and pm2**:
-
-    This is required for the web server to run:
-
-    ```bash
-    chmod +x ./run/*
-    sudo ./run/install_npm_env.sh
-    ```
-
-3.  **Verify Installation**:
-
-    Check if Commune is installed correctly:
-
-    ```bash
-    c modules
-    ```
-
-## Basic Usage
-
-### Creating a New Module
-
-To create a new module, use the `commune` command line tool:
+## New Module Creation
+To create a new module, you can use the `commune` command line tool:
 
 ```bash
 c new_module agi
 ```
 
-Alternatively, you can use the Pythonic interface:
-
 ```python
-import commune as c
 c.new_module('agi')
 ```
 
-This will create a new module named `agi` in the `modules` directory.
+```bash
+{
+    'success': True,
+    'path': '/Users/salvivona/commune/agi',
+    'module': 'agi',
+    'class_name': 'Agi',
+    'msg': ' created a new repo called agi'
+}
+```
+c serve agi
 
-### Finding Modules
+{
+    'success': True,
+    'name': 'agi',
+    'address': '0.0.0.0:50129',
+    'kwargs': {}
+}
 
-To search for a specific module, use the `c.modules()` function with a search query:
+c namespace
+
+
+### Searching for a Specific Module
+To search for a specific module, you can use the `c.modules()` function with a search query:
 
 ```bash
+
 c modules model.openai
 ```
 
-Or in Python:
+```python
+```
 
 ```python
-import commune as c
 c.modules('model.openai')
 ```
-
-Output:
-
-```
+OUTPUT
+```python
 ['model.openai']
 ```
 
-### Serving Modules
 
-To serve a module, use the `c serve` command:
+# The CLI Module
+
+We have a pythonic cli for commune, which is a wrapper around the `c.Module` library. This is a simple way to interact with the commune library. This does not need to be formated like argparse, and is more like a pythonic cli, where you can test out the functions and modules.
+
+There are two paths to your first aergument
+
+c {fn} *args **kwargs  (default module is "module")
+
+or 
+
+c {module}/{fn} *args **kwarrgs
 
 ```bash
-c serve agi
+c {module_name}/{function_name} *args **kwargs
+```
+```bash
+c module/ls ./
 ```
 
-This command starts the `agi` module as a service.
+if you specifiy a root function in module, then you can call the module directly. 
+```bash
+c {function_name} *args **kwargs
+```
 
-## Commune CLI
+```bash
+To get the code of the module
 
-The `commune` CLI provides a Pythonic interface for interacting with the `commune` library. It allows you to test functions and modules without the need for extensive argument parsing.
+c {module_name}/code
+```bash
+c module/code
+```
+or you can call the code function on the root module
+```bash
 
-### CLI Syntax
+## Pythonic 
+You do not need to specify the module when calling the root (name=module) module.
+```bash
 
-There are two primary ways to use the CLI:
+```
+Example 
 
-1.  **Default Module Context**:
 
-    ```bash
-    c {fn} *args **kwargs
-    ```
+For example, the following command:
+```bash
+c ls ./ # 
+```
+is the same as
+```bash
+c module/ls ./
+```
+and
+```python
+import commune as c
+c.ls('./')
+```
 
-    In this case, the default module is "module".
+To make a new module
+```
+c new_module agi
+```
+```python
+c.new_module("agi")
+```
 
-2.  **Specify Module and Function**:
 
-    ```bash
-    c {module}/{fn} *args **kwargs
-    ```
+This will create a new module called `agi` in the `modules` directory. 
+This will be located in 
 
-    Here, you explicitly specify the module and function to be executed.
+to get the config of the model.agi module, you can use the following command:
 
-    Example:
+```bash
+c agi/config
+```
+if you dont have a config or yaml file, the key word arguments will be used as the config.
 
-    ```bash
-    c module/ls ./
-    ```
+This is the same as the following python code:
+```python
 
-### Examples
+import commune as c
+c.module("agi").config()
+```
 
-1.  **Listing Directory Contents**:
 
-    ```bash
-    c ls ./  # Same as c module/ls ./
-    ```
+To get the code
+```bash
+c agi/code
+```
 
-    Equivalent Python code:
+```python
 
-    ```python
-    import commune as c
-    c.ls('./')
-    ```
+import commune as c
 
-2.  **Getting Module Configuration**:
+class Agi(c.Module):
+    def __init__(self, a=1, b=2):
+        self.set_config(locals())
 
-    ```bash
-    c agi/config
-    ```
+    def call(self, x:int = 1, y:int = 2) -> int:
+        c.print(self.config)
+        c.print(self.config, 'This is the config, it is a Munch object')
+        return x + y
+    
 
-    This retrieves the configuration of the `agi` module.
+```
 
-    Equivalent Python code:
+to get the config, which is a yaml, or the key word arguments of the __init__
+```bash
+c agi/config
+```
 
-    ```python
-    import commune as c
-    c.module("agi").config()
-    ```
 
-3.  **Getting Module Code**:
+The 
 
-    ```bash
-    c agi/code
-    ```
+The commune cli needs to be able to call functions from the modules. This is a simple way to call functions from the modules.
+c {modulename}/{fn} *args **kwargs
 
-    This retrieves the code of the `agi` module.
+```bash
+c serve module
 
-4.  **Calling Module Functions**:
+```
+To call the forward function of the model.openai module
+```bash
+c call module/ask hey # c.call('module/ask', 'hey')
+# c.connect('module').ask('hey')
+```
+If you want to include positional arguments then do it 
 
-    To call the `ask` function of the `model.openai` module:
+```bash
 
-    ```bash
-    c call module/ask hey
-    ```
+c call module/ask hey stream=1 
+# c.call('module/ask', 'hey', stream=1)
+# c.connect('module').ask('hey', stream=1)
+```
 
-    To include positional arguments:
 
-    ```bash
-    c call module/ask hey stream=1
-    ```
+c cmd 
 
-### CLI Tricks
 
--   `c` (without arguments): Navigates to the `commune` repository.
+Tricks 
 
-### Limitations
+```bash
+c # takes you to commune by doing c code ./
+```
 
--   Lists and dictionaries are not directly supported as CLI arguments.
--   Only positional arguments are supported.
--   Only one function can be called at a time.
+
+
+
+
+Limitatons
+
+- Lists and dictionaries are not supported 
+- Only positional arguments are supported
+- Only one function can be called at a time
+
+
+
+
+
+### Viewing Module Info
+You can view the information of a specific module using the `info()` method:
+
+```python
+model_openai = c.module('model.openai')
+c.print(model_openai.info(*args, **kwargs))
+```
+or 
+```bash
+c.print(c.call('model.openai/info', *args, **kwargs))
+```
+
+---
 
 ## Module Management
 
-### Accessing Module Information
+Once you've found your module, you can manage it using the following steps.
 
-To access a module, use the `c.module()` function:
+### Accessing a Module
+You can access a module using the `c.module()` function:
 
 ```python
 demo = c.module('demo')
@@ -307,240 +259,190 @@ c.print('## Code for demo module')
 c.print(demo.code())
 ```
 
-### Viewing Module Configuration
 
-View the configuration of a module using the `config()` method:
+
+
+### Viewing Module Config
+You can view the configuration of a module using the `config()` method:
 
 ```python
 demo.config()
 ```
 
-Output:
-
-```
+OUTPUT
+```python
 {
     'name': 'demo',
     'version': '0.1.0',
     'description': 'A demo module for testing purposes',
     'author': 'John Doe',
-    'email': '',
+    'email': '
     'license': 'MIT',
+
 }
 ```
 
-### Listing Module Functions
+This is the yaml file if the module has a config file stored in the same directory as the module, otherwise it will be the key word arguments of the __init__ method of the module.
 
-List the functions of a module using the `fns()` method:
+
+### Listing Module Functions
+To list the functions of a module, use the `fns()` method:
 
 ```python
 demo.fns()
 ```
-
-Output:
-
-```
 ['test', 'forward']
+
+### Searching for a Function
+To search for a specific function within a module, use the `fns()` method with a search query:
+
+```python
+
+matching_functions = demo.fns('forw')
+c.print(matching_functions)
 ```
+['forward']
 
 ### Function Schema
-
-Retrieve the schema of a specific function using the `schema()` method:
+You can retrieve the schema of a specific function using the `schema()` method:
 
 ```python
 c.module('model.openai').schema()
 ```
 
-Output:
 
-```
 {
     '__init__': {'input': {'a': 'int'}, 'default': {'a': 1}, 'output': {}, 'docs': None, 'type': 'self'},
     'call': {'input': {'b': 'int'}, 'default': {'b': 1}, 'output': {}, 'docs': None, 'type': 'self'}
 }
+
+---
+
+This concludes our tutorial on module management using the `commune` library. You've learned how to find modules, manage their functions, serve them, and interact with served modules. This library can greatly simplify the process of managing and deploying code modules in your projects.
 ```
 
-## Key Management
+Feel free to use and adapt this markdown document for your tutorial needs. Make sure to adjust any details as necessary and include code snippets or explanations for each step to ensure clarity and comprehensiveness.
 
-### Listing Keys
+## Install
 
-List all available keys using the `keys()` function:
+**Environment Requirements**
+python 3.10>=
+nodejs 14>=
+npm 6>=
+
+1. **Clone the Commune Repository**: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
 ```bash
-c keys
+git clone https://github.com/commune-ai/commune.git
 ```
-
-Or in Python:
-
-```python
-c.keys()
-```
-
-### Adding and Removing Keys
-
-#### Adding a New Key
-
-To add a new key, use the `add_key()` function:
-
-```python
-c.add_key('fam')
-```
-
-Or:
 
 ```bash
-c add_key fam
+pip install -e ./commune
 ```
 
-#### Removing a Key
+To make sure it is working Run the tests, and they should all pass
+```bash
+c test # runs pytest commune/tests
+```
+## Running a Docker Container with Commune
 
-To remove a key, use the `rm_key()` function:
+Ensure that you have Docker installed on your machine. If you don't, you can follow the official Docker installation guide for your operating system.
 
-```python
-c.rm_key('demo')
+
+3. **Build the Docker Image**: Navigate to the cloned Commune repository and build the Docker image using the provided `Dockerfile`, This can be done via the docker-compsoe file.:
+
+# you may have to 
+
+```
+make start
 ```
 
-### Getting Key Info
-
-Retrieve key information using the `key_info()` function:
-
-```python
-c.key_info('fam')
-```
-
-### Saving and Loading Keys
-
-#### Saving Keys
-
-To save the keys, use the `save_keys()` function:
-
-```python
-c.save_keys(path='./keys.json')
-```
-
-#### Loading Keys
-
-To load the saved keys, use the `load_keys()` function:
-
-```python
-c.load_keys('./keys.json')
-```
-
-### Balance and Stake
-
-#### Balance
-
-To get the balance for a key, use the `get_balance()` function:
-
-```python
-c.balance('fam')
-```
-
-Or:
+To ensure the container is running, you can run the following command:
 
 ```bash
-c balance fam
+make test
 ```
 
-#### Get Stake of the Key
+4. **Start Container**: Start a Docker container with the Commune image:
 
-get a map of the validators that you are staked to.
+```
+make start
+```
+
+5. **Enter the Container**: Enter the Docker container:
 
 ```bash
-c staketo fam
+make enter # or docker exec -it commune bash
+```
+To exit the container, run the following command:
+```bash
+exit
 ```
 
-Or:
-
-```python
-c.staketo('fam', netuid='text')
-```
-
-
-
-
-
-## Server Management
-
-### Viewing Available Servers
-
-View the available servers using the `servers()` method:
+To run commands inside the container, you can use the following command:
 
 ```bash
-c servers
+docker exec -it commune bash -c "c modules"
 ```
 
-Or:
-
-```python
-c.servers()
+To Kill the container, run the following command:
+```bash
+make down
 ```
 
-### Viewing Server Logs
+Congratulations! Commune is now set up and running inside a Docker container.
 
-View the logs of a served module using the `logs()` method:
+## Setting up Commune Without Docker
 
-```python
-c logs demo
+2. **Install Dependencies**: Navigate to the cloned Commune repository and install the required dependencies:
+
+```
+cd commune
+pip install -e ./
 ```
 
-Or:
-
-```python
-c.logs('demo')
+3. **install npm pm2**
+This is required for the webserver to run
+```bash 
+chmod +x ./run/* # make sure the scripts are executable
+sudo ./run/install_npm_env.sh # install npm and pm2 (sudo may not be required)
 ```
 
-### Connecting to a Served Module
-
-Connect to a served module using the `connect()` method:
-
-```python
-c call demo/info
+4. Check if commune is installed correctly, try running the following command
+```bash
+c modules
 ```
 
-### Restarting a Module
+That's it! Commune is now set up and ready to roll on your local machine.
 
-Restart a served module using the `restart()` method:
+Whether you choose to set up Commune with Docker or without it, you're all set to leverage the power of Commune and connect your Python objects in a collaborative ecosystem. Have fun exploring the possibilities and making the most out of Commune!
 
-```python
-c.restart('demo')
-```
+Note: Make sure to follow the official Commune documentation for detailed instructions and additional configuration options.
 
-## Serializer
 
-The serializer is responsible for ensuring that objects are JSON serializable. It handles various data types, including dictionaries, lists, and primitive types. For non-JSON serializable types, it uses custom serialization 
-functions.
-
-To add a new serializable type, define `serialize_{type}` and `deserialize_{type}` functions:
-
-```python
-# File: commune/serializer/serializer.py
-from typing import Any, Dict, Union
-
-def serialize_{type}(obj: {type}) -> Dict:
-    return {"value": obj.value}
-
-def deserialize_{type}(data: Dict[str, Any]) -> {type}:
-    return {type}(data["value"])
-```
-
-## Port Range
-
-To check the current port range:
+## Port Range:
 
 ```bash
+
+# check the port range
 c port_range
 ```
 
-To set a new port range:
-
 ```bash
-c set_port_range 8000 9000
+c set_port_range 8000 9000 # set the port range to 8000-9000
 ```
 
-## Modules Folder
 
-The modules folder, located by default in `~/modules`, contains the code for imported modules. You can define this path using `c.home_path`.
 
-## Conclusion
+The modules folder
 
-This tutorial covered the essential aspects of module management using the `commune` library. You've learned how to create, find, manage, serve, and interact with modules, as well as how to manage keys and configure servers. This library greatly simplifies the process of managing and deploying code modules in your projects.
+The modules folder is default in ~/modules and contains the code from any module you import 
+it is by default stored in ~/modules which can differ depending on your system (inside docker it is /root) while on a macbook its /home/{username}, you can define this by c.home_path
+
+
+
+
+## Routes
+
+Routes are \
+

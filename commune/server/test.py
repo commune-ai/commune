@@ -38,39 +38,33 @@ class Test:
     def test_basics(self) -> dict:
         servers = c.servers()
         c.print(servers)
-        name = f'module::test'
+        name = f'module::test_basics'
         c.serve(name)
         assert name in c.servers()
         c.kill(name)
         assert name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
 
-    def test_serving(self, name = 'module::test'):
-        module = c.serve(name)
+    def test_serving(self, name = 'module::test_serving', deployer='module::deployer'):
+        module = c.serve(name, key=deployer)
         module = c.connect(name)
         r = module.info()
+        r2 = c.call(name+'/info')
+        assert c.hash(r) == c.hash(r2)
+        deployer_key = c.get_key(deployer)
+        assert r['key'] == deployer_key.ss58_address
+        print(r)
         assert 'name' in r, f"get failed {r}"
         c.kill(name)
         assert name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
 
-    def test_serving_with_different_key(self, module = 'module', timeout=2):
-        tag = 'test_serving_with_different_key'
-        key_name = module + '::'+ tag
-        module_name =  module + '::'+ tag + '_b' 
-        if not c.key_exists(key_name):
-            key = c.add_key(key_name)
-        c.print(c.serve(module_name, key=key_name))
-        key = c.get_key(key_name)
-        c.sleep(2)
-        info = c.call(f'{module_name}/info', timeout=timeout)
-        assert info.get('key', None) == key.ss58_address , f" {info}"
-        c.kill(module_name)
-        c.rm_key(key_name)
-        assert not c.key_exists(key_name)
-        assert not c.server_exists(module_name)
-        return {'success': True, 'msg': 'server test passed'}
-
     def test_executor(self):
         return c.module('executor')().test()
+
+    def test_auth(self, auths=['jwt', 'base']):
+        auths = c.get_modules(search='server.auth.')
+        for auth in auths:
+            c.module(auth)().test()
+        return {'success': True, 'msg': 'server test passed', 'auths': auths}
 

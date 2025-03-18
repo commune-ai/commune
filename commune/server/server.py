@@ -14,37 +14,49 @@ import commune as c
 
 shortkey = lambda x: x[:3] + '...' + x[-2:]
 
-class Server:
 
-    executor = 'server.executor' # the executor for the server to run the functions
-    serializer = 'server.serializer' # the serializer for the server serializes and deserializes the data for the server if it is not a string
-    pm_dir = c.home_path + '/.pm2'
-    helper_functions  = ['info', 'forward'] # the helper functions
-    proc_prefix = 'server' # the prefix for the proc name
-    max_staleness = 10 # the maximum staleness of a request
-    futures = [] # the futures for the server
-    
+
+class Server:
     def __init__(
         self, 
-        module: Union[c.Module, object] = None,
+        module: Union[c.Module, object] = 'module',
         key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
+        helper_functions  = ['info', 'forward'], # the helper functions
         port: Optional[int] = None, # the port the server is running on
+        tempo:int = 10000 , # (in seconds) the maximum age of the history
         name: Optional[str] = None, # the name of the server, 
         params : Optional[dict] = None, # the kwargs for the module
         network: Optional[str] = 'local', # the network the server is running on
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
         run_api : Optional[bool] = False, # if the server should be run as an api
-        tempo:int = 10000 , # (in seconds) the maximum age of the history
         timeout:int = 10, # (in seconds) the maximum time to wait for a response
         info:Optional[dict]=None, # the info for the server
+
+        # MODULES
+        executor = 'executor', # the executor for the server to run the functions
+        serializer = 'serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
+        auth = 'server.auth.jwt', # the auth for the server
+        # PM2 (PROCESS MANAGEMENT)
+        pm_dir = c.home_path + '/.pm2',
+        proc_prefix = 'server', # the prefix for the proc name
+        max_staleness = 10, # the maximum staleness of a request
+        futures = [] # the futures for the server
         ) -> 'Server':
         self.network = network or 'local'
         self.tempo = tempo
         self.proc_prefix = 'server/' + network + '/'
         self.history_path = history_path or self.get_path('history')
+        self.helper_functions = helper_functions
+        self.max_staleness = max_staleness
+        self.futures = futures
+        self.pm_dir = pm_dir
+        self.executor = executor
         if run_api:
+            self.serializer = c.module(serializer)()
+            self.executor = c.module(executor)()
+            self.auth = c.module(auth)() if auth else Auth()
             module = module or 'module'
             if isinstance(module, str):
                 if '::' in str(module):
@@ -63,33 +75,36 @@ class Server:
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.set_middleware(self.app)
-            self.serializer = c.module(self.serializer)()
-            self.executor = c.module(self.executor)()
+
 
             def server_function(fn: str, request: Request):
                 try:
-                    return self.send_request(fn, request)
+                    return self.forward(fn, request)
                 except Exception as e:
                     return c.detailed_error(e)
             self.app.post("/{fn}")(server_function)
             c.print(f'ServedModule({self.module.info})', color='purple')
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
-    def send_request(self, fn, request, timeout=10):
-        
-        # 
-        headers = dict(request.headers)
-        headers['time'] = float(headers.get('time', c.time()))
-        headers['key'] = headers.get('key', headers.get('url', None))
-        staleness = c.time() - float(headers['time'])
-        assert  staleness < self.max_staleness, f"Request is too old ({staleness}s > {max_staleness}s (MAX)" 
+
+
+    def fleet(self, module='module', n=2, timeout=10):
+        if '::' not in module:
+            module = module + '::'
+        names = [module+str(i) for i in range(n)]
+        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
+
+
+    def get_params(self, request:Request):
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
-        # check the signature of the request hash (fn, params, time)
-        data_hash = c.hash({'fn': fn, 'params': params, 'time': str(headers['time'])})
-        assert data_hash == headers['data_hash'], f'InvalidDataHash({data_hash} != {headers["data_hash"]})'
-        assert isinstance(params, dict), f'Params must be a dict, not {type(params)}'
+        return params
+
+    def get_result(self, fn:str, params:dict, verbose=False):
+        if verbose:
+            c.print(f'Request(fn={data["fn"]} from={shortkey(data["client"]["key"])})', color='green')
+        fn_obj = getattr(self.module, fn)
         if len(params) == 2 and 'args' in params and 'kwargs' in params :
             kwargs = dict(params.get('kwargs')) 
             args = list(params.get('args'))
@@ -97,65 +112,38 @@ class Server:
             args = []
             kwargs = dict(params)
         params = {"args": args, "kwargs": kwargs}
-
-        # get the rate limit or priority of th  request
-        rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
-        
-        # submit the request to the executor
-        future = self.executor.submit(self.forward, {"fn": fn, "params":params, "headers": headers} ,  priority=rate_limit)
-        self.futures.append(future)
-        result =  c.wait(future, timeout=timeout)
-        self.futures.remove(future)
-        return result
-
-    def fleet(self, module='module', n=2, timeout=10):
-        if '::' not in module:
-            module = module + '::'
-        names = [module+str(i) for i in range(n)]
-        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
-        
-    def forward(self, fn:str, params:dict, headers:dict) -> dict:   
-        t0 = c.time()
-        c.print(f'Request(fn={fn} from={shortkey(headers["key"])})', color='green')
-        fn_obj = getattr(self.module, fn)
-        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        t1 = c.time()
+        result = fn_obj(*args, **kwargs) if callable(fn_obj) else fn_obj
         if c.is_generator(result):
             output = str(result)
             def generator_wrapper(generator):
                 for item in generator:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))   
+        return result
 
-        else:
-            data = {
-                'fn': fn,
-                'params': params,
-                'headers': headers , 
-                'result': result, 
-                'time': t1, # the time the request was made
-                'duration': t1 - float(headers['time']), # the duration of the request (in seconds) by subtracting the time the request was made from the current time
-                'cost': fn_obj.__dict__['__cost__'] if callable(fn_obj) else 1, # the cost of the function
-            }
-            data_hash = c.hash(data)
-            data['server'] = {
-                'data_hash': data_hash,
-                'key': self.module.key.ss58_address,
-                'signature': c.sign(data_hash, key=self.module.key, mode='str')
-            }
-            self.save_data(data)
+    def forward(self, fn:str, request:dict) -> dict:   
+        data = { 'fn': fn,  'params': self.get_params(request)} # prepare the data
+        data['client'] = self.auth.verify_headers(headers=dict(request.headers), data=data) # verify the headers
+        data['time'] = data['client']['time']
+        rate_limit = self.rate_limit(fn=data['fn'], params=data['params'], headers=data['client'])   
+        result = self.get_result(fn=data['fn'], params=data['params'])
+        data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
+        data['server'] = self.auth.get_headers(data=data, key=self.module.key)
+        data['duration'] = c.time() - float(data['client']['time'])
+        data['schema'] = self.module.schema.get(data['fn'], {})
+        data['cost'] = self.module.fn2cost.get(data['fn'], 1)
+        self.save_data(data)
         return result 
 
     def save_data(self, data:dict):
         """
         Save the data from the call
         """
-        address = self.module.name + '/'  + data['headers']["key"]
+        address = self.module.name + '/'  + data['client']["key"]
         calls_t0 = self.calls(address) # the number of calls before the call
         call_data_path = self.history_path + '/' + address +  f'/{data["fn"]}/{data["time"]}.json'
         c.put(call_data_path, data) # save the call data
         calls_t1 = self.calls(address) # the number of calls after the call
-        assert calls_t1 == calls_t0 + 1, f'Expected {calls_t0+1} calls, but got {calls_t1}' 
         return {'success':True, 'message':f'Saved call data to {call_data_path}'}
 
     @classmethod
@@ -168,7 +156,6 @@ class Server:
             if hasattr(self.module, 'info') and isinstance(self.module.info, dict):
                 info = self.module.info 
             else:
-
                 info = {   
                     "name": self.module.name,
                     "url": self.module.url,
@@ -180,16 +167,14 @@ class Server:
         assert all([k in info for k in required_info_features]), f'Info must have keys name, url, key, time, schema'
         c.print('Setting info -->', info)
         info['signature'] = c.sign(info, key=self.module.key, mode='str')
-        self.verify_info(info)
-        self.module.info = info
-        return info
-
-    def verify_info(self, info:dict) -> bool:
-        info = c.copy(info)
         assert isinstance(info, dict), f'Info must be a dict, not {type(info)}'
         assert all([k in info for k in ['name', 'url', 'key', 'time', 'signature']]), f'Info must have keys name, url, key, time, signature'
-        signature= info.pop('signature')
-        return c.verify(info, signature=signature, address=info['key']), f'InvalidSignature({info})'
+        signature= info['signature']
+        info = {k: v for k, v in info.items() if k != 'signature'}
+        assert c.verify(info, signature=signature, address=info['key']), f'InvalidSignature({info})'
+        self.module.info = info
+        return info
+    
     
     def set_functions(self, functions:Optional[List[str]]):
         function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns']  
@@ -561,14 +546,16 @@ class Server:
         import datetime
         return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
 
-    def history(self, address = 'module' , df=True):
+    def history(self, address = 'module' , df=False):
         history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
+        history = [h for h in history if isinstance(h, dict)]
         if df:
+            df
             df =  c.df(history)
-            features = ['fn', 'cost', 'time', 'duration', 'age', 'caller', 'server']
-            df['age'] = df['time'].apply(lambda x: c.time() - x)
+            features = ['fn', 'cost', 'time', 'duration', 'age', 'client', 'server']
+            df['age'] = df['time'].apply(lambda x: c.time() - float(x))
             df['time'] = df['time'].apply(lambda x: self.time2date(x) if isinstance(x, float) else x)
-            df['caller'] = df['headers'].apply(lambda x: shortkey(x['key']))
+            df['client'] = df['client'].apply(lambda x: shortkey(x['key']))
             df['server'] = df['server'].apply(lambda x: shortkey(x['key']) )
             df = df[features]
             return df
