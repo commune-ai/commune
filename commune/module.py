@@ -1847,7 +1847,7 @@ class c:
                     test_fns += [fn]
         test = Test()
         fn2result = {}
-        for fn in enumeratr(test_fns):
+        for i, fn in enumerate(test_fns):
             fn_path = f'{module}/{fn}'
             print(f'-------- TESTING({fn_path}) ----------')
             fn2result[fn] = getattr(test, fn)()

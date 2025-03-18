@@ -51,10 +51,11 @@ class JWT:
             data = {'data': data }
         token_data = data.copy()
         key = c.get_key(key, crypto_type=crypto_type)
+        
         # Add standard JWT claims
         token_data.update({
-            'iat': int(time.time()),  # Issued at time
-            'exp': int(time.time() + expiration),  # Expiration time
+            'iat': float(c.time()),  # Issued at time
+            'exp': float(c.time() + expiration),  # Expiration time
             'iss': key.key_address,  # Issuer (key address)
         })
         
@@ -66,15 +67,11 @@ class JWT:
             'typ': 'JWT',
         }
         
-        # Encode header and data
-        header_encoded = self._base64url_encode(header)
-        data_encoded = self._base64url_encode(token_data)
         # Create message to sign
-        message = f"{header_encoded}.{data_encoded}"
+        message = f"{self._base64url_encode(header)}.{self._base64url_encode(token_data)}"
         # For asymmetric algorithms, use the key's sign method
         signature = key.sign(message, mode='bytes')
         signature_encoded = self._base64url_encode(signature)
-        
         # Combine to create the token
         return f"{message}.{signature_encoded}"
             
@@ -90,13 +87,17 @@ class JWT:
         print('data', data)
         print('headers', headers)
         # Check if token is expired
-        if 'exp' in data and data['exp'] < time.time():
+        if 'exp' in data and data['exp'] < c.time():
             raise Exception("Token has expired")
         # Verify signature
         message = f"{header_encoded}.{data_encoded}"
         signature = self._base64url_decode(signature_encoded)
         assert c.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
         data['time'] = data['iat'] # set time field for semanitcally easy people
+        data['signature'] = '0x'+signature.hex()
+        data['alg'] = headers['alg']
+        data['typ'] = headers['typ']
+        data['token'] = token
         return data
 
     def _base64url_encode(self, data):
@@ -132,29 +133,27 @@ class JWT:
         # Verify the token
         decoded = self.verify_token(token)
         # Check if original data is in the decoded data
-        validation_passed = all(
-            test_data[key] == decoded[key] 
-            for key in test_data
-        )
-        
+        validation_passed = all(test_data[key] == decoded[key] for key in test_data)
+        assert validation_passed, "Decoded data does not match original data"
         # Test token expiration
-        quick_token = self.get_token(test_data, expiration=1, crypto_type=crypto_type)
-        time.sleep(2)  # Wait for token to expire
+        quick_token = self.get_token(test_data, expiration=0.1, crypto_type=crypto_type)
+        time.sleep(0.2)  # Wait for token to expire
         
         expired_token_caught = False
         try:
-            decoded = self.verify_token(quick_token)['data'], "Expired token not caught"
+            decoded = self.verify_token(quick_token)
         except Exception as e:
-            if "expired" in str(e).lower():
-                expired_token_caught = True
+            expired_token_caught = True
+        assert expired_token_caught, "Expired token not caught"
+        
         
         return {
-            "success": validation_passed and expired_token_caught,
             "token": token,
             "decoded_data": decoded,
-            "expiration_test_passed": expired_token_caught,
             "crypto_type": crypto_type,
-        }
+            "quick_token": quick_token,
+            "expired_token_caught": expired_token_caught
+            }
 
     def test_headers(self, key='test.jwt', crypto_type='ecdsa'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}

@@ -128,7 +128,7 @@ class Server:
         rate_limit = self.rate_limit(fn=data['fn'], params=data['params'], headers=data['client'])   
         result = self.get_result(fn=data['fn'], params=data['params'])
         data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
-        data['server'] = self.auth.get_headers(data=data, key=self.module.key)
+        data['server'] = self.auth.verify_headers(self.auth.get_headers(data=data, key=self.module.key))
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
         data['cost'] = self.module.fn2cost.get(data['fn'], 1)
