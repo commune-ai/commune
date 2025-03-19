@@ -106,3 +106,17 @@ def deserialize_{type}(data: Dict[str, Any]) -> {type}:
 
 Now when that type is encoutered, the serializer will use the `serialize_{type}` and `deserialize_{type}` functions to serialize and deserialize the object.
 
+
+TESTS
+
+to test if commune is running properly 
+
+c test
+
+to test a module 
+
+c test {modulename}
+
+
+c core_modules is the core modules
+

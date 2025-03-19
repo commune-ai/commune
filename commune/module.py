@@ -15,20 +15,6 @@ nest_asyncio.apply()
 
 class c:
 
-    def go(self, module=None, **kwargs):
-        if module == None:
-            path = c.lib_path
-        else:
-            try:
-                path = c.dirpath(module)
-            except:
-                path = c.modules_path + '/' + module
-        if path.split('/')[-1] == path.split('/')[-2]:
-            path = '/'.join(path.split('/')[:-1])
-        assert os.path.exists(path), f'{path} does not exist'
-        return c.cmd(f'code {path}', **kwargs)
-
-
     @classmethod
     def module(cls,path:str = 'module',  params : dict = None,  verbose=False,cache=True,  **kwargs ) -> str:
         if not hasattr(c, 'module_cache'):
@@ -85,6 +71,22 @@ class c:
     
     get_agent = block =  get_block = get_module =  mod =  module
     
+
+
+
+    def go(self, module=None, **kwargs):
+        if module == None:
+            path = c.lib_path
+        else:
+            try:
+                path = c.dirpath(module)
+            except:
+                path = c.modules_path + '/' + module
+        if path.split('/')[-1] == path.split('/')[-2]:
+            path = '/'.join(path.split('/')[:-1])
+        assert os.path.exists(path), f'{path} does not exist'
+        return c.cmd(f'code {path}', **kwargs)
+
     @classmethod
     def filepath(cls, obj=None) -> str:
         return inspect.getfile(cls.resolve_module(obj))
