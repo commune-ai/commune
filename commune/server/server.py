@@ -41,18 +41,15 @@ class Server:
         # PM2 (PROCESS MANAGEMENT)
         pm_dir = c.home_path + '/.pm2',
         proc_prefix = 'server', # the prefix for the proc name
-        max_staleness = 10, # the maximum staleness of a request
-        futures = [] # the futures for the server
         ) -> 'Server':
         self.network = network or 'local'
         self.tempo = tempo
-        self.proc_prefix = 'server/' + network + '/'
-        self.history_path = history_path or self.get_path('history')
         self.helper_functions = helper_functions
-        self.max_staleness = max_staleness
-        self.futures = futures
+        self.proc_prefix = 'server/' + network + '/'
         self.pm_dir = pm_dir
-        self.executor = executor
+        self.history_path = history_path or self.get_path('history')
+        self.modules_path = f'{self.get_path(self.network)}/modules'
+
         if run_api:
             self.serializer = c.module(serializer)()
             self.executor = c.module(executor)()
@@ -71,7 +68,6 @@ class Server:
             self.set_port(port)
             self.set_info(info)
             c.put(self.history_path + '/' + name + '/info.json', info)
-
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.set_middleware(self.app)
@@ -128,7 +124,7 @@ class Server:
         rate_limit = self.rate_limit(fn=data['fn'], params=data['params'], headers=data['client'])   
         result = self.get_result(fn=data['fn'], params=data['params'])
         data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
-        data['server'] = self.auth.verify_headers(self.auth.get_headers(data=data, key=self.module.key))
+        data['server'] = self.auth.get_headers(data=data, key=self.module.key)
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
         data['cost'] = self.module.fn2cost.get(data['fn'], 1)
@@ -219,7 +215,7 @@ class Server:
                 namespace = self.namespace()
                 if name in namespace:
                     port = int(namespace.get(name).split(':')[-1])
-                port = port or c.free_port()
+                port = port or c.free_ports()
         if str(port) == 'None':
             port = c.free_port()
         while c.port_used(port):
@@ -438,12 +434,11 @@ class Server:
                 timeout=8, 
                 **kwargs):
 
-        modules_path = f'{self.get_path(self.network)}/modules'
-        modules = c.get(modules_path, max_age=max_age, update=update)
+        modules = c.get(self.modules_path, max_age=max_age, update=update)
         if modules == None:
             futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
             modules = c.wait(futures, timeout=timeout)
-            c.put(modules_path, modules)
+            c.put(self.modules_path, modules)
         if search != None:
             modules = [m for m in modules if search in m['name']]
         return [m for m in modules if not c.is_error(m)]

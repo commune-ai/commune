@@ -124,8 +124,6 @@ def ecdsa_sign(private_key: bytes, message: bytes) -> bytes:
 
 
 def ecdsa_verify(signature: bytes, data: bytes, address: bytes) -> bool:
-    print('signature', signature, 'address', address, )
-
     signature_obj = Signature(signature)
     recovered_pubkey = signature_obj.recover_public_key_from_msg(data)
     return recovered_pubkey.to_canonical_address() == address

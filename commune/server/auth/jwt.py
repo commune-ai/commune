@@ -8,25 +8,24 @@ import commune as c
 
 class JWT:
 
-    def get_headers(self, data: Any, key:str=None, crypto_type='ecdsa') -> dict:
+    def get_headers(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
         """
         Generate the headers with the JWT token
         """
-        # sign the request
-        time_str = str(c.time()) # get the current time
-        headers =  {
-            'token': self.get_token(c.hash(data), key=key, crypto_type=crypto_type), # the key to use     
-        } 
+        headers =  self.get_token(c.hash(data), key=key, crypto_type=crypto_type, mode=mode)
         return headers
 
-
+    def token2dict(self, token: str) -> Dict:
+        """
+        Convert a token to a dictionary
+        """
+        return self.verify_token(token)
 
     def verify_headers(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
         Verify and decode a JWT token
         """
         verified = self.verify_token(headers['token'])
-        verified['key'] = verified['iss']
         assert verified, 'Invalid signature'
         if data:
             assert verified['data'] == c.hash(data), 'Invalid data {} != {}'.format(verified['data'], c.hash(data))
@@ -35,7 +34,7 @@ class JWT:
     def check_crypto_type(self, crypto_type):
         assert crypto_type in ['ecdsa', 'sr25519'], f'Invalid crypto_type {crypto_type}'
 
-    def get_token(self, data: Dict='hey',  key:Optional[str]=None,   crypto_type: str = 'ecdsa', expiration: int = 3600) -> str:
+    def get_token(self, data: Dict='hey',  key:Optional[str]=None,   crypto_type: str = 'ecdsa', expiration: int = 3600, mode='bytes') -> str:
         """
         Generate a JWT token with the given data
         Args:
@@ -45,6 +44,7 @@ class JWT:
         Returns:
             JWT token string
         """
+        assert mode in ['bytes', 'dict'], f'Invalid mode {mode}'
         key = c.get_key(key, crypto_type=crypto_type)
         self.check_crypto_type(crypto_type)
         if not isinstance(data, dict):
@@ -54,8 +54,8 @@ class JWT:
         
         # Add standard JWT claims
         token_data.update({
-            'iat': float(c.time()),  # Issued at time
-            'exp': float(c.time() + expiration),  # Expiration time
+            'iat': str(float(c.time())),  # Issued at time
+            'exp': str(float(c.time() + expiration)),  # Expiration time
             'iss': key.key_address,  # Issuer (key address)
         })
         
@@ -73,31 +73,38 @@ class JWT:
         signature = key.sign(message, mode='bytes')
         signature_encoded = self._base64url_encode(signature)
         # Combine to create the token
+
+        if mode == 'dict':
+            return self.verify_token(f"{message}.{signature_encoded}")
+
         return f"{message}.{signature_encoded}"
             
     def verify_token(self, token: str) -> Dict:
         """
         Verify and decode a JWT token
         """
+        if isinstance(token, dict) and 'token' in token:
+            token = token['token']
         # Split the token into parts
         header_encoded, data_encoded, signature_encoded = token.split('.')
         # Decode the data
         data = json.loads(self._base64url_decode(data_encoded))
         headers = json.loads(self._base64url_decode(header_encoded))
-        print('data', data)
-        print('headers', headers)
         # Check if token is expired
-        if 'exp' in data and data['exp'] < c.time():
+        if 'exp' in data and float(data['exp']) < c.time():
             raise Exception("Token has expired")
         # Verify signature
         message = f"{header_encoded}.{data_encoded}"
         signature = self._base64url_decode(signature_encoded)
         assert c.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
+        # data['data'] = message
         data['time'] = data['iat'] # set time field for semanitcally easy people
         data['signature'] = '0x'+signature.hex()
         data['alg'] = headers['alg']
         data['typ'] = headers['typ']
         data['token'] = token
+        data['key'] = data['iss']
+
         return data
 
     def _base64url_encode(self, data):

@@ -398,12 +398,6 @@ class c:
               **kwargs) -> List[str]:
         """
         Lists all files in the path
-        params:
-            path: the path to search
-            search: the term to search for
-            avoid_terms: the terms to avoid
-        return :
-            a list of files in the path
         """
         files =c.glob(path, **kwargs)
         if not hidden:
@@ -449,7 +443,6 @@ class c:
     @classmethod
     def verify(cls, data, signature=None, address=None,  crypto_type='sr25519',  key=None, **kwargs ) -> bool:  
         key = c.get_key(key, crypto_type=crypto_type)
-        print(key)
         return key.verify(data=data, signature=signature, address=address, **kwargs)
 
     @classmethod
@@ -1648,6 +1641,9 @@ class c:
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
 
+
+
+
     @classmethod
     def modules(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:
         modules = c.get('modules', max_age=max_age, update=update)
@@ -1834,6 +1830,7 @@ class c:
 
     @classmethod
     def test(cls, module=None, timeout=50, default_fns=['forward', 'test'], modules=[ 'server', 'vali','key', 'chain']):
+        
         if module == None:
             test_results ={}
             for m in modules:
@@ -1849,10 +1846,19 @@ class c:
                     test_fns += [fn]
         test = Test()
         fn2result = {}
+
         for i, fn in enumerate(test_fns):
             fn_path = f'{module}/{fn}'
-            print(f'-------- TESTING({fn_path}) ----------')
-            fn2result[fn] = getattr(test, fn)()
+            buffer = 5 * '*-' 
+            emoji = '⏳'
+            c.print(f'{buffer}{emoji}\tTEST({fn_path})\t{emoji}{buffer}', color='yellow')
+            try:
+                fn2result[fn] = getattr(test, fn)()
+            except Exception as e:
+                e = c.detailed_error(e)
+                return {'fn': fn, 'error': e}
+            emoji = '✅'
+            c.print(f'{buffer}{emoji}\tPASS({fn_path})\t{emoji}{buffer}', color='green')
         return fn2result
 
 
@@ -2144,38 +2150,6 @@ class c:
             output += ch
         return output
 
-    def sumtext(self, text, split_size=100000):
-        text_size = len(text)
-        if text_size < split_size:
-            return [text]
-        else:   
-            return [text[i:i+split_size] for i in range(0, text_size, split_size)]
-        future2idx = {}
-        futures = []
-        for idx, chunk in enumerate(chunks):
-            future = c.submit(c.cond, [chunk])
-            future2idx[future] = idx
-        for f in c.as_completed(future2idx):
-            idx = future2idx.pop(f)
-            chunks[idx] = f.result()
-        return chunks
-
-    def sumpath(self, path='./', split_size=100000):
-        text_size = len(text)
-        if text_size < split_size:
-            return [text]
-        else:   
-            return [text[i:i+split_size] for i in range(0, text_size, split_size)]
-        future2idx = {}
-        futures = []
-        for idx, chunk in enumerate(chunks):
-            future = c.submit(c.cond, [chunk])
-            future2idx[future] = idx
-        for f in c.as_completed(future2idx):
-            idx = future2idx.pop(f)
-            chunks[idx] = f.result()
-        return chunks
-
     @classmethod
     def sync(cls, max_age=10, update=True, **kwargs):
         """
@@ -2204,9 +2178,6 @@ class c:
         c.sync_sys_path()
 
         return {'success': True, 'msg': 'synced config'}
-
-
-    
 
 c.sync()
 Module = c # Module is alias of c

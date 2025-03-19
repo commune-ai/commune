@@ -2573,3 +2573,36 @@ def rsa() -> str:
     if not os.path.exists(path):
         cmd('ssh-keygen -t rsa -b 4096 -C ')
     return cmd(f'cat {path}')
+
+
+def sumtext( text, split_size=100000) -> List[str]:
+    text_size = len(text)
+    if text_size < split_size:
+        return [text]
+    else:   
+        return [text[i:i+split_size] for i in range(0, text_size, split_size)]
+    future2idx = {}
+    futures = []
+    for idx, chunk in enumerate(chunks):
+        future = c.submit(c.cond, [chunk])
+        future2idx[future] = idx
+    for f in c.as_completed(future2idx):
+        idx = future2idx.pop(f)
+        chunks[idx] = f.result()
+    return chunks
+
+def sumpath(path='./', split_size=100000) -> List[str]:
+    text_size = len(text)
+    if text_size < split_size:
+        return [text]
+    else:   
+        return [text[i:i+split_size] for i in range(0, text_size, split_size)]
+    future2idx = {}
+    futures = []
+    for idx, chunk in enumerate(chunks):
+        future = c.submit(c.cond, [chunk])
+        future2idx[future] = idx
+    for f in c.as_completed(future2idx):
+        idx = future2idx.pop(f)
+        chunks[idx] = f.result()
+    return chunks
