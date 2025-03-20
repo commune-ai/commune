@@ -46,6 +46,24 @@ class KeyType:
     ECDSA = 2
 
 
+def is_valid_ss58_address(address: str) -> bool:
+    """
+    Check if the given address is a valid SS58 address
+    """
+    try:
+        ss58_decode(address)
+        return True
+    except:
+        return False
+
+def is_valid_ecdsa_address(address: str) -> bool:
+    """
+    Check if the given address is a valid ECDSA address
+    """
+    try:
+        return len(bytes.fromhex(address)) == 20
+    except:
+        return False
 class PublicKey:
     def __init__(self, private_key):
         self.point = int.from_bytes(private_key, byteorder='big') * BIP32_CURVE.generator

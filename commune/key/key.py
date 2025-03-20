@@ -61,13 +61,17 @@ class Key:
         n = 4
         return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
 
+    @classmethod
+    def valid_ss58_address(cls, address):
+        return is_valid_ss58_address(address)
+
     @property
     def shorty(self):
         n = 4
         return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
         
     def set_crypto_type(self, crypto_type):
-        crypto_type = self.resolve_crypto_type(crypto_type)
+        crypto_type = self.get_crypto_type(crypto_type)
         if crypto_type != self.crypto_type:
             kwargs = {
                 'private_key': self.private_key,
@@ -90,7 +94,7 @@ class Key:
         seed_hex: hex string of seed
         crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
         """
-        crypto_type = self.resolve_crypto_type(crypto_type)
+        crypto_type = self.get_crypto_type(crypto_type)
         # If no arguments are provided, generate a random keypair
         if  private_key == None:
             private_key = self.new_key(crypto_type=crypto_type).private_key
@@ -209,41 +213,6 @@ class Key:
         assert cls.key_exists(key), f'key {key} does not exist'
         return cls.mv_key(key, cls.default_key)
     
-    @classmethod
-    def save_keys(cls, path='saved_keys.json', **kwargs):
-        path = cls.resolve_path(path)
-        c.print(f'saving mems to {path}')
-        key2mnemonic = cls.key2mnemonic()
-        c.put_json(path, key2mnemonic)
-        return {'success': True, 'msg': 'saved keys', 'path':path, 'n': len(key2mnemonic)}
-    
-    @classmethod
-    def load_keys(cls, path='saved_keys.json', refresh=False, **kwargs):
-        key2mnemonic = c.get_json(path)
-        for k,mnemonic in key2mnemonic.items():
-            try:
-                cls.add_key(k, mnemonic=mnemonic, refresh=refresh, **kwargs)
-            except Exception as e:
-                # c.print(f'failed to load mem {k} due to {e}', color='red')
-                pass
-        return {'loaded_mems':list(key2mnemonic.keys()), 'path':path}
-    loadkeys = loadmems = load_keys
-    
-    @classmethod
-    def key2mnemonic(cls, search=None) -> dict[str, str]:
-        """
-        keyname (str) --> mnemonic (str)
-        
-        """
-        mems = {}
-        for key in cls.keys(search):
-            try:
-                mems[key] = cls.get_mnemonic(key)
-            except Exception as e:
-                c.print(f'failed to get mem for {key} due to {e}')
-        if search:
-            mems = {k:v for k,v in mems.items() if search in k or search in v}
-        return mems
     
     @classmethod
     def get_key(cls, 
@@ -273,12 +242,6 @@ class Key:
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
         return key
-            
-
-
-    @property
-    def addy(self):
-        return self.address
 
     # KEY MANAGEMENT
     @classmethod
@@ -295,7 +258,6 @@ class Key:
                         cls.rm_key(key)
                     keys.pop(key) 
         return keys
-    
 
     @classmethod
     def key2address(cls, search=None, max_age=None, update=False, **kwargs):
@@ -313,10 +275,7 @@ class Key:
         if search != None :
             return {k:v for k,v in address2key.items() if search in k}
         return address2key
-        
-    @classmethod
-    def key_paths(cls):
-        return c.ls(c.storage_path + '/key')
+    
     address_seperator = '_address='
     @classmethod
     def key2path(cls) -> dict:
@@ -324,7 +283,7 @@ class Key:
         defines the path for each key
         """
         path2key_fn = lambda path: '.'.join(path.split('/')[-1].split('.')[:-1])
-        key2path = {path2key_fn(path):path for path in cls.key_paths()}
+        key2path = {path2key_fn(path):path for path in c.ls(c.storage_path + '/key')}
         return key2path
 
     @classmethod
@@ -371,14 +330,7 @@ class Key:
         c.rm(key2path[key])
         return {'deleted':[key]}
         
-    @classmethod
-    def crypto_name2type(cls, name:str):
-        crypto_type_map = cls.crypto_type_map 
-        name = name.lower()
-        if not name in crypto_type_map:
-            raise ValueError(f'crypto_type {name} not supported {crypto_type_map}')
-        return crypto_type_map[name]
-        
+
     @classmethod
     def new_private_key(cls, crypto_type='ecdsa'):
         return cls.new_key(crypto_type=crypto_type).private_key.hex()
@@ -390,7 +342,7 @@ class Key:
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        crypto_type = cls.resolve_crypto_type(crypto_type)
+        crypto_type = cls.get_crypto_type(crypto_type)
         if suri:
             key =  cls.from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
@@ -446,14 +398,13 @@ class Key:
         """
         assert bip39_validate(mnemonic, cls.language_code), """Invalid mnemonic, please provide a valid mnemonic"""
 
-
     @classmethod
     def from_mnemonic(cls, mnemonic: str = None, crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given memonic
         """
 
-        crypto_type = cls.resolve_crypto_type(crypto_type)
+        crypto_type = cls.get_crypto_type(crypto_type)
 
         if not mnemonic:
             mnemonic = cls.generate_mnemonic()
@@ -516,7 +467,6 @@ class Key:
         Key
         """
 
-
         # GET THE MNEMONIC (PHRASE) AND DERIVATION PATHS
         suri = str(suri)
         if not suri.startswith('//'):
@@ -526,7 +476,7 @@ class Key:
         suri_parts = re.match(r'^(?P<phrase>.[^/]+( .[^/]+)*)(?P<path>(//?[^/]+)*)(///(?P<password>.*))?$', suri).groupdict()
         mnemonic = suri_parts['phrase']
 
-        crypto_type = cls.resolve_crypto_type(crypto_type)
+        crypto_type = cls.get_crypto_type(crypto_type)
 
         if crypto_type == KeyType.ECDSA:
             private_key = mnemonic_to_ecdsa_private_key(
@@ -562,7 +512,7 @@ class Key:
                 derived_keypair = Key(public_key=child_pubkey, private_key=child_privkey)
 
         return derived_keypair
-    from_mnem = from_mnemonic = from_mnemonic
+
     @classmethod
     def from_private_key(
             cls, 
@@ -660,7 +610,7 @@ class Key:
         if not isinstance(data, str):
             data = python2str(data)
         if address != None:
-            if self.valid_ss58_address(address):
+            if is_valid_ss58_address(address):
                 public_key = ss58_decode(address)
             else:
                 public_key = address
@@ -779,17 +729,6 @@ class Key:
         return {'saved':path}
         
     @classmethod
-    def valid_ss58_address(cls, address: str ) -> bool:
-        """
-        Checks if the given address is a valid ss58 address.
-        """
-        try:
-            return isinstance(address, str) and is_valid_ss58_address( address , valid_ss58_format=Key.ss58_format )
-        except Exception as e:
-            print(f'error in {valid_ss58_address}', e)
-            return False
-          
-    @classmethod
     def is_encrypted(cls, data):
         if isinstance(data, str):
             if os.path.exists(data):
@@ -807,15 +746,6 @@ class Key:
     @classmethod
     def get_key_address(cls, key, crypto_type='sr25519'):
         return cls.get_key(key, crypto_type=crypto_type).ss58_address
-
-    @classmethod
-    def resolve_key_address(cls, key):
-        key2address = c.key2address()
-        if key in key2address:
-            address = key2address[key]
-        else:
-            address = key
-        return address
 
     @property
     def multiaddress(self):
@@ -841,6 +771,7 @@ class Key:
                 
         return new_key2path
     @classmethod
+
     def crypto_name2type(cls, name:str):
         crypto_type_map = cls.crypto_type_map
         name = name.lower()
@@ -854,7 +785,7 @@ class Key:
         return crypto_type_map[crypto_type]
     
     @classmethod
-    def resolve_crypto_type(cls, crypto_type):
+    def get_crypto_type(cls, crypto_type):
         if isinstance(crypto_type, int) or (isinstance(crypto_type, str) and c.is_int(crypto_type)):
             crypto_type = int(crypto_type)
             crypto_type_map = cls.crypto_type_map
