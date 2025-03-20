@@ -149,7 +149,7 @@ class Vali:
             c.print(f'ERROR({c.detailed_error(e)})', color='red')
         return results
 
-    def epoch(self, **kwargs):
+    def epoch(self, features=['score', 'key', 'duration'], **kwargs):
         self.set_network(**kwargs)
         n = len(self.modules)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
@@ -161,7 +161,7 @@ class Vali:
         self.epochs += 1
         self.epoch_time = c.time()
         self.vote(results)
-        return c.df(results)
+        return c.df(results)[features]
 
     @property
     def vote_staleness(self):

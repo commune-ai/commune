@@ -120,3 +120,5 @@ c test {modulename}
 
 c core_modules is the core modules
 
+
+the go functi

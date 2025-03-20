@@ -15,76 +15,108 @@ nest_asyncio.apply()
 
 class c:
 
+    @staticmethod
+    def is_module(obj):
+        """
+        does the obj have al of the core features
+        """
+        return  all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
+
+        
     @classmethod
-    def module(cls,path:str = 'module',  params : dict = None,  verbose=False,cache=True,  **kwargs ) -> str:
+    def module(cls, path: str = 'module', params: dict = None, verbose=False, cache=True, **kwargs) -> str:
+        # Initialize cache if needed
         if not hasattr(c, 'module_cache'):
             c.module_cache = {}
-        t0 = time.time()  
+        
+        # Return path if it's already a module object
+        if not isinstance(path, str) and path is not None:
+            return path
+            
+        t0 = time.time()
+        
+        # Handle self-references
         if path in ['module', c.repo_name[0], c.repo_name] or c.repo_name.startswith(path):
-            return c      
-        path = path.replace('/','.')
+            return c
+            
+        # Normalize path
+        path = path.replace('/', '.')
         path = c.shortcuts.get(path, path)
         module = c.tree().get(path, path)
-        if (c.repo_name+'.'+c.repo_name) == module :
+        
+        if (c.repo_name + '.' + c.repo_name) == module:
             return c
+            
+        # Try to load the module
         try:
-            obj = c.obj(module) # if the model
+            obj = c.obj(module)
         except Exception as e:
             if verbose:
                 print(f'Error loading {module} {e}')
+            # Try to find the module in the tree
             tree = c.tree(update=1)
-            if not module in tree:
-                tree_keys = [k for k in tree.keys() if k.endswith(module) ]
-                if len(tree_keys) >= 1:
+            if module not in tree:
+                tree_keys = [k for k in tree.keys() if module in k]
+                if tree_keys:
                     module = tree.get(tree_keys[0])
             obj = c.obj(module)
-        is_obj_module = all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
-        if not is_obj_module: # if the object is not a module, then it is a function
-            obj.resolve_module = lambda *args, **kwargs : c.resolve_module(obj)
-            obj.module_name = lambda *args, **kwargs : c.module_name(obj)
-            obj.storage_dir = lambda *args, **kwargs : c.storage_dir(obj)
-            obj.filepath = lambda *args, **kwargs : c.filepath(obj)
-            obj.dirpath = lambda *args, **kwargs : c.dirpath(obj)
-            obj.code = lambda *args, **kwargs : c.code(obj)
-            obj.info = lambda *args, **kwargs: c.info(obj)
-            obj.cid = lambda *args, **kwargs : c.cid(obj)
-            obj.schema = lambda *args, **kwargs : c.schema(obj)
-            obj.fns = lambda *args, **kwargs : c.fns(obj)
-            obj.fn2code = lambda *args, **kwargs : c.fn2code(obj)
-            obj.fn2hash = lambda *args, **kwargs : c.fn2hash(obj)
-            obj.dir = lambda *args, **kwargs : c.dir(obj)
-            obj.chat = lambda *args, **kwargs : c.chat(obj)
+        
+        # Add utility methods to non-module objects
+        if not c.is_module(obj):
+            methods = {
+                'resolve_module': lambda *args, **kwargs: c.resolve_module(obj),
+                'module_name': lambda *args, **kwargs: c.module_name(obj),
+                'storage_dir': lambda *args, **kwargs: c.storage_dir(obj),
+                'filepath': lambda *args, **kwargs: c.filepath(obj),
+                'dirpath': lambda *args, **kwargs: c.dirpath(obj),
+                'code': lambda *args, **kwargs: c.code(obj),
+                'info': lambda *args, **kwargs: c.info(obj),
+                'cid': lambda *args, **kwargs: c.cid(obj),
+                'schema': lambda *args, **kwargs: c.schema(obj),
+                'fns': lambda *args, **kwargs: c.fns(obj),
+                'fn2code': lambda *args, **kwargs: c.fn2code(obj),
+                'fn2hash': lambda *args, **kwargs: c.fn2hash(obj),
+                'dir': lambda *args, **kwargs: c.dir(obj),
+                'chat': lambda *args, **kwargs: c.chat(obj)
+            }
+            
+            # Set all methods at once
+            for name, method in methods.items():
+                setattr(obj, name, method)
+                
+            # Add optional methods if they don't exist
             if not hasattr(obj, 'ask'):
-                obj.ask = lambda *args, **kwargs : c.ask(obj)
+                obj.ask = lambda *args, **kwargs: c.ask(obj)
             if not hasattr(obj, 'config_path'):
-                obj.config_path = lambda *args, **kwargs : c.config_path(obj)
+                obj.config_path = lambda *args, **kwargs: c.config_path(obj)
             if not hasattr(obj, 'config'):
-                obj.config = lambda *args, **kwargs : c.config(obj)
-
+                obj.config = lambda *args, **kwargs: c.config(obj)
+        
+        # Apply parameters if provided
         if isinstance(params, dict):
-            print('Params({})'.format(obj))
-            obj = obj(**params) 
+            print(f'Params({obj})')
+            obj = obj(**params)
         elif isinstance(params, list):
             obj = obj(*params)
-        c.print(f'Module({module} t={(c.time() - t0):.2f}') if verbose else ''
+            
+        if verbose:
+            c.print(f'Module({module} t={(c.time() - t0):.2f})')
+            
         return obj
-    
+
     get_agent = block =  get_block = get_module =  mod =  module
-    
-
-
 
     def go(self, module=None, **kwargs):
-        if module == None:
+        if module == None or module in c.core_modules:
             path = c.lib_path
         else:
             try:
-                path = c.dirpath(module)
+                path = c.filepath(module)
             except:
                 path = c.modules_path + '/' + module
-        if path.split('/')[-1] == path.split('/')[-2]:
-            path = '/'.join(path.split('/')[:-1])
-        assert os.path.exists(path), f'{path} does not exist'
+            if path.split('/')[-1] == path.split('/')[-2]:
+                path = '/'.join(path.split('/')[:-1])
+            assert os.path.exists(path), f'{path} does not exist'
         return c.cmd(f'code {path}', **kwargs)
 
     @classmethod
@@ -185,7 +217,7 @@ class c:
         yaml_path =  c.dirpath(obj) + '/config.yaml'
         if os.path.exists(json_path):
             return json_path
-        elif os.path.exists(yaml_path):
+        elif ocore_featuress.path.exists(yaml_path):
             return yaml_path
 
     @classmethod
@@ -225,9 +257,7 @@ class c:
     def resolve_module(cls, obj:str = None, default=None, fn_splitter='/', **kwargs):
         if obj == None:
             obj = cls
-        if c.object_exists(obj):
-            return c.obj(obj)
-        elif isinstance(obj, str):
+        else:
             obj = c.module(obj)
         return obj
 
@@ -276,17 +306,17 @@ class c:
         """
         get a fucntion from a strings
         """
+
         if '/' in fn:
             module, fn = fn.split('/')
         else:
             assert hasattr(module, fn), f'{fn} not in {module}'
         module = c.module(module)
+        params = params or {}
         fn_obj = getattr(module, fn)
-        is_self_method = 'self' in c.get_args(fn_obj)
-        if is_self_method:
+        if 'self' in c.get_args(fn_obj):
             module = module()
         fn_obj =  getattr(module, fn)
-        params = params or {}
         if isinstance(params, list):
             args = params
         elif isinstance(params, dict):
@@ -550,17 +580,13 @@ class c:
         path = None
         if module == None:
             dirpath = os.path.dirname(__file__)
-            for m in ['json', 'yaml']:
-                path = f'{dirpath}/config.{m}'
-                if os.path.exists(path):
-                    break
         else:
-            name2config = c.name2config()
-            if module in name2config:
-                path = name2config[module]
-            else: 
-                path = c.config_path(module)
-
+            module = c.module(module)
+            dirpath = c.dirpath(module)
+        for m in ['json', 'yaml']:
+            path = f'{dirpath}/config.{m}'
+            if os.path.exists(path):
+                break
         if os.path.exists(path):
             if path.endswith('.json'):
                 config = json.load(open(path, 'r'))
@@ -569,6 +595,7 @@ class c:
             else:
                 raise Exception(f'Invalid config file {path}')
         else:
+            module = c.module(module)
             config =  c.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
         if mode == 'dict':
             pass
@@ -910,6 +937,8 @@ class c:
         """
         Get the source code of a function
         """
+        if isinstance(obj, str):
+            obj = c.fn(obj)
         sourcelines = inspect.getsourcelines(obj)
         source = ''.join(sourcelines[0])
         return {
@@ -1115,6 +1144,10 @@ class c:
         if lite:
             info = {k: v for k,v in info.items() if k in lite_features}
         return  info
+
+
+    def epoch(self, *args, **kwargs):
+        return c.run_epoch(*args, **kwargs)
 
     def get_tags(self,module=None, search=None, **kwargs):
         tags = []
@@ -1676,19 +1709,21 @@ class c:
                    update=0
                    ):
         name = name or path
-        module_name = path.replace('.', '_')
-        dirpath = os.path.abspath(c.modules_path +'/'+ path.replace('.', '/'))
-        path = dirpath + '/' + module_name + '.py'
+        if name.endswith('.git'):
+            git_path = c.giturl(path)
+            name =  path.split('/')[-1].replace('.git', '')
+        
+        dirpath = os.path.abspath(c.modules_path +'/'+ name.replace('.', '/'))
+        path = dirpath + '/src/module.py'
+        path = path.replace('.', '_')
+        # path = dirpath + '/' + module_name + '.py'
         base_module_obj = c.module(base_module)
         code = c.code(base_module)
         code = code.replace(base_module_obj.__name__, ''.join([m[0].capitalize() + m[1:] for m in name.split('.')]))
-        dirpath = os.path.dirname(path)
-        if os.path.exists(path) and update:
-            print(f'Updating {path}')
-            c.rm(path)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
         c.put_text(path, 'import commune as c \n'+code)
+        c.go(name)
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
     add_module = new_module = new
@@ -1751,13 +1786,9 @@ class c:
             args = [c.code(module)] + list(args)
         return c.module("agent")().ask(*args, **kwargs) 
 
-
-    
-
     @classmethod
     def ask(cls, *args, module=None, **kwargs):
         if module != None:
-
             args = [c.code(module)] + list(args)
         return c.module("agent")().ask(*args, **kwargs) 
 
@@ -1828,8 +1859,13 @@ class c:
                 fn2module[f] = m
         return fn2module
 
+    @classmethod 
+    def test_fns(cls, module=None):
+        return [f for f in dir(c.module(module)) if f.startswith('test_') or f == 'test']
+
+
     @classmethod
-    def test(cls, module=None, timeout=50, default_fns=['forward', 'test'], modules=[ 'server', 'vali','key', 'chain']):
+    def test(cls, module=None, timeout=50, modules=[ 'server', 'vali','key', 'chain']):
         
         if module == None:
             test_results ={}
@@ -1838,27 +1874,23 @@ class c:
             return test_results
         elif c.module_exists(module + '.test'):
             module = module + '.test'
-        Test = c.module(module)
-        test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
-        if len(test_fns) == 0:
-            for fn in default_fns:
-                if hasattr(Test, fn) and callable(getattr(Test, fn)):
-                    test_fns += [fn]
-        test = Test()
-        fn2result = {}
 
-        for i, fn in enumerate(test_fns):
+        module_obj = c.module(module)()
+        fn2result = {}
+        for i, fn in enumerate(cls.test_fns(module)):
             fn_path = f'{module}/{fn}'
             buffer = 5 * '*-' 
             emoji = '⏳'
-            c.print(f'{buffer}{emoji}\tTEST({fn_path})\t{emoji}{buffer}', color='yellow')
+            title = 'TEST'
+            c.print(f'{buffer}{emoji}\{title}({fn_path})\t{emoji}{buffer}', color='yellow')
             try:
-                fn2result[fn] = getattr(test, fn)()
+                fn2result[fn] = getattr(module_obj, fn)()
             except Exception as e:
                 e = c.detailed_error(e)
                 return {'fn': fn, 'error': e}
+            title = 'PASS'
             emoji = '✅'
-            c.print(f'{buffer}{emoji}\tPASS({fn_path})\t{emoji}{buffer}', color='green')
+            c.print(f'{buffer}{emoji}\{title}({fn_path})\t{emoji}{buffer}', color='green')
         return fn2result
 
 
@@ -2023,7 +2055,6 @@ class c:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-
     @staticmethod
     def giturl(url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
@@ -2134,6 +2165,11 @@ class c:
     @classmethod
     def core_context(cls):
         return c.readme2text(c.core_path)
+
+
+    def requirements(self, module='model.openai'):
+        return c.ask(f'make a dope module for the followin return outputs as a json', module=module)
+
 
     @classmethod
     def help(cls, *question, mod:str='module', model='google/gemini-2.0-flash-001',  search=None):

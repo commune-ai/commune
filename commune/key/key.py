@@ -54,8 +54,7 @@ class Key:
                  crypto_type: int = crypto_type,
                  path:str = None,
                  **kwargs): 
-        self.set_private_key(private_key=private_key, 
-                             crypto_type=crypto_type, **kwargs)
+        self.set_private_key(private_key=private_key, crypto_type=crypto_type, **kwargs)
 
     @property
     def short_address(self):
@@ -78,11 +77,7 @@ class Key:
         else:
             return {'success': False, 'message': f'crypto_type already set to {crypto_type}'}
 
-    def set_private_key(self, 
-                 private_key: Union[bytes, str] = None, 
-                 crypto_type: int = crypto_type,
-                 **kwargs
-                 ):
+    def set_private_key(self, private_key: Union[bytes, str] , crypto_type: int , **kwargs):
         """
         Allows generation of Keys from a variety of input combination, such as a public/private key combination,
         mnemonic or URI containing soft and hard derivation paths. With these Keys data can be signed and verified
@@ -278,8 +273,14 @@ class Key:
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
         return key
-
             
+
+
+    @property
+    def addy(self):
+        return self.address
+
+    # KEY MANAGEMENT
     @classmethod
     def get_keys(cls, search=None, clean_failed_keys=False):
         keys = {}
@@ -294,7 +295,8 @@ class Key:
                         cls.rm_key(key)
                     keys.pop(key) 
         return keys
-        
+    
+
     @classmethod
     def key2address(cls, search=None, max_age=None, update=False, **kwargs):
         path = cls.resolve_path('key2address')
@@ -305,21 +307,13 @@ class Key:
             c.put(path, key2address)
         return key2address
 
-    @property
-    def addy(self):
-        return self.address
-
     @classmethod
     def address2key(cls, search:Optional[str]=None, update:bool=False, max_age=None, **kwargs):
         address2key =  { v: k for k,v in cls.key2address(update=update,max_age=max_age).items()}
         if search != None :
             return {k:v for k,v in address2key.items() if search in k}
         return address2key
-    
-    @classmethod
-    def get_address(cls, key):
-        return cls.get_key(key).ss58_address
-    get_addy = get_address
+        
     @classmethod
     def key_paths(cls):
         return c.ls(c.storage_path + '/key')
@@ -458,6 +452,9 @@ class Key:
         """
         Create a Key for given memonic
         """
+
+        crypto_type = cls.resolve_crypto_type(crypto_type)
+
         if not mnemonic:
             mnemonic = cls.generate_mnemonic()
         if crypto_type == KeyType.ECDSA:
@@ -465,50 +462,27 @@ class Key:
                 raise ValueError("ECDSA mnemonic only supports english")
             keypair = cls.from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), crypto_type=crypto_type)
         else:
-            keypair = cls.from_seed(
-                seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", cls.language_code))).decode("ascii"),
-                crypto_type=crypto_type,
+            seed_hex = binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", cls.language_code))).decode("ascii")
+            if type(seed_hex) is str:
+                seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
+            if crypto_type == KeyType.SR25519:
+                public_key, private_key = sr25519.pair_from_seed(seed_hex)
+            elif crypto_type == KeyType.ED25519:
+                private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
+            else:
+                raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
+            ss58_address = ss58_encode(public_key, Key.ss58_format)
+            kwargs =  dict(
+                ss58_address=ss58_address, 
+                public_key=public_key, 
+                private_key=private_key,
+                ss58_format=Key.ss58_format,
+                crypto_type=crypto_type, 
             )
+            keypair = cls(**kwargs)
         keypair.mnemonic = mnemonic
         return keypair
-
-    from_mnemonic = from_mem = from_mnemonic
-
-    @classmethod
-    def from_seed(cls, seed_hex: Union[bytes, str], crypto_type=KeyType.SR25519) -> 'Key':
-        """
-        Create a Key for given seed
-
-        Parameters
-        ----------
-        seed_hex: hex string of seed
-        crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
-
-        Returns
-        -------
-        Key
-        """
-        crypto_type = cls.resolve_crypto_type(crypto_type)
-        if type(seed_hex) is str:
-            seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
-        if crypto_type == KeyType.SR25519:
-            public_key, private_key = sr25519.pair_from_seed(seed_hex)
-        elif crypto_type == KeyType.ED25519:
-            private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
-        else:
-            raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
-        
-        ss58_address = ss58_encode(public_key, Key.ss58_format)
-
-        kwargs =  dict(
-            ss58_address=ss58_address, 
-            public_key=public_key, 
-            private_key=private_key,
-            ss58_format=Key.ss58_format,
-              crypto_type=crypto_type, 
-        )
-        
-        return cls(**kwargs)
+   
     @classmethod
     def from_password(cls, password:str, crypto_type=2, **kwargs):
         key= cls.from_uri(password, crypto_type=1, **kwargs)
@@ -541,17 +515,18 @@ class Key:
         -------
         Key
         """
-        crypto_type = cls.resolve_crypto_type(crypto_type)
+
+
+        # GET THE MNEMONIC (PHRASE) AND DERIVATION PATHS
         suri = str(suri)
         if not suri.startswith('//'):
             suri = '//' + suri
-
         if suri and suri.startswith('/'):
             suri = DEV_PHRASE + suri
+        suri_parts = re.match(r'^(?P<phrase>.[^/]+( .[^/]+)*)(?P<path>(//?[^/]+)*)(///(?P<password>.*))?$', suri).groupdict()
+        mnemonic = suri_parts['phrase']
 
-        suri_regex = re.match(r'^(?P<phrase>.[^/]+( .[^/]+)*)(?P<path>(//?[^/]+)*)(///(?P<password>.*))?$', suri)
-
-        suri_parts = suri_regex.groupdict()
+        crypto_type = cls.resolve_crypto_type(crypto_type)
 
         if crypto_type == KeyType.ECDSA:
             private_key = mnemonic_to_ecdsa_private_key(
@@ -561,39 +536,29 @@ class Key:
             )
             derived_keypair = cls.from_private_key(private_key, crypto_type=crypto_type)
         else:
-
             if suri_parts['password']:
                 raise NotImplementedError(f"Passwords in suri not supported for crypto_type '{crypto_type}'")
-
             derived_keypair = cls.from_mnemonic(suri_parts['phrase'], crypto_type=crypto_type)
-
             if suri_parts['path'] != '':
-
-                derived_keypair.derive_path = suri_parts['path']
                 
+                derived_keypair.derive_path = suri_parts['path']
                 if crypto_type not in [KeyType.SR25519]:
                     raise NotImplementedError('Derivation paths for this crypto type not supported')
-
                 derive_junctions = extract_derive_path(suri_parts['path'])
                 child_pubkey = derived_keypair.public_key
                 child_privkey = derived_keypair.private_key
-                
+
                 for junction in derive_junctions:
-
                     if junction.is_hard:
-
                         _, child_pubkey, child_privkey = sr25519.hard_derive_keypair(
                             (junction.chain_code, child_pubkey, child_privkey),
                             b''
                         )
-
                     else:
-
                         _, child_pubkey, child_privkey = sr25519.derive_keypair(
                             (junction.chain_code, child_pubkey, child_privkey),
                             b''
                         )
-
                 derived_keypair = Key(public_key=child_pubkey, private_key=child_privkey)
 
         return derived_keypair

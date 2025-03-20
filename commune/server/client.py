@@ -9,15 +9,28 @@ import commune as c
 
 class Client:
     def __init__( self,  
-                 module : str = 'module',  
+                 url : str = 'module',  
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
-                 **kwargs):
+                 auth = 'auth.jwt',
+                 history_path = '~/.commune/client/history',
 
-        self.auth = c.module('server.auth.jwt')()
+                 **kwargs):
+        self.auth = c.module(auth)()
         self.key  = c.get_key(key)
-        self.url = module if c.is_url(module) else c.namespace().get(module,module)
-        self.session = requests.Session()
+        self.url = self.set_url(url)
+        self.history_path = os.path.abspath(os.path.expanduser(history_path))
+        
+
+    def set_url(self, url):
+        if c.is_url(url):
+            url = url
+        elif c.is_int(url):
+            url = f'0.0.0.0:{url}'
+        else:
+            url = c.namespace().get(str(url), url)
+        self.url = url
+        return self.url
 
     def forward(self, 
                 fn  = 'info', 
@@ -33,18 +46,36 @@ class Client:
                 **extra_kwargs 
     ):
         key = self.get_key(key) # step 1: get the key
-        url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
-        return  self.get_result(url=url, params=params,  headers=headers, timeout=timeout, stream=stream)
+        url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
+        response = requests.Session().post(url, json=params,  headers=headers, timeout=timeout, stream=stream)
+        ## handle the response
+        if response.status_code != 200:
+            raise Exception(response.text)
+        if 'text/event-stream' in response.headers.get('Content-Type', ''):
+            result = self.stream(response)
+        if 'application/json' in response.headers.get('Content-Type', ''):
+            result = response.json()
+        elif 'text/plain' in response.headers.get('Content-Type', ''):
+            result = response.text
+        else:
+            # if the response is not json or text, return the content
+            result = response.content
+            if response.status_code != 200:
+                raise Exception(result)
+        if 'result' in result:
+            result = result['result']
+        return result
         
     def get_url(self, fn:str, mode='http'):
         if '/' in str(fn):  
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
         else:
             url, fn = self.url, fn
-        if not c.is_url(url):
-            url = c.namespace().get(url, url)
+        if c.is_int(url):
+            url = f'0.0.0.0:{url}'
+        url = url if c.is_url(url) else c.namespace().get(url, url)
         assert c.is_url(url), f'{url}'
         url = url if url.startswith(mode) else f'{mode}://{url}'
         url = f"{url}/{fn}/"
@@ -72,23 +103,7 @@ class Client:
         params = {"args": args, "kwargs": kwargs}
         return params
 
-    def get_result(self, url, params, headers, timeout, stream):
-        response = self.session.post(url, json=params,  headers=headers, timeout=timeout, stream=stream)
-        ## handle the response
-        if response.status_code != 200:
-            raise Exception(response.text)
-        if 'text/event-stream' in response.headers.get('Content-Type', ''):
-            result = self.stream(response)
-        if 'application/json' in response.headers.get('Content-Type', ''):
-            result = response.json()
-        elif 'text/plain' in response.headers.get('Content-Type', ''):
-            result = response.text
-        else:
-            # if the response is not json or text, return the content
-            result = response.content
-            if response.status_code != 200:
-                raise Exception(result)
-        return result
+
 
     @classmethod
     def call(cls, 
@@ -102,7 +117,7 @@ class Client:
                 timeout=40,
                 default_fn = 'info',
                 **extra_kwargs) -> None:
-        
+        fn = str(fn)
         if not fn.startswith('http'):
             if '/' in str(fn):
                 module = '.'.join(fn.split('/')[:-1])
@@ -112,7 +127,7 @@ class Client:
                 fn = default_fn
         kwargs = (params or kwargs) or {}
         kwargs = {**kwargs, **extra_kwargs}
-        return cls(module=module, network=network).forward(fn=fn, 
+        return cls(url=module, network=network).forward(fn=fn, 
                                                             args=args, 
                                                             kwargs=kwargs, 
                                                             params=params,
@@ -163,7 +178,7 @@ class Client:
                     return getattr(self, key)
                 else:
                     return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
-        client = Client(module=module)
+        client = Client(url=module)
         return ClientVirtual(client) if virtual else client
         return client
 
@@ -175,8 +190,7 @@ class Client:
         return Client.client(module, **kwargs)
     
     def __del__(self):
-        try:
-            if hasattr(self, 'session'):
-                asyncio.run(self.session.close())
-        except:
-            pass
+        if hasattr(self, 'session_map'):
+            for url, session in self.session_map.items():
+                session.close()
+        return True

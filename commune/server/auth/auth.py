@@ -4,6 +4,7 @@ import time
 class Auth:
 
     data_features=['data', 'time']
+
     def verify_headers(self, headers:dict, data=None, max_staleness=10):
         signature = headers['signature']
         headers_data = {k: str(headers[k]) for k in self.data_features}
@@ -19,8 +20,6 @@ class Auth:
     def get_headers(self, data='fam', key=None, content_type='application/json', crypto_type='ecdsa'):
         key = c.get_key(key, crypto_type=crypto_type)
         headers_data = {'data': c.hash(data), 'time': str(time.time())}
-        print('data', headers_data)
-
         headers = {k: headers_data[k] for k in self.data_features}
         headers['signature'] = key.sign(headers_data, mode='str')
         headers['crypto_type'] = crypto_type

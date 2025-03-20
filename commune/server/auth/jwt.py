@@ -44,14 +44,15 @@ class JWT:
         Returns:
             JWT token string
         """
-        assert mode in ['bytes', 'dict'], f'Invalid mode {mode}'
-        key = c.get_key(key, crypto_type=crypto_type)
+        if isinstance(key, str) or key == None:
+            key = c.get_key(key, crypto_type=crypto_type)
+        else:
+            key = key
         self.check_crypto_type(crypto_type)
+        
         if not isinstance(data, dict):
             data = {'data': data }
-        token_data = data.copy()
-        key = c.get_key(key, crypto_type=crypto_type)
-        
+        token_data = data.copy()        
         # Add standard JWT claims
         token_data.update({
             'iat': str(float(c.time())),  # Issued at time
@@ -74,8 +75,17 @@ class JWT:
         signature_encoded = self._base64url_encode(signature)
         # Combine to create the token
 
+        assert mode in ['bytes', 'dict'], f'Invalid mode {mode}'
+
+
+        token = f"{message}.{signature_encoded}"
+
         if mode == 'dict':
-            return self.verify_token(f"{message}.{signature_encoded}")
+            return self.verify_token(token)
+        elif mode == 'bytes':
+            return f"{message}.{signature_encoded}"
+        else:
+            raise 
 
         return f"{message}.{signature_encoded}"
             
@@ -121,20 +131,13 @@ class JWT:
         padding = b'=' * (4 - (len(data) % 4))
         return base64.urlsafe_b64decode(data.encode('utf-8') + padding)
 
-    def test_token(self, crypto_type='ecdsa'):
+    def test_token(self, test_data = {'fam': 'fam', 'admin': 1} , crypto_type='ecdsa'):
         """
         Test the JWT token functionality
         
         Returns:
             Dictionary with test results
         """
-        # Test data
-        test_data = {
-            "user_id": "user123",
-            "role": "admin",
-            "custom_data": "some important information"
-        }
-        
         # Generate a token
         token = self.get_token(test_data, crypto_type=crypto_type)
         # Verify the token

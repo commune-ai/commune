@@ -1638,6 +1638,9 @@ def file2size( path='./', fmt='b') -> int:
 def path_exists(path:str):
     return os.path.exists(path)
 
+def exists(path:str):
+    return os.path.exists(path)
+
 def get_folder_size( folder_path:str='/'):
     folder_path = os.path.abspath(folder_path)
     """Calculate the total size of all files in the folder."""

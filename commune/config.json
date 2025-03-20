@@ -11,7 +11,27 @@
         "commune-ai/app",
         "commune-ai/chain"
     ],
-    "core_features": ["module_name", "module_class",  "filepath", "dirpath"],
+
+    "core_features": [
+        "module",
+        "resolve_module",
+        "module_name",
+        "storage_dir",
+        "filepath",
+        "dirpath",
+        "code",
+        "info",
+        "cid",
+        "schema",
+        "fns",
+        "fn2code",
+        "fn2hash",
+        "dir",
+        "chat",
+        "ask",
+        "config_path",
+        "config"
+      ],
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 

@@ -11,36 +11,43 @@ import json
 import asyncio
 import commune as c
 
-
 shortkey = lambda x: x[:3] + '...' + x[-2:]
-
-
 
 class Server:
     def __init__(
         self, 
         module: Union[c.Module, object] = 'module',
         key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
+        params : Optional[dict] = None, # the kwargs for the module
+
+        # FUNCTIONS
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
         helper_functions  = ['info', 'forward'], # the helper functions
+
+        # NETWORK
         port: Optional[int] = None, # the port the server is running on
         tempo:int = 10000 , # (in seconds) the maximum age of the history
         name: Optional[str] = None, # the name of the server, 
-        params : Optional[dict] = None, # the kwargs for the module
         network: Optional[str] = 'local', # the network the server is running on
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
-        run_api : Optional[bool] = False, # if the server should be run as an api
         timeout:int = 10, # (in seconds) the maximum time to wait for a response
-        info:Optional[dict]=None, # the info for the server
 
-        # MODULES
+        # EXTERNAL MODULES
         executor = 'executor', # the executor for the server to run the functions
         serializer = 'serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
         auth = 'server.auth.jwt', # the auth for the server
+        
         # PM2 (PROCESS MANAGEMENT)
         pm_dir = c.home_path + '/.pm2',
         proc_prefix = 'server', # the prefix for the proc name
+
+        # MISC
+        verbose:bool = True, # whether to print the output
+        info = None, # the info for the server
+        run_api : Optional[bool] = False, # if the server should be run as an api
+
+
         ) -> 'Server':
         self.network = network or 'local'
         self.tempo = tempo
@@ -49,6 +56,8 @@ class Server:
         self.pm_dir = pm_dir
         self.history_path = history_path or self.get_path('history')
         self.modules_path = f'{self.get_path(self.network)}/modules'
+        self.verbose = verbose
+        self.timeout = timeout
 
         if run_api:
             self.serializer = c.module(serializer)()
@@ -67,12 +76,9 @@ class Server:
             self.set_functions(functions) 
             self.set_port(port)
             self.set_info(info)
-            c.put(self.history_path + '/' + name + '/info.json', info)
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.set_middleware(self.app)
-
-
             def server_function(fn: str, request: Request):
                 try:
                     return self.forward(fn, request)
@@ -91,15 +97,34 @@ class Server:
         return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
 
 
-    def get_params(self, request:Request):
+
+
+    def forward(self, fn:str, request: Request):
+
+        """
+        gets and verifies the request
+        params:
+            fn : str
+                the function to call
+            request : dict
+                the request object
+        result:
+            data : dict
+                fn : str
+                params : dict
+                client : dict (headers)
+        """
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
-        return params
-
-    def get_result(self, fn:str, params:dict, verbose=False):
-        if verbose:
-            c.print(f'Request(fn={data["fn"]} from={shortkey(data["client"]["key"])})', color='green')
+        # GET HE HEADERS
+        # verify the data is legit and the headers are correct , the output will be the headers with additional metatada
+        headers = dict(request.headers)
+        data = {'fn': fn, 'params': params}
+        data['client'] = self.auth.verify_headers(headers=dict(request.headers), data=data) # verify the headers
+        self.rate_limit(data)   # check the rate limit
+        if self.verbose:
+            c.print(f'fn(fn={fn} client={shortkey(data["client"]["key"])})', color='green')
         fn_obj = getattr(self.module, fn)
         if len(params) == 2 and 'args' in params and 'kwargs' in params :
             kwargs = dict(params.get('kwargs')) 
@@ -115,37 +140,21 @@ class Server:
                 for item in generator:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))   
-        return result
 
-    def forward(self, fn:str, request:dict) -> dict:   
-        data = { 'fn': fn,  'params': self.get_params(request)} # prepare the data
-        data['client'] = self.auth.verify_headers(headers=dict(request.headers), data=data) # verify the headers
         data['time'] = data['client']['time']
-        rate_limit = self.rate_limit(fn=data['fn'], params=data['params'], headers=data['client'])   
-        result = self.get_result(fn=data['fn'], params=data['params'])
         data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
         data['server'] = self.auth.get_headers(data=data, key=self.module.key)
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
         data['cost'] = self.module.fn2cost.get(data['fn'], 1)
-        self.save_data(data)
-        return result 
+        path = f'{self.history_path }/{self.module.name }/{data["client"]["key"]}/{data["fn"]}/{data["time"]}.json' 
+        c.put(path, data) # save the call data
+        return data
 
-    def save_data(self, data:dict):
-        """
-        Save the data from the call
-        """
-        address = self.module.name + '/'  + data['client']["key"]
-        calls_t0 = self.calls(address) # the number of calls before the call
-        call_data_path = self.history_path + '/' + address +  f'/{data["fn"]}/{data["time"]}.json'
-        c.put(call_data_path, data) # save the call data
-        calls_t1 = self.calls(address) # the number of calls after the call
-        return {'success':True, 'message':f'Saved call data to {call_data_path}'}
-
-    @classmethod
+    @classmethod    
     def get_path(cls, path):
         return  c.storage_path + '/server/' + path
-
+        
     def set_info(self, info=None, required_info_features=['name', 'url', 'key', 'time', 'schema']):
             
         if info == None:
@@ -170,7 +179,6 @@ class Server:
         assert c.verify(info, signature=signature, address=info['key']), f'InvalidSignature({info})'
         self.module.info = info
         return info
-    
     
     def set_functions(self, functions:Optional[List[str]]):
         function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns']  
@@ -226,27 +234,6 @@ class Server:
         self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
 
-    def wait_for_server(self,
-                          name: str ,
-                          network: str = 'local',
-                          timeout:int = 600,
-                          max_age = 10,
-                          sleep_interval: int = 1,
-                          verbose=False) -> bool :
-        
-        time_waiting = 0
-        while time_waiting < timeout:
-            c.print(f'waiting_for_server({name})', color='cyan')
-            namespace = self.namespace(network=network, max_age=max_age)
-            if name in namespace:
-                try:
-                    return c.call(namespace[name]+'/info')
-                except Exception as e:
-                    c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red', verbose=verbose)
-            c.sleep(sleep_interval)
-            c.print(c.logs(name, tail=10))
-            time_waiting += sleep_interval
-        raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
 
     def serve(self, 
               module: Union[str, 'Module', Any] = None, # the module in either a string
@@ -268,62 +255,11 @@ class Server:
             return self.proc("server/serve", name=name, params=params, cwd=cwd)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
 
-    def kill(self, name:str, verbose:bool = True, rm_server=True, **kwargs):
-        proc_name = self.get_procname(name)
-        try:
-            c.cmd(f"pm2 delete {proc_name}", verbose=False)
-            self.rm_logs(proc_name)
-            result =  {'message':f'Killed {proc_name}', 'success':True}
-        except Exception as e:
-            result =  {'message':f'Error killing {proc_name}', 'success':False, 'error':e}
-        return result
-    
-    def kill_all(self, verbose:bool = True, timeout=20):
-        servers = self.procs()
-        futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}) for s in servers]
-        results = c.wait(futures, timeout=timeout)
-        return results
-    
-    def killall(self, **kwargs):
-        return self.kill_all(**kwargs)
-
-    def get_logs_path(self, name:str, mode='out')->str:
-        assert mode in ['out', 'error'], f'Invalid mode {mode}'
-        name = self.get_procname(name)
-        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-')
-
-    def get_logs_path(self, name:str, mode='out')->str:
-        assert mode in ['out', 'error'], f'Invalid mode {mode}'
-        name = self.get_procname(name)
-        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
- 
-    def rm_logs( self, name):
-        for m in ['out', 'error']:
-            c.rm(self.get_logs_path(name, m))
-        return {'success':True, 'message':f'Removed logs for {name}'}
-
-    def logs(self, module:str, top=None, tail: int =None , stream=True, **kwargs):
-        module = self.get_procname(module)
-        if tail or top:
-            stream = False
-        if stream:
-            return c.cmd(f"pm2 logs {module}", verbose=True)
-        else:
-            text = ''
-            for m in ['out', 'error']:
-                # I know, this is fucked 
-                path = self.get_logs_path(module, m)
-                try:
-                    text +=  c.get_text(path)
-                except Exception as e:
-                    c.print('ERROR GETTING LOGS -->' , e)
-            if top != None:
-                text = '\n'.join(text.split('\n')[:top])
-            if tail != None:
-                text = '\n'.join(text.split('\n')[-tail:])
-        return text
-
     def get_port(self, name:str,  tail:int=100, **kwargs):
+        """
+        get port from the logs
+        """
+
         logs = self.logs(name, tail=tail, stream=False, **kwargs)
         port = None
         tag = 'Uvicorn running on '
@@ -344,84 +280,6 @@ class Server:
 
     def urls(self, search=None,  **kwargs) -> List[str]:
         return [self.get_url(s) for s in self.servers(search=search, **kwargs)]
-    
-    def proc(self, 
-                  fn: str = 'serve',
-                   name:str = None, 
-                   module:str = 'server',  
-                   params: dict = None,
-                   interpreter:str='python3', 
-                   verbose: bool = False , 
-                   wait_for_server:bool = True,
-                   cwd : str = None,
-                   refresh:bool=True ):
-        """
-        Run a proc with pm2
-
-        Args:
-            fn (str, optional): The function to run. Defaults to 'serve'.
-            name (str, optional): The name of the proc. Defaults to None.
-            module (str, optional): The module to run. Defaults to 'server'.
-            params (dict, optional): The parameters for the function. Defaults to None.
-            interpreter (str, optional): The interpreter to use. Defaults to 'python3'.
-            verbose (bool, optional): Whether to print the output. Defaults to False.
-            wait_for_server (bool, optional): Whether to wait for the server to start. Defaults to True.
-            cwd (str, optional): The current working directory. Defaults to None.
-            refresh (bool, optional): Whether to refresh the environment. Defaults to True.
-        Returns:
-            dict: The result of the command
-            
-        """
-        self.ensure_env()
-        params['remote'] = False
-        name = name or module
-        proc_name = self.get_procname(name)
-        if self.proc_exists(proc_name):
-            self.kill(proc_name, rm_server=False)
-        if '/' in fn:
-            module, fn = fn.split('/')
-        else:
-            module = 'server'
-        params_str = json.dumps({'fn': module +'/' + fn, 'params': params or {}}).replace('"','\\"')
-        cmd = f"pm2 start {c.filepath()} --name {proc_name} --interpreter {interpreter} -f --no-autorestart "
-        cmd += f"-- --fn run_fn --kwargs  \"{params_str}\""
-        stdout = c.cmd(cmd, verbose=verbose, cwd=cwd)
-        if wait_for_server:
-            return self.wait_for_server(name)
-        else:
-            return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
-
-    def procs(self, search=None,  **kwargs) -> List[str]:
-        output_string = c.cmd('pm2 status')
-        procs = []
-        tag = ' default '
-        for line in output_string.split('\n'):
-            if  tag in line:
-                name = line.split(tag)[0].strip()
-                name = name.split(' ')[-1]
-                procs += [name]
-        if search != None:
-            search = self.get_procname(search)
-            procs = [m for m in procs if search in m]
-        procs = sorted(list(set(procs)))
-        return procs
-
-    def get_procname(self, name:str, **kwargs) -> str:
-        if  name != None and not name.startswith(self.proc_prefix):
-            name = self.proc_prefix + name
-        return name
-        
-    def proc_exists(self, name:str, **kwargs) -> bool:
-        name = self.get_procname(name)
-        return name in self.procs(**kwargs)
-
-    def ensure_env(self,**kwargs):
-        '''ensure that the environment variables are set for the proc'''
-        is_pm2_installed = bool( '/bin/pm2' in c.cmd('which pm2', verbose=False))
-        if not is_pm2_installed:
-            c.cmd('npm install -g pm2')
-            c.cmd('pm2 update')
-        return {'success':True, 'message':f'Ensured env '}
 
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo}
@@ -436,6 +294,8 @@ class Server:
 
         modules = c.get(self.modules_path, max_age=max_age, update=update)
         if modules == None:
+            c.print(f'SyncingLocalModules(max_age={max_age})')
+
             futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
             modules = c.wait(futures, timeout=timeout)
             c.put(self.modules_path, modules)
@@ -467,16 +327,14 @@ class Server:
         app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
         return app
 
-    def rate_limit(self, 
-                fn:str, 
-                params:dict,  
-                headers:dict, 
+    def rate_limit(self, data:dict, # fn, params and client/headers
                 network:str = 'chain', # the network to gate on
                 role2rate:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000}, # the rate limits for each role
                 stake_per_call:int = 1000, # the amount of stake required per call
             ) -> dict:
-
-
+        fn = data['fn']
+        params = data['params']
+        client = data['client'] if 'client' in data else data['headers'] # also known as the headers
         if not hasattr(self, 'address2key'):
             self.address2key = c.address2key(max_age=self.tempo)
         if not hasattr(self, 'state'):
@@ -484,10 +342,10 @@ class Server:
         module = self.module
         if module.free: 
             role2rate['guest'] = 1000000
-        address = headers['key']
-        if c.is_admin( headers['key']):
+        address = client['key']
+        if c.is_admin( client['key']):
             role =  'admin'
-        elif address == module.key.ss58_address:
+        elif address == module.key.key_address:
             role =  'owner'
         elif address in self.address2key:
             role =  'local'
@@ -503,15 +361,13 @@ class Server:
             if self.state == None:
                 self.state = c.module(network)().state()
             # the amount of stake the user has as a module only
-            stake = self.state['stake'].get(headers['key'], 0) 
-            stake_to_me = self.state['stake_from'].get(module.key.ss58_address, {}).get(headers['key'], 0) 
+            stake = self.state['stake'].get(client['key'], 0) 
+            stake_to_me = self.state['stake_from'].get(module.key.ss58_address, {}).get(client['key'], 0) 
             stake = stake + stake_to_me
             rate_limit = stake / stake_per_call
         rate_limit = rate_limit / module.fn2cost.get(fn, 1)
-
-        rate = self.rate(self.module.name+'/'+headers['key'])
-        assert rate < rate_limit, f'RateExceeded(rate={rate} limit={rate_limit}, caller={shortkey(headers["key"])})' 
-
+        rate = self.rate(self.module.name+'/'+client['key'])
+        assert rate < rate_limit, f'RateExceeded(rate={rate} limit={rate_limit}, caller={shortkey(client["key"])})' 
         return rate_limit
         
     def path2age(self, address='module'):
@@ -536,25 +392,19 @@ class Server:
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
 
-
-    def time2date(self, x:float=None):
-        import datetime
-        return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
-
-    def history(self, address = 'module' , df=False):
+    def history(self, address = 'module' , df=True):
         history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
         history = [h for h in history if isinstance(h, dict)]
         if df:
-            df
+            import datetime
             df =  c.df(history)
             features = ['fn', 'cost', 'time', 'duration', 'age', 'client', 'server']
             df['age'] = df['time'].apply(lambda x: c.time() - float(x))
-            df['time'] = df['time'].apply(lambda x: self.time2date(x) if isinstance(x, float) else x)
+            df['time'] = df['time'].apply(lambda x:  datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, float) else x)
             df['client'] = df['client'].apply(lambda x: shortkey(x['key']))
             df['server'] = df['server'].apply(lambda x: shortkey(x['key']) )
             df = df[features]
             return df
-
         return history
 
     h = history
@@ -567,6 +417,9 @@ class Server:
         return {'message':f'Cleared {len(paths)} paths for {address}'}
 
     def calls(self, address = 'module' ):
+        return len(self.call_paths(address))
+
+    def num_calls(self, address = 'module' ):
         return len(self.call_paths(address))
 
     def callers(self, module='module'):
@@ -584,6 +437,149 @@ class Server:
         except Exception as e:
             x = 0
         return x
+
+
+    # PROCESS MANAGER
+
+    def kill(self, name:str, verbose:bool = True, rm_server=True, **kwargs):
+        proc_name = self.get_procname(name)
+        try:
+            c.cmd(f"pm2 delete {proc_name}", verbose=False)
+            for m in ['out', 'error']:
+                os.remove(self.get_logs_path(name, m))
+            result =  {'message':f'Killed {proc_name}', 'success':True}
+        except Exception as e:
+            result =  {'message':f'Error killing {proc_name}', 'success':False, 'error':e}
+        return result
+    
+    def kill_all(self, verbose:bool = True, timeout=20):
+        servers = self.procs()
+        futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}) for s in servers]
+        results = c.wait(futures, timeout=timeout)
+        return results
+    
+    def killall(self, **kwargs):
+        return self.kill_all(**kwargs)
+
+    def get_logs_path(self, name:str, mode='out')->str:
+        assert mode in ['out', 'error'], f'Invalid mode {mode}'
+        name = self.get_procname(name)
+        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
+
+    def logs(self, module:str, top=None, tail: int =None , stream=True, **kwargs):
+        module = self.get_procname(module)
+        if tail or top:
+            stream = False
+        if stream:
+            return c.cmd(f"pm2 logs {module}", verbose=True)
+        else:
+            text = ''
+            for m in ['out', 'error']:
+                # I know, this is fucked 
+                path = self.get_logs_path(module, m)
+                try:
+                    text +=  c.get_text(path)
+                except Exception as e:
+                    c.print('ERROR GETTING LOGS -->' , e)
+            if top != None:
+                text = '\n'.join(text.split('\n')[:top])
+            if tail != None:
+                text = '\n'.join(text.split('\n')[-tail:])
+        return text
+
+
+  
+    def ensure_proc_env(self,**kwargs):
+        '''ensure that the environment variables are set for the proc'''
+        is_pm2_installed = bool( '/bin/pm2' in c.cmd('which pm2', verbose=False))
+        if not is_pm2_installed:
+            c.cmd('npm install -g pm2')
+            c.cmd('pm2 update')
+        return {'success':True, 'message':f'Ensured env '}
+  
+    def proc(self, 
+                  fn: str = 'serve',
+                   name:str = None, 
+                   module:str = 'server',  
+                   params: dict = None,
+                   network:str = 'local',
+                   interpreter:str='python3', 
+                   verbose: bool = False , 
+                   cwd : str = None,
+                    max_age = 10,
+                    trials:int=3,
+                    trial_backoff:int=1,
+                    refresh:bool=True ):
+        """
+        Run a proc with pm2
+
+        Args:
+            fn (str, optional): The function to run. Defaults to 'serve'.
+            name (str, optional): The name of the proc. Defaults to None.
+            module (str, optional): The module to run. Defaults to 'server'.
+            params (dict, optional): The parameters for the function. Defaults to None.
+            interpreter (str, optional): The interpreter to use. Defaults to 'python3'.
+            verbose (bool, optional): Whether to print the output. Defaults to False.
+            wait_for_server (bool, optional): Whether to wait for the server to start. Defaults to True.
+            cwd (str, optional): The current working directory. Defaults to None.
+            refresh (bool, optional): Whether to refresh the environment. Defaults to True.
+        Returns:
+            dict: The result of the command
+            
+        """
+        self.ensure_proc_env()
+        params['remote'] = False
+        name = name or module
+        if '/' in fn:
+            module, fn = fn.split('/')
+        else:
+            module = 'server'
+            fn = fn
+        params_str = json.dumps({'fn': module +'/' + fn, 'params': params or {}}).replace('"','\\"')
+
+        proc_name = self.get_procname(name)
+        if self.proc_exists(proc_name):
+            self.kill(proc_name, rm_server=False)
+
+        cmd = f"pm2 start {c.filepath()} --name {proc_name} --interpreter {interpreter} -f --no-autorestart -- --fn run_fn --params \"{params_str}\""
+        c.cmd(cmd, verbose=verbose, cwd=cwd)
+
+        for trial in range(trials):
+            namespace = self.namespace(network=network, max_age=max_age)
+            if name in namespace:
+                try:
+                    return  c.call(namespace[name]+'/info')
+                except Exception as e:
+                    if trial > 1:
+                        c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
+                    c.print(c.logs(name, tail=10))
+            c.sleep(trial_backoff)
+        raise Exception(f'Failed to start {name} after {trials} trials')
+        return info
+
+    def procs(self, search=None,  **kwargs) -> List[str]:
+        output_string = c.cmd('pm2 status')
+        procs = []
+        tag = ' default '
+        for line in output_string.split('\n'):
+            if  tag in line:
+                name = line.split(tag)[0].strip()
+                name = name.split(' ')[-1]
+                procs += [name]
+        if search != None:
+            search = self.get_procname(search)
+            procs = [m for m in procs if search in m]
+        procs = sorted(list(set(procs)))
+        return procs
+
+    def get_procname(self, name:str, **kwargs) -> str:
+        if  name != None and not name.startswith(self.proc_prefix):
+            name = self.proc_prefix + name
+        return name
+        
+    def proc_exists(self, name:str, **kwargs) -> bool:
+        name = self.get_procname(name)
+        return name in self.procs(**kwargs)
 
     @classmethod
     def test(cls):
