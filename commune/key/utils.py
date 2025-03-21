@@ -40,12 +40,6 @@ JUNCTION_ID_LEN = 32
 RE_JUNCTION = r'(\/\/?)([^/]+)'
 
 
-class KeyType:
-    ED25519 = 0
-    SR25519 = 1
-    ECDSA = 2
-
-
 def is_valid_ss58_address(address: str) -> bool:
     """
     Check if the given address is a valid SS58 address
@@ -55,6 +49,16 @@ def is_valid_ss58_address(address: str) -> bool:
         return True
     except:
         return False
+
+
+
+def str2bytes( data: str, mode: str = 'hex') -> bytes:
+    if mode in ['utf-8']:
+        return bytes(data, mode)
+    elif mode in ['hex']:
+        return bytes.fromhex(data)
+
+
 
 def is_valid_ecdsa_address(address: str) -> bool:
     """

@@ -22,7 +22,6 @@ class c:
         """
         return  all([hasattr(obj, k) for k in c.core_features]) # if the object is a module
 
-        
     @classmethod
     def module(cls, path: str = 'module', params: dict = None, verbose=False, cache=True, **kwargs) -> str:
         # Initialize cache if needed
@@ -46,7 +45,6 @@ class c:
         
         if (c.repo_name + '.' + c.repo_name) == module:
             return c
-            
         # Try to load the module
         try:
             obj = c.obj(module)
@@ -77,20 +75,18 @@ class c:
                 'fn2code': lambda *args, **kwargs: c.fn2code(obj),
                 'fn2hash': lambda *args, **kwargs: c.fn2hash(obj),
                 'dir': lambda *args, **kwargs: c.dir(obj),
-                'chat': lambda *args, **kwargs: c.chat(obj)
+                'chat': lambda *args, **kwargs: c.chat(obj),
+                'ask': lambda *args, **kwargs: c.ask(obj),
+                'config_path': lambda *args, **kwargs: c.config_path(obj),
+                'config': lambda *args, **kwargs: c.config(obj),
             }
-            
+        
             # Set all methods at once
             for name, method in methods.items():
-                setattr(obj, name, method)
-                
+                if not hasattr(obj, name):                
+                    setattr(obj, name, method)
             # Add optional methods if they don't exist
-            if not hasattr(obj, 'ask'):
-                obj.ask = lambda *args, **kwargs: c.ask(obj)
-            if not hasattr(obj, 'config_path'):
-                obj.config_path = lambda *args, **kwargs: c.config_path(obj)
-            if not hasattr(obj, 'config'):
-                obj.config = lambda *args, **kwargs: c.config(obj)
+
         
         # Apply parameters if provided
         if isinstance(params, dict):
@@ -107,16 +103,13 @@ class c:
     get_agent = block =  get_block = get_module =  mod =  module
 
     def go(self, module=None, **kwargs):
-        if module == None or module in c.core_modules:
-            path = c.lib_path
-        else:
-            try:
-                path = c.filepath(module)
-            except:
-                path = c.modules_path + '/' + module
-            if path.split('/')[-1] == path.split('/')[-2]:
-                path = '/'.join(path.split('/')[:-1])
-            assert os.path.exists(path), f'{path} does not exist'
+        try:
+            path = c.filepath(module)
+        except:
+            path = c.modules_path + '/' + module
+        if path.split('/')[-1] == path.split('/')[-2]:
+            path = '/'.join(path.split('/')[:-1])
+        assert os.path.exists(path), f'{path} does not exist'
         return c.cmd(f'code {path}', **kwargs)
 
     @classmethod
@@ -366,7 +359,7 @@ class c:
             fn_obj = getattr(self, fn)
         else:
             fn_obj = c.fn(fn)
-        return fn_obj(**kwargs)
+        return fn_obj(**params)
 
     @classmethod
     def is_module_file(cls, module = None, exts=['py', 'rs', 'ts'], folder_filenames=['module', 'agent']) -> bool:
@@ -399,23 +392,23 @@ class c:
         from commune.key import Key
         if not isinstance(key, str) and hasattr(key,"module_name" ):
             key = key.module_name()
-        return Key.get_key(key, **kwargs)
+        return Key().get_key(key, **kwargs)
         
 
     @classmethod
     def key(cls,key:str = None , **kwargs) -> None:
         from commune.key import Key
-        return Key.get_key(key, **kwargs)
+        return Key().get_key(key, **kwargs)
 
     @classmethod
     def keys(cls,key:str = None , **kwargs) -> None:
         from commune.key import Key
-        return Key.keys(key, **kwargs)
+        return Key().keys(key, **kwargs)
 
     @classmethod
     def key2address(cls,key:str = None , **kwargs) -> None:
         from commune.key import Key
-        return Key.key2address(key, **kwargs)
+        return Key().key2address(key, **kwargs)
     
     @classmethod
     def files(cls, 
@@ -466,6 +459,10 @@ class c:
     def sign(cls, data:dict  = None, key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
         key = c.get_key(key, crypto_type=crypto_type)
         return key.sign(data, mode=mode, **kwargs)
+
+    def signtest(self, data:dict  = 'hey', key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
+        signature = c.sign(data, key, crypto_type=crypto_type, mode=mode, **kwargs)
+        return c.verify(data, signature, key=key, crypto_type=crypto_type, **kwargs)
     @classmethod
     def size(cls, module) -> int:
         return len(str(c.code_map(module)))
@@ -1261,7 +1258,6 @@ class c:
             fn_obj = fn
         else:
             raise Exception(f'{fn} is not a function or object')
-        # assert fn_obj != None, f'{fn} is not a function or object'
         if params != None:
             return fn_obj(**params)
         return fn_obj
@@ -1622,6 +1618,9 @@ class c:
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.lib_path, depth=depth, **kwargs)
 
+
+    
+
     @classmethod
     def core_tree(cls, **kwargs):
         tree =  c.get_tree(c.core_path, **kwargs)
@@ -1669,13 +1668,9 @@ class c:
         # tree = {k.replace('modules.',''):v for k,v in tree.items() }
         return tree
 
-
     @classmethod
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
-
-
-
 
     @classmethod
     def modules(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:

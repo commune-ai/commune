@@ -3,7 +3,8 @@ import hmac
 import json
 import time
 from typing import Dict, Optional, Any
-import json
+
+
 import commune as c
 
 class JWT:
@@ -15,19 +16,13 @@ class JWT:
         headers =  self.get_token(c.hash(data), key=key, crypto_type=crypto_type, mode=mode)
         return headers
 
-    def token2dict(self, token: str) -> Dict:
-        """
-        Convert a token to a dictionary
-        """
-        return self.verify_token(token)
-
     def verify_headers(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
         Verify and decode a JWT token
         """
         verified = self.verify_token(headers['token'])
         assert verified, 'Invalid signature'
-        if data:
+        if data != None:
             assert verified['data'] == c.hash(data), 'Invalid data {} != {}'.format(verified['data'], c.hash(data))
         return verified
 
@@ -40,7 +35,6 @@ class JWT:
         Args:
             data: Dictionary containing the data to encode in the token
             expiration: Optional custom expiration time in seconds
-            
         Returns:
             JWT token string
         """
@@ -61,8 +55,8 @@ class JWT:
         })
         
         # Create JWT header
-        if crypto_type != key.crypto_type_name:
-            crypto_type = key.crypto_type_name
+        if crypto_type != key.crypto_type:
+            crypto_type = key.crypto_type
         header = {
             'alg': crypto_type,
             'typ': 'JWT',

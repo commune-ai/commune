@@ -191,6 +191,18 @@ class Executor:
     def num_tasks(self):
         return self.task_queue.qsize()
 
+    @property
+    def is_empty(self):
+        return self.task_queue.empty()
+    
+    def status(self):
+        return dict(
+            num_threads = len(self.threads),
+            num_tasks = self.num_tasks,
+            is_empty = self.is_empty,
+            is_full = self.is_full
+        )
+
     @classmethod
     def test(cls):
         def fn(x):
@@ -214,15 +226,3 @@ class Executor:
 
 
         return {'success': True, 'msg': 'thread pool test passed'}
-
-    @property
-    def is_empty(self):
-        return self.task_queue.empty()
-    
-    def status(self):
-        return dict(
-            num_threads = len(self.threads),
-            num_tasks = self.num_tasks,
-            is_empty = self.is_empty,
-            is_full = self.is_full
-        )

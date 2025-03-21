@@ -13,24 +13,14 @@ class Client:
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
                  auth = 'auth.jwt',
+                 mode='http',
                  history_path = '~/.commune/client/history',
 
                  **kwargs):
         self.auth = c.module(auth)()
         self.key  = c.get_key(key)
-        self.url = self.set_url(url)
+        self.url = self.get_url(url, mode=mode)
         self.history_path = os.path.abspath(os.path.expanduser(history_path))
-        
-
-    def set_url(self, url):
-        if c.is_url(url):
-            url = url
-        elif c.is_int(url):
-            url = f'0.0.0.0:{url}'
-        else:
-            url = c.namespace().get(str(url), url)
-        self.url = url
-        return self.url
 
     def forward(self, 
                 fn  = 'info', 
@@ -45,11 +35,17 @@ class Client:
                 stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
+        if '/' in str(fn):
+            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
+        else :
+            url = self.url
+        url = self.get_url(url, mode=mode)
         key = self.get_key(key) # step 1: get the key
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
-        url = self.get_url(fn=fn, mode=mode) # step 2: get the url from the fn and mode {http, ws} for instance 
-        response = requests.Session().post(url, json=params,  headers=headers, timeout=timeout, stream=stream)
+
+        with requests.Session() as conn:
+            response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
         ## handle the response
         if response.status_code != 200:
             raise Exception(response.text)
@@ -60,27 +56,13 @@ class Client:
         elif 'text/plain' in response.headers.get('Content-Type', ''):
             result = response.text
         else:
-            # if the response is not json or text, return the content
             result = response.content
             if response.status_code != 200:
                 raise Exception(result)
         if 'result' in result:
             result = result['result']
         return result
-        
-    def get_url(self, fn:str, mode='http'):
-        if '/' in str(fn):  
-            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-        else:
-            url, fn = self.url, fn
-        if c.is_int(url):
-            url = f'0.0.0.0:{url}'
-        url = url if c.is_url(url) else c.namespace().get(url, url)
-        assert c.is_url(url), f'{url}'
-        url = url if url.startswith(mode) else f'{mode}://{url}'
-        url = f"{url}/{fn}/"
-        return url
-
+    
     def get_key(self,key=None):
         if key == None:
             return self.key
@@ -103,6 +85,16 @@ class Client:
         params = {"args": args, "kwargs": kwargs}
         return params
 
+
+    def get_url(self, url, mode='http'):
+        if c.is_url(url):
+            url = url
+        elif c.is_int(url):
+            url = f'0.0.0.0:{url}'
+        else:
+            url = c.namespace().get(str(url), url)
+        url = url if url.startswith(mode) else f'{mode}://{url}'
+        return url
 
 
     @classmethod
@@ -188,9 +180,3 @@ class Client:
         Connect to a module and return a client instance.
         """
         return Client.client(module, **kwargs)
-    
-    def __del__(self):
-        if hasattr(self, 'session_map'):
-            for url, session in self.session_map.items():
-                session.close()
-        return True

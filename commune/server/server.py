@@ -39,7 +39,7 @@ class Server:
         auth = 'server.auth.jwt', # the auth for the server
         
         # PM2 (PROCESS MANAGEMENT)
-        pm_dir = c.home_path + '/.pm2',
+        process_manager_path = c.home_path + '/.pm2',
         proc_prefix = 'server', # the prefix for the proc name
 
         # MISC
@@ -47,17 +47,17 @@ class Server:
         info = None, # the info for the server
         run_api : Optional[bool] = False, # if the server should be run as an api
 
-
         ) -> 'Server':
         self.network = network or 'local'
         self.tempo = tempo
-        self.helper_functions = helper_functions
-        self.proc_prefix = 'server/' + network + '/'
-        self.pm_dir = pm_dir
+
         self.history_path = history_path or self.get_path('history')
         self.modules_path = f'{self.get_path(self.network)}/modules'
         self.verbose = verbose
         self.timeout = timeout
+        # process manager
+        self.proc_prefix = 'server/' + network + '/'
+        self.process_manager_path = process_manager_path
 
         if run_api:
             self.serializer = c.module(serializer)()
@@ -71,33 +71,26 @@ class Server:
                     module = '::'.join(name.split('::')[:-1])
             self.module = c.module(module)(**(params or {}))
             self.module.name = name = name or module 
-            self.module.key = c.get_key(key or name)
-            self.module.free = self.module.free if hasattr(self.module, 'free') else False
-            self.set_functions(functions) 
+            # settle the module and name
+            self.module.key = c.get_key(key or self.module.name)
             self.set_port(port)
+            self.helper_functions = helper_functions
+            self.set_functions(functions) 
             self.set_info(info)
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.set_middleware(self.app)
             def server_function(fn: str, request: Request):
-                try:
-                    return self.forward(fn, request)
-                except Exception as e:
-                    return c.detailed_error(e)
+                return self.forward(fn, request)
             self.app.post("/{fn}")(server_function)
             c.print(f'ServedModule({self.module.info})', color='purple')
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-
-
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:
             module = module + '::'
         names = [module+str(i) for i in range(n)]
         return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
-
-
-
 
     def forward(self, fn:str, request: Request):
 
@@ -140,16 +133,19 @@ class Server:
                 for item in generator:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))   
-
+        
         data['time'] = data['client']['time']
         data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
         data['server'] = self.auth.get_headers(data=data, key=self.module.key)
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
-        data['cost'] = self.module.fn2cost.get(data['fn'], 1)
-        path = f'{self.history_path }/{self.module.name }/{data["client"]["key"]}/{data["fn"]}/{data["time"]}.json' 
-        c.put(path, data) # save the call data
+        self.save_data(data)
         return data
+
+    def save_data(self, data):
+        path = f'{self.history_path}/{self.module.name}/{data["client"]["key"]}/{data["fn"]}/{data["time"]}.json' 
+        c.put(path, data) # save the call data
+        return {'message':f'Saved data to {path}', 'success':True}
 
     @classmethod    
     def get_path(cls, path):
@@ -183,14 +179,9 @@ class Server:
     def set_functions(self, functions:Optional[List[str]]):
         function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns']  
         functions =  functions or []
-        if len(functions) > 0:
-            for i, fn in enumerate(functions):
-                if callable(fn):
-                    print('Adding function -->', f)
-                    setattr(self.module, fn.__name__, fn)
-                    functions[i] = fn.__name__
         for fa in function_attributes:
             if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
+                print(f'Found functions in {fa}')
                 functions = getattr(self.module, function_attributes[0]) 
                 break       
         # does not start with _ and is not a private function
@@ -233,7 +224,6 @@ class Server:
         self.module.port = port
         self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
-
 
     def serve(self, 
               module: Union[str, 'Module', Any] = None, # the module in either a string
@@ -335,13 +325,10 @@ class Server:
         fn = data['fn']
         params = data['params']
         client = data['client'] if 'client' in data else data['headers'] # also known as the headers
-        if not hasattr(self, 'address2key'):
-            self.address2key = c.address2key(max_age=self.tempo)
+        self.address2key = c.address2key()
         if not hasattr(self, 'state'):
             self.state = None
         module = self.module
-        if module.free: 
-            role2rate['guest'] = 1000000
         address = client['key']
         if c.is_admin( client['key']):
             role =  'admin'
@@ -392,20 +379,41 @@ class Server:
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
 
-    def history(self, address = 'module' , df=True):
+    def history(self, address = '' , paths=None,  df=True, features=['time', 'fn', 'cost', 'duration',  'client', 'server']):
+        paths = paths or self.call_paths(address)
         history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
-        history = [h for h in history if isinstance(h, dict)]
+        history = [h for h in history if isinstance(h, dict) and  all([f in h for f in features])]
+        address2key = c.address2key(max_age=self.tempo)
+        print(f'History({address}) --> {len(history)}')
         if df:
             import datetime
             df =  c.df(history)
+            if len(df) == 0:
+                return df
             features = ['fn', 'cost', 'time', 'duration', 'age', 'client', 'server']
             df['age'] = df['time'].apply(lambda x: c.time() - float(x))
             df['time'] = df['time'].apply(lambda x:  datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, float) else x)
-            df['client'] = df['client'].apply(lambda x: shortkey(x['key']))
-            df['server'] = df['server'].apply(lambda x: shortkey(x['key']) )
+
+            def headers2key(x):
+                if isinstance(x, dict):
+                    k = x.get('key', None)
+                    return address2key.get(k, k)
+                return x
+
+            df['client'] = df['client'].apply(lambda x: headers2key(x) )
+            df['server'] = df['server'].apply(lambda x: headers2key(x))
             df = df[features]
             return df
         return history
+
+    def all_paths(self):
+        
+        return c.glob(self.history_path)
+
+    def all_history(self):
+        paths = self.all_paths()
+    
+        return self.history(paths=paths)
 
     h = history
 
@@ -415,6 +423,16 @@ class Server:
             c.rm(p)
         assert len(self.call_paths(address)) == 0, f'Failed to clear paths for {address}'
         return {'message':f'Cleared {len(paths)} paths for {address}'}
+
+    def all_n(self):
+        return len(self.all_paths())
+
+    def clear_all_history(self):
+        paths = self.all_paths()
+        for p in paths:
+            c.rm(p)
+        assert len(self.all_paths()) == 0, f'Failed to clear all paths'
+        return {'message':f'Cleared {len(paths)} paths for all'}
 
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))
@@ -437,9 +455,6 @@ class Server:
         except Exception as e:
             x = 0
         return x
-
-
-    # PROCESS MANAGER
 
     def kill(self, name:str, verbose:bool = True, rm_server=True, **kwargs):
         proc_name = self.get_procname(name)
@@ -464,7 +479,7 @@ class Server:
     def get_logs_path(self, name:str, mode='out')->str:
         assert mode in ['out', 'error'], f'Invalid mode {mode}'
         name = self.get_procname(name)
-        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
+        return f'{self.process_manager_path}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
 
     def logs(self, module:str, top=None, tail: int =None , stream=True, **kwargs):
         module = self.get_procname(module)
@@ -487,9 +502,7 @@ class Server:
                 text = '\n'.join(text.split('\n')[-tail:])
         return text
 
-
-  
-    def ensure_proc_env(self,**kwargs):
+    def sync_env(self,**kwargs):
         '''ensure that the environment variables are set for the proc'''
         is_pm2_installed = bool( '/bin/pm2' in c.cmd('which pm2', verbose=False))
         if not is_pm2_installed:
@@ -511,7 +524,7 @@ class Server:
                     trial_backoff:int=1,
                     refresh:bool=True ):
         """
-        Run a proc with pm2
+        run a process with pm2
 
         Args:
             fn (str, optional): The function to run. Defaults to 'serve'.
@@ -525,9 +538,9 @@ class Server:
             refresh (bool, optional): Whether to refresh the environment. Defaults to True.
         Returns:
             dict: The result of the command
-            
+         
         """
-        self.ensure_proc_env()
+        self.sync_env()
         params['remote'] = False
         name = name or module
         if '/' in fn:
@@ -536,14 +549,13 @@ class Server:
             module = 'server'
             fn = fn
         params_str = json.dumps({'fn': module +'/' + fn, 'params': params or {}}).replace('"','\\"')
-
         proc_name = self.get_procname(name)
         if self.proc_exists(proc_name):
             self.kill(proc_name, rm_server=False)
-
         cmd = f"pm2 start {c.filepath()} --name {proc_name} --interpreter {interpreter} -f --no-autorestart -- --fn run_fn --params \"{params_str}\""
         c.cmd(cmd, verbose=verbose, cwd=cwd)
 
+        # wait for the server to start
         for trial in range(trials):
             namespace = self.namespace(network=network, max_age=max_age)
             if name in namespace:
@@ -552,7 +564,7 @@ class Server:
                 except Exception as e:
                     if trial > 1:
                         c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
-                    c.print(c.logs(name, tail=10))
+                    # c.print(c.logs(name, tail=10))
             c.sleep(trial_backoff)
         raise Exception(f'Failed to start {name} after {trials} trials')
         return info
@@ -580,7 +592,3 @@ class Server:
     def proc_exists(self, name:str, **kwargs) -> bool:
         name = self.get_procname(name)
         return name in self.procs(**kwargs)
-
-    @classmethod
-    def test(cls):
-        return c.test('server')

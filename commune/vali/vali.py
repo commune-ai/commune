@@ -11,7 +11,6 @@ class Vali:
     epochs = 0 # the number of epochs
     subnet = None
     network = 'server'
-    tempo = 10
 
     def __init__(self,
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
@@ -19,7 +18,7 @@ class Vali:
                     batch_size : int = 128, # the batch size of the most parallel tasks
                     score : Union['callable', int]= None, # score function
                     key : str = None, # the key for the module
-                    tempo : int = 10, # the time between epochs
+                    tempo : int = 2, # the time between epochs
                     max_sample_age : int = 3600, # the maximum age of the samples
                     timeout : int = 3, # timeout per evaluation of the module
                     update : bool =True, # update during the first epoch
@@ -36,33 +35,45 @@ class Vali:
         if run_loop:
             c.thread(self.run_loop) if run_loop else ''
 
+    def set_network(self, 
+                    network:str = 'local', 
+                    tempo:int= 10, 
+                    search:str=None, 
+                    path:str=None, 
+                    update = False):
+        self.network = network 
+        self.tempo = tempo
+        if '/' in self.network:
+            self.network, self.subnet = network.split('/')
+            self.path = self.resolve_path(self.network + '/' + self.subnet)
+        else:
+            self.subnet = None
+            self.path = self.resolve_path(self.network)
+        self.search = search
+        self.network_module = c.module(self.network)() 
+
+
+
+    def sync(self):
+        
+        self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo)
+        self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo)
+
+        # create some extra helper mappings
+        self.key2module = {m['key']: m for m in self.modules if 'key' in m}
+        self.name2module = {m['name']: m for m in self.modules if 'name' in m}
+        self.url2module = {m['url']: m for m in self.modules if 'url' in m}
+        if self.search:
+            self.modules = [m for m in self.modules if any(str(self.search) in str(v) for v in m.values())]
+        return self.params
+    
+
     init_vali = __init__
 
     @classmethod
     def resolve_path(cls, path):
         return c.storage_path + f'/vali/{path}'
 
-    def set_network(self, 
-                    network:str = None, 
-                    tempo:int=None, 
-                    search:str=None, 
-                    path:str=None, 
-                    update = False):
-        self.network = network or self.network
-        self.tempo = tempo or self.tempo
-        if '/' in self.network:
-            self.network, self.subnet = network.split('/')
-        self.path = self.resolve_path((self.network + '/' + self.subnet) if self.subnet else self.network)
-        self.network_module = c.module(self.network)() 
-        self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo)
-        self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo)
-        self.key2module = {m['key']: m for m in self.modules if 'key' in m}
-        self.name2module = {m['name']: m for m in self.modules if 'name' in m}
-        self.url2module = {m['url']: m for m in self.modules if 'url' in m}
-        if search:
-            self.modules = [m for m in self.modules if any(str(search) in str(v) for v in m.values())]
-        return self.params
-    
     def score(self, module):
         return int('name' in module.info())
     
@@ -149,18 +160,30 @@ class Vali:
             c.print(f'ERROR({c.detailed_error(e)})', color='red')
         return results
 
-    def epoch(self, features=['score', 'key', 'duration'], **kwargs):
-        self.set_network(**kwargs)
+    def epoch(self, features=['score', 'key', 'duration', 'name'], **kwargs):
+        self.sync()
         n = len(self.modules)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         num_batches = len(batches)
-        c.print(f'Epoch(network={self.network} epoch={self.epoch} batches={num_batches})', color='yellow')
+
+        epoch_info = {
+            'epochs' : self.epochs,
+            'network': self.network,
+            'score_id': self.score_id,
+            'key': self.key.short_address,
+            'batch_size': self.batch_size,
+            'n': n
+        }
+            
+        c.print(c.df([epoch_info]), color='yellow')
         results = []
         for i, batch in enumerate(batches):
             results.extend(self.score_batch(batch))
         self.epochs += 1
         self.epoch_time = c.time()
         self.vote(results)
+        if len(results) == 0:
+            return {'success': False, 'msg': 'No results to vote on'}
         return c.df(results)[features]
 
     @property
@@ -260,4 +283,5 @@ class Vali:
                 assert trials > 0, f'Trials exhausted {trials}'
             for miner in modules:
                 c.print(c.kill(miner))
+            assert c.server_exists(miner) == False, f'Miner still exists {miner}'
             return {'success': True, 'msg': 'subnet test passed'}

@@ -8,7 +8,7 @@ import itertools
 import threading
 import asyncio
 from loguru import logger
-from typing import Callable
+from typing import *
 from concurrent.futures._base import Future
 import time
 from tqdm import tqdm
@@ -16,7 +16,7 @@ from .utils import detailed_error
 
 class Task:
     def __init__(self, 
-                fn:str,
+                fn:Union[str, callable],
                 params:dict, 
                 timeout:int=10, 
                 priority:int=1, 
