@@ -27,6 +27,18 @@ class Auth:
         return headers
 
 
+    def test_headers(self,crypto_type='sr25519'):
+        results = {}
+        for crypto_type in ['ecdsa', 'sr25519']:
+            data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
+            headers = self.get_headers(data, crypto_type=crypto_type)
+            verified = self.verify_headers(headers)
+            results[crypto_type] = {'headers': headers, 'verified': verified}
+        return results
+
+
+
+
     def test(self,crypto_type='sr25519'):
         results = {}
         for crypto_type in ['ecdsa', 'sr25519']:

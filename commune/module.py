@@ -227,10 +227,6 @@ class c:
         module = cls.resolve_module(module)
         return os.path.abspath(os.path.expanduser(f'~/.commune/{module.module_name()}'))
 
-    @staticmethod
-    def config_paths(path='./'):
-        return c.files(path, search='config.json')
-
     @classmethod
     def config_keys(cls, path='./'):
         return list(cls.config().keys())
@@ -444,7 +440,6 @@ class c:
                 pass
         return obj2file
 
-
     @classmethod
     def encrypt(cls,data: Union[str, bytes], key: str = None, password: str = None, **kwargs ) -> bytes:
         key = c.get_key(key) 
@@ -567,27 +562,33 @@ class c:
     def name2config(cls,**kwargs):
         return {p.split('/')[-2]:p for p in c.configs(c.modules_path)}
 
+
+
+
     @classmethod
     def cfg(cls, module=None, mode='dict', fn='__init__') -> 'Munch':
         return cls.config(module=module, mode=mode, fn=fn)
 
     @classmethod
-    def config(cls, module=None, mode='dict', fn='__init__') -> 'Munch':
+    def config(cls, module=None, mode='dict', fn='__init__', modes=['json', 'yaml']) -> 'Munch':
         # if os.path.exists(c.modules_path + '/' in module):
         path = None
         if module == None:
-            dirpath = os.path.dirname(__file__)
+            dirpath = c.lib_path
         else:
             module = c.module(module)
             dirpath = c.dirpath(module)
-        for m in ['json', 'yaml']:
-            path = f'{dirpath}/config.{m}'
-            if os.path.exists(path):
-                break
+        paths = [os.path.join(dirpath, f'config.{m}') for m in modes if os.path.exists(os.path.join(dirpath, f'config.{m}'))]
+        if len(paths) > 0:
+            path = paths[0]
+        else:
+            raise Exception(f'No config file found in {dirpath} for {module}')
+
+        filetype = path.split('.')[-1] if path != None else mode
         if os.path.exists(path):
-            if path.endswith('.json'):
+            if filetype == 'json':
                 config = json.load(open(path, 'r'))
-            elif path.endswith('.yaml') or path.endswith('.yml'):
+            elif filetype in ['yaml', 'yml']:
                 config = yaml.load(open(path, 'r'), Loader=yaml.FullLoader)
             else:
                 raise Exception(f'Invalid config file {path}')
@@ -650,7 +651,6 @@ class c:
     def glob(cls, path:str='./', depth:Optional[int]=None, recursive:bool=True, files_only:bool = True,):
         import glob
         path = cls.resolve_path(path)
-
         if depth != None:
             if isinstance(depth, int) and depth > 0:
                 paths = []
@@ -1368,7 +1368,7 @@ class c:
 
     @classmethod
     def mnemonic(cls, words=24):
-        return c.mod('key').generate_mnemonic(words=words)
+        return c.mod('key')().generate_mnemonic(words=words)
       
 
 
@@ -1408,11 +1408,11 @@ class c:
         return path.replace('__init__.', '.')
         
     @classmethod
-    def path2name(cls, path):
+    def path2name(cls, path, ignore_folder_names = ['modules', 'agents', 'src', 'mods']):
         name = cls.path2objectpath(path)
         name_chunks = []
         for chunk in name.split('.'):
-            if chunk in ['modules', 'agents']:
+            if chunk in ignore_folder_names:
                 continue
             if chunk not in name_chunks:
                 name_chunks += [chunk]
@@ -1937,9 +1937,19 @@ class c:
                     return True
         return False
 
+
     @staticmethod
-    def configs( path='./'):
-        return [f for f in  c.files(path) if f.endswith('/config.json')]
+    def configs( path='./', modes=['yaml', 'json'], search=None, names=['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']):
+        """
+        Returns a list of config files in the path
+        """
+        def is_config(f):
+            name_options = c.config_name_options
+            return any(f.endswith(f'{name}.{m}') for name in names for m in modes)
+        configs =  [f for f in  c.files(path) if is_config(f)]
+        if search != None:
+            configs = [f for f in configs if search in f]
+        return configs
 
     @staticmethod
     def readme2text(path='./', search=None):
@@ -2145,17 +2155,6 @@ class c:
         output = output.split('START_OUTPUT>')[-1].split('<END_OUTPUT')[0]
         return json.loads(output)
 
-    @classmethod
-    def sync_sys_path(cls):
-        if not hasattr(c, 'included_pwd_in_path'):
-            c.included_pwd_in_path = False
-        if  not c.included_pwd_in_path:
-            paths = [c.modules_path, c.pwd()]
-            for p in paths:
-                if not p in sys.path:
-                    sys.path.append(p)
-            c.included_pwd_in_path = True
-        return sys.path
 
     @classmethod
     def core_context(cls):
@@ -2186,6 +2185,27 @@ class c:
         """
         Initialize the module by sycing with the config
         """
+
+        # assume the name of this module is the name of .../
+        c.repo_name = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
+        c.storage_path = os.path.expanduser(f'~/.{c.repo_name}')
+        c.core_path  = c.corepath = os.path.dirname(__file__)
+        c.repo_path  = c.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
+        c.lib_path  = c.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
+        c.home_path = c.homepath  = os.path.expanduser('~') # the home path
+        c.modules_path = c.modspath = c.core_path + '/modules'
+        c.app_path = c.core_path + '/app'
+        c.tests_path = f'{c.lib_path}/tests'
+        if not hasattr(c, 'included_pwd_in_path'):
+            c.included_pwd_in_path = False
+        if  not c.included_pwd_in_path:
+            paths = [c.modules_path, c.pwd()]
+            for p in paths:
+                if not p in sys.path:
+                    sys.path.append(p)
+            c.included_pwd_in_path = True
+
+
         # config attributes
         config = c.config()
         c.core_modules = config['core_modules'] # the core modules
@@ -2195,18 +2215,10 @@ class c:
         c.core_features = config['core_features']
         c.port_range = config['port_range'] # the port range between 50050 and 50150
         c.shortcuts =  c.shortys = config["shortcuts"]
-        c.storage_path = os.path.expanduser(f'~/.{c.repo_name}')
-        c.core_path  = c.corepath = os.path.dirname(__file__)
-        c.repo_path  = c.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
-        c.lib_path  = c.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
-        c.home_path = c.homepath  = os.path.expanduser('~') # the home path
-        c.modules_path = c.modspath = c.core_path + '/modules'
-        c.app_path = c.core_path + '/app'
-        c.tests_path = f'{c.lib_path}/tests'
+
 
         c.sync_routes()
         c.sync_modules(max_age=max_age, update=update)
-        c.sync_sys_path()
 
         return {'success': True, 'msg': 'synced config'}
 

@@ -7,8 +7,6 @@ import re
 import secrets
 import base64
 import hashlib
-from Crypto import Random
-from Crypto.Cipher import AES
 import nacl.bindings
 import nacl.public
 from scalecodec.base import ScaleBytes
@@ -36,8 +34,11 @@ from .utils import (extract_derive_path,
                      str2bytes,
                      ecdsa_verify)
 
-class Key:
+# imoport 
+from .aes import Aes
 
+class Key:
+    encryption_key = Aes()
     crypto_type_map = {'ed25519': 0, 'sr25519': 1, 'ecdsa': 2}
     crypto_type2networks = {
         'sr25519': ['dot', 'comai', 'com', 'bt'],
@@ -74,13 +75,11 @@ class Key:
         crypto_type: Use "sr25519" or "ed25519"cryptography for generating the Key
         """
         self.crypto_type = crypto_type = self.get_crypto_type(crypto_type)
-
         if  mnemonic:
             private_key = self.from_mnemonic(mnemonic, crypto_type=crypto_type).private_key
-
-        # If no arguments are provided, generate a random keypair
-        private_key =private_key or self.new_key(crypto_type=crypto_type).private_key
-
+        elif private_key is None:
+            # generate a new keypair if no private key is provided
+            private_key = self.new_key(crypto_type=crypto_type).private_key
         if type(private_key) == str:
             private_key = str2bytes(private_key)
 
@@ -106,13 +105,9 @@ class Key:
 
         if type(public_key) is str:
             public_key = bytes.fromhex(public_key.replace('0x', ''))
-
         self.private_key = private_key
         self.public_key = public_key
-        self.key_address =  key_address
-        self.address = key_address
-        self.ss58_address = key_address
-
+        self.key_address = self.address = self.ss58_address =  key_address
         return {'key_address':key_address, 'crypto_type':crypto_type}
 
     def get_crypto_type(self, crypto_type=None):
@@ -133,18 +128,13 @@ class Key:
         return crypto_type
 
     @property
-    def short_address(self):
+    def shorty(self):
         n = 4
-        return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
-
+        return self.key_address[:n] + '...' + self.key_address[-n:]
+        
     def valid_ss58_address(self, address):
         return is_valid_ss58_address(address)
 
-    @property
-    def shorty(self):
-        n = 4
-        return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
-        
     def set_crypto_type(self, crypto_type):
         crypto_type = self.get_crypto_type(crypto_type)
         if crypto_type != self.crypto_type:
@@ -180,11 +170,7 @@ class Key:
         return {'success': True, 'from': path , 'to': new_path}
 
     def key2encrypted(self):
-        keys = self.keys()
-        key2encrypted = {}
-        for k in keys:
-            key2encrypted[k] = self.is_key_encrypted(k)
-        return key2encrypted
+        return {k: self.is_key_encrypted(k) for k in self.keys()}
             
     def resolve_path(self, path:str) -> str:
         path = str(path)
@@ -333,7 +319,15 @@ class Key:
                 raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
         return {'deleted':[key]}
-    
+
+
+    def is_mnemonic(self, mnemonic:str) -> bool:
+        """
+        Check if the provided string is a valid mnemonic
+        """
+        if not isinstance(mnemonic, str):
+            return False
+        return bip39_validate(mnemonic, self.language_code)
     
     def new_key(self, mnemonic:str = None, suri:str = None, private_key: str = None, crypto_type: Union[int,str] = crypto_type,  **kwargs):
         '''
@@ -376,7 +370,7 @@ class Key:
             obj['crypto_type'] = crypto_type
         return  Key(**obj)
 
-    def generate_mnemonic(self, words: int = 12) -> str:
+    def generate_mnemonic(self, words: int = 24) -> str:
         """
         params:
             words: The amount of words to generate, valid values are 12, 15, 18, 21 and 24
@@ -391,12 +385,11 @@ class Key:
         """
 
         crypto_type = self.get_crypto_type(crypto_type)
-
-        if not mnemonic:
-            mnemonic = self.generate_mnemonic()
+        mnemonic = mnemonic or self.generate_mnemonic()
         if crypto_type == "ecdsa":
             if self.language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
+            peivate_key = mnemonic_to_ecdsa_private_key(mnemonic)
             keypair = self.from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), crypto_type=crypto_type)
         else:
             seed_hex = binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", self.language_code))).decode("ascii")
@@ -409,14 +402,7 @@ class Key:
             else:
                 raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
             ss58_address = ss58_encode(public_key, self.ss58_format)
-            kwargs =  dict(
-                ss58_address=ss58_address, 
-                public_key=public_key, 
-                private_key=private_key,
-                ss58_format=self.ss58_format,
-                crypto_type=crypto_type, 
-            )
-            keypair = Key(**kwargs)
+            keypair = Key(private_key=private_key, crypto_type=crypto_type)
         keypair.mnemonic = mnemonic
         return keypair
    
@@ -437,9 +423,45 @@ class Key:
         """
         return Key(private_key=private_key, crypto_type=crypto_type)
 
-    def encode_data_for_signing(self, data: Union[bytes, str]) -> bytes:
-
+    def encode_signature_data(self, data: Union[ScaleBytes, bytes, str, dict]) -> bytes:
+        """
+        Encodes data for signing and vefiying,  converting it to bytes if necessary.
+        """
+        data = c.copy(data)
+        if not isinstance(data, str):
+            data = python2str(data)
+        if type(data) is ScaleBytes:
+            data = bytes(data.data)
+        elif data[0:2] == '0x': # hex string
+            data = bytes.fromhex(data[2:])
+        elif type(data) is str:
+            data = data.encode()
         return data
+
+
+    def resolve_signature(self, signature: Union[bytes, str]):
+        if isinstance(signature,str) and signature[0:2] == '0x':
+            signature = bytes.fromhex(signature[2:])
+        if type(signature) is str:
+            signature = bytes.fromhex(signature)
+        if type(signature) is not bytes:
+            raise TypeError(f"Signature should be of type bytes or a hex-string {signature}")
+        return signature
+
+    def resolve_public_key(self, address=None, public_key=None):
+        if address != None:
+            if is_valid_ss58_address(address):
+                public_key = ss58_decode(address)
+            else:
+                public_key = address
+        if public_key == None:
+            public_key = self.public_key
+        if isinstance(public_key, str) :
+            if public_key.startswith('0x'):
+                public_key = public_key[2:]
+            public_key = bytes.fromhex(public_key)
+        return public_key
+
 
     def sign(self, data: Union[ScaleBytes, bytes, str], mode='bytes') -> bytes:
         """
@@ -452,19 +474,9 @@ class Key:
         signature in bytes
 
         """
-        data = c.copy(data)
 
-        # process
-        if not isinstance(data, str):
-            data = python2str(data)
-        if type(data) is ScaleBytes:
-            data = bytes(data.data)
-        if isinstance(data, str) and data[0:2] == '0x':
-            data = bytes.fromhex(data[2:])
-        elif type(data) is str:
-            data = data.encode()
-        if not self.private_key:
-            raise Exception('No private key set to create signatures')
+        data = self.encode_signature_data(data)
+
         if self.crypto_type == "sr25519":
             signature = sr25519.sign((self.public_key, self.private_key), data)
         elif self.crypto_type == "ed25519":
@@ -473,18 +485,22 @@ class Key:
             signature = ecdsa_sign(self.private_key, data)
         else:
             raise Exception("Crypto type not supported")
+
         if mode in ['str', 'hex']:
-            return '0x' + signature.hex()
+            signature = '0x' + signature.hex()
         elif mode in ['dict', 'json']:
-            return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
+            signature =  {
+                    'data':data.decode(),
+                    'crypto_type':self.crypto_type,
+                    'signature':signature.hex(),
+                    'address': self.ss58_address}
         elif mode == 'bytes':
-            return signature
+            pass
         else:
             raise ValueError(f'invalid mode {mode}')
 
-        if to_json:
-            return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
+
 
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
@@ -502,41 +518,14 @@ class Key:
         signature: signature in bytes or hex string format
         public_key: public key in bytes or hex string format
         """
-        data = c.copy(data)
-        if isinstance(data, dict):
-            if 'data' in data and 'signature' in data and 'address' in data:
-                signature = data['signature']
-                address = data['address']
-                data = data['data']
-            else:
-                assert signature != None, 'signature not found in data'
-                assert address != None, 'address not found in data'
-        if not isinstance(data, str):
-            data = python2str(data)
-        if address != None:
-            if is_valid_ss58_address(address):
-                public_key = ss58_decode(address)
-            else:
-                public_key = address
-        if public_key == None:
-            public_key = self.public_key
-        if isinstance(public_key, str) :
-            if public_key.startswith('0x'):
-                public_key = public_key[2:]
-            public_key = bytes.fromhex(public_key)
-        if type(data) is ScaleBytes:
-            data = bytes(data.data)
-        elif data[0:2] == '0x': # hex string
-            data = bytes.fromhex(data[2:])
-        elif type(data) is str:
-            data = data.encode()
-        if isinstance(signature,str) and signature[0:2] == '0x':
-            signature = bytes.fromhex(signature[2:])
-        elif type(signature) is str:
-            signature = bytes.fromhex(signature)
-        if type(signature) is not bytes:
-            raise TypeError("Signature should be of type bytes or a hex-string")
-        
+
+
+        if isinstance(data, dict) and  all(k in data for k in ['data','signature', 'address']):
+            data, signature, address = data['data'], data['signature'], data['address']
+        data = self.encode_signature_data(data)
+        signature = self.resolve_signature(signature)
+        public_key = self.resolve_public_key(address=address, public_key=public_key)
+
         if self.crypto_type == "sr25519":
             crypto_verify_fn = sr25519.verify
         elif self.crypto_type == "ed25519":
@@ -551,47 +540,20 @@ class Key:
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
-
-    def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module',  crypto_type=None) -> dict:
-        crypto_type = self.get_crypto_type(crypto_type)
-        key = self.get_key(key, crypto_type=crypto_type)
-        signature = c.sign(data, key=key, crypto_type=crypto_type)
-        assert c.verify(data, signature=signature, address=key.key_address), 'failed to verify signature'
-        return {'signature':signature, 'address':self.get_key_address(key), 'key':key , 'data':data, 'crypto_type':crypto_type}
-
-    def get_encryption_password(self, password:Optional[str]=None) -> str:
-        password = password or self.private_key
-        if isinstance(password, str):
-            password = password.encode()
-        # if password is a key, use the key's private key as password
-        return hashlib.sha256(password).digest()
-
+        
     def encrypt(self, data, password=None):
-        data = c.copy(data)
-        if not isinstance(data, str):
-            data = str(data)
-        password = self.get_encryption_password(password)
-        data = data + (AES.block_size - len(data) % AES.block_size) * chr(AES.block_size - len(data) % AES.block_size)
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(password, AES.MODE_CBC, iv)
-        encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
-        return encrypted_bytes.decode() 
+        return self.encryption_key.encrypt(data, password or self.private_key)
 
-    def decrypt(self, data, password=None):    
-        password = self.get_encryption_password(password)
-        data = base64.b64decode(data)
-        iv = data[:AES.block_size]
-        cipher = AES.new(password, AES.MODE_CBC, iv)
-        data =  cipher.decrypt(data[AES.block_size:])
-        data = data[:-ord(data[len(data)-1:])].decode('utf-8')
-        return data
+    def decrypt(self, data, password=None):
+        return self.encryption_key.decrypt(data, password or self.private_key)
 
     def encrypt_key(self, path = 'test.enc', password=None):
         assert self.key_exists(path), f'file {path} does not exist'
         assert not self.is_key_encrypted(path), f'{path} already encrypted'
         path = self.get_key_path(path)
         data = c.get(path)
-        enc_text = {'data': c.encrypt(c.copy(data), password=password), 
+        enc_data = c.encrypt(c.copy(data), password=password)
+        enc_text = {'data': enc_data, 
                     "key_address": data['ss58_address'],
                     "crypto_type": data['crypto_type'],
                     'encrypted': True}
@@ -624,9 +586,6 @@ class Key:
             return bool(data.get('encrypted', False))
         else:
             return False 
-    
-    def get_key_address(self, key, crypto_type=crypto_type):
-        return self.get_key(key, crypto_type=crypto_type).key_address
 
     @property
     def multiaddress(self):
@@ -635,12 +594,6 @@ class Key:
     def multi(self,key=None, **kwargs):
         return self.get_key(key, **kwargs).multiaddress
     
-    def from_password(self, password:str, crypto_type=crypto_type, **kwargs):
-        return self.from_uri(password, crypto_type=crypto_type, **kwargs)
-
-    def str2key(self, password:str, crypto_type=crypto_type, **kwargs):
-        return self.from_password(password, crypto_type=crypto_type, **kwargs)
-
     def from_uri(
             self, 
             suri: str, 
@@ -683,3 +636,9 @@ class Key:
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         return derived_keypair
+
+    def from_password(self, password:str, crypto_type=crypto_type, **kwargs):
+        return self.from_uri(password, crypto_type=crypto_type, **kwargs)
+
+    def str2key(self, password:str, crypto_type=crypto_type, **kwargs):
+        return self.from_password(password, crypto_type=crypto_type, **kwargs)

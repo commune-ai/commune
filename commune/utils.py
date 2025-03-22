@@ -12,13 +12,10 @@ import json
 import re
 import itertools
 from contextlib import contextmanager
-# Third-party Imports
 import requests
 import psutil
 import netaddr
 from loguru import logger
-
-# Typing Imports
 from typing import Any, Optional, List, Dict, Tuple, Union
 
 def shlex_split(s):
@@ -492,7 +489,6 @@ def round_decimals( x:Union[float, int], decimals: int=6, small_value: float=1.0
     """
     x = float(x)
     return round(x, decimals)
-
 
 required_libs = []
 
@@ -2576,7 +2572,6 @@ def rsa() -> str:
     if not os.path.exists(path):
         cmd('ssh-keygen -t rsa -b 4096 -C ')
     return cmd(f'cat {path}')
-
 
 def sumtext( text, split_size=100000) -> List[str]:
     text_size = len(text)

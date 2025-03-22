@@ -45,10 +45,21 @@ class Serializer:
                 elif c.is_float(x):
                     x = float(x)
                 return x
-        is_serialized = self.is_serialized(x)
-        if is_serialized:
+           
+        if self.is_serialized(x):
             serializer = self.get_serializer(x['data_type'])
             return serializer.deserialize(x['data'])
+        if isinstance(x, dict):
+            data  = {}
+            for k,v in x.items():
+                data[k] = self.deserialize(v)
+            return data
+        elif type(x) in self.list_types:
+            data_type = type(x)
+            data = []
+            for v in x:
+                data.append(self.deserialize(v))
+            return data_type(data)
         return x
     
     def get_data_type_string(self, x):
@@ -131,6 +142,7 @@ class Serializer:
 
     def test(self):
         import time
+        import numpy as np
         import torch
         self = c.module('serializer')()
         data_list = [
@@ -139,6 +151,9 @@ class Serializer:
             torch.rand(1000), 
             [1,2,3,4,5],
             {'a':1, 'b':2, 'c':3},
+            {'a': torch.ones(1000), 'b': torch.zeros(1000), 'c': torch.rand(1000)},
+            [1,2,3,4,5, torch.ones(10), np.ones(10)],
+            (1,2, c.df([{'name': 'joe', 'fam': 1}]), 3.0),
             'hello world',
             c.df([{'name': 'joe', 'fam': 1}]),
             1,
@@ -146,7 +161,6 @@ class Serializer:
             True,
             False,
             None
-
         ]
         for data in data_list:
             t1 = time.time()
@@ -154,8 +168,7 @@ class Serializer:
             des_data = self.deserialize(ser_data)
             des_ser_data = self.serialize(des_data)
             t2 = time.time()
-
             duration = t2 - t1
             emoji = '✅' if str(des_ser_data) == str(ser_data) else '❌'
-            print(type(data),emoji)
+
         return {'msg': 'PASSED test_serialize_deserialize'}

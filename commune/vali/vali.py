@@ -165,17 +165,15 @@ class Vali:
         n = len(self.modules)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         num_batches = len(batches)
-
         epoch_info = {
             'epochs' : self.epochs,
             'network': self.network,
             'score_id': self.score_id,
-            'key': self.key.short_address,
+            'key': self.key.shorty,
             'batch_size': self.batch_size,
             'n': n
         }
             
-        c.print(c.df([epoch_info]), color='yellow')
         results = []
         for i, batch in enumerate(batches):
             results.extend(self.score_batch(batch))
@@ -184,6 +182,7 @@ class Vali:
         self.vote(results)
         if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
+        
         return c.df(results)[features]
 
     @property

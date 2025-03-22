@@ -358,3 +358,12 @@ def valid_h160_address(cls, address):
         return False
     
     return True
+
+
+def is_mnemonic(mnemonic:str) -> bool:
+    """
+    Check if the provided string is a valid mnemonic
+    """
+    if not isinstance(mnemonic, str):
+        return False
+    return bip39_validate(mnemonic, self.language_code)

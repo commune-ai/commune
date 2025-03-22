@@ -3,11 +3,9 @@
 import commune as c
 import os
 import torch, time
-
 class Test:
     def test_serializer(self):
-        return c.module('serializer')().test()
-
+        return c.module('serializer')().test()  
     def test_server(self, name = 'module::test_serving', deployer='module::deployer'):
         module = c.serve(name, key=deployer)
         module = c.connect(name)
@@ -21,7 +19,6 @@ class Test:
         c.kill(name)
         assert name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
-
     def test_executor(self):
         return c.module('executor')().test()
 
