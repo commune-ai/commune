@@ -117,10 +117,7 @@ def resolve_console( console = None, **kwargs):
     from rich.logging import RichHandler
     from rich.console import Console
     logging.basicConfig( handlers=[RichHandler()])   
-        # print the line number
-    console = Console()
-    console = console
-    return console
+    return Console()
 
 def print_console( *text:str, 
             color:str=None, 
@@ -950,7 +947,7 @@ def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int,
     for port in ports: 
         jobs += [check_port(port=port, ip=ip)]
             
-    results = c.gather(jobs)
+    results = gather(jobs)
     for port, result in zip(ports, results):
         if isinstance(result, bool) and result:
             used_ports += [port]
@@ -1843,8 +1840,8 @@ def file2text(path = './',
                 relative=False, 
                  **kwargs):
     
-    path = os.path.abspath(os.path.expanduser(path))
-    assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
+    path = abspath(path)
+    assert all([not abspath(k) == path for k in avoid_paths]), f'path {path} is in {avoid_paths}'
     file2text = {}
     for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
         
@@ -2363,7 +2360,7 @@ def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:boo
     if len(futures) == 0:
         return []
     if is_coroutine(futures[0]):
-        return c.gather(futures, timeout=timeout)
+        return gather(futures, timeout=timeout)
     
     future2idx = {future:i for i,future in enumerate(futures)}
 

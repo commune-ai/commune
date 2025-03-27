@@ -96,6 +96,8 @@ class Test:
 
     def test_key_encryption(self, path = 'test.enc', password='1234'):
         key = Key()
+        if key.key_exists(path):
+            key.rm_key(path)
         key.add_key(path, refresh=True)
         assert key.is_key_encrypted(path) == False, f'file {path} is encrypted'
         key.encrypt_key(path, password=password)

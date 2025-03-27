@@ -12,7 +12,7 @@ class Client:
                  url : str = 'module',  
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
-                 auth = 'auth.jwt',
+                 auth = 'server.auth.jwt',
                  mode='http',
                  history_path = '~/.commune/client/history',
 

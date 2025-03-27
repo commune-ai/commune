@@ -42,7 +42,6 @@
         "chain": "chain", 
         "client": "server.client",
         "local": "server",
-        "executor": "server.executor", 
         "serv": "server", 
         "tweet": "x",
         "serializer": "server.serializer"

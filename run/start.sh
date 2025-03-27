@@ -5,25 +5,11 @@ PWD=$(pwd)
 REPO=$(basename $(pwd)) # get the name of the current directory
 # if no argument is passed, start the container with the name of the current directory
 
-case $i in
-    --port=*)
-    PORT="${i#*=}"
-    shift
-    ;;
-    --pwd=*)
-    PWD="${i#*=}"
-    shift
-    ;;
-    --name=*)
-    NAME="${i#*=}"
-    shift
-    ;;
-
-
-    *)
-
-esac
-
+if [ -z "$1" ]; then
+  NAME=$REPO
+else
+  NAME=$1
+fi
 
 docker run -d \
   --name $NAME \

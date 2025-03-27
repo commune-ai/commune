@@ -10,13 +10,12 @@ class Vali:
     vote_time = 0 # the time of the last vote (for voting networks)
     epochs = 0 # the number of epochs
     subnet = None
-    network = 'server'
 
     def __init__(self,
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
                     batch_size : int = 128, # the batch size of the most parallel tasks
-                    score : Union['callable', int]= None, # score function
+                    score : Union['callable', int, str]= None, # score function
                     key : str = None, # the key for the module
                     tempo : int = 2, # the time between epochs
                     max_sample_age : int = 3600, # the maximum age of the samples
@@ -45,14 +44,12 @@ class Vali:
         self.tempo = tempo
         if '/' in self.network:
             self.network, self.subnet = network.split('/')
-            self.path = self.resolve_path(self.network + '/' + self.subnet)
+            self.path = self.get_path(self.network + '/' + self.subnet)
         else:
             self.subnet = None
-            self.path = self.resolve_path(self.network)
+            self.path = self.get_path(self.network)
         self.search = search
         self.network_module = c.module(self.network)() 
-
-
 
     def sync(self):
         
@@ -67,21 +64,19 @@ class Vali:
             self.modules = [m for m in self.modules if any(str(self.search) in str(v) for v in m.values())]
         return self.params
     
-
     init_vali = __init__
 
-    @classmethod
-    def resolve_path(cls, path):
+    def get_path(cls, path):
         return c.storage_path + f'/vali/{path}'
 
     def score(self, module):
         return int('name' in module.info())
     
     def set_score(self, score: Union['callable', int]= None):
-        if callable(score):
-            setattr(self, 'score', score )
         assert callable(self.score), f'SCORE NOT SET {self.score}'
         self.score_id = c.hash(c.code(self.score))
+        if callable(score):
+            setattr(self, 'score', score )
         return {'success': True, 'msg': 'Score function set'}
 
     def run_loop(self, step_time=2):
@@ -128,7 +123,6 @@ class Vali:
         module['time'] = t0
         module['duration'] = c.time() - module['time']
         module['vali'] = self.key.key_address
-        module['vali_signature'] = c.sign(module['score'], key=self.key, mode='str')
         module['score_id'] = self.score_id
         module['proof'] = c.sign(c.hash(module), key=self.key, mode='dict')
         self.verify_proof(module) # verify the proof
@@ -139,7 +133,7 @@ class Vali:
     def get_module_path(self, module:str):
         return self.path + '/' + module + '.json'
 
-    def module_stats(self, module: Union[str, dict]):
+    def module_results(self, module: Union[str, dict]):
         path = self.get_module_path(module)
         return c.get_json(path)
 
@@ -173,7 +167,6 @@ class Vali:
             'batch_size': self.batch_size,
             'n': n
         }
-            
         results = []
         for i, batch in enumerate(batches):
             results.extend(self.score_batch(batch))
@@ -182,8 +175,7 @@ class Vali:
         self.vote(results)
         if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
-        
-        return c.df(results)[features]
+        return c.df(results)
 
     @property
     def vote_staleness(self):
@@ -206,7 +198,7 @@ class Vali:
                     subnet=self.subnet
                     )
     
-    def stats(self,
+    def results(self,
                     keys = ['name', 'score', 'duration',  'url', 'key', 'time', 'age'],
                     ascending = True,
                     by = 'score',
@@ -219,7 +211,7 @@ class Vali:
         page_size = 1000
         df = []
         # chunk the jobs into batches
-        for path in self.module_paths():
+        for path in c.ls(self.path):
             r = c.get(path, {},  max_age=max_age, update=update)
             if isinstance(r, dict) and 'key' and  r.get('score', 0) > 0  :
                 df += [{k: r.get(k, None) for k in keys}]
@@ -240,15 +232,12 @@ class Vali:
             return df.to_dict(orient='records')
         return df
 
-    def module_paths(self):
-        return c.ls(self.path) # fam
-    
     @classmethod
     def run_epoch(cls, network='local', **kwargs):
         kwargs['run_loop'] = False
         return  cls(network=network,**kwargs).epoch()
     
-    def refresh_stats(self):
+    def refresh_results(self):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}

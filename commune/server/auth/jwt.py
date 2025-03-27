@@ -42,8 +42,10 @@ class JWT:
             key = c.get_key(key, crypto_type=crypto_type)
         else:
             key = key
+            if crypto_type != key.get_crypto_type(key.crypto_type):
+                crypto_type = key.get_crypto_type(key.crypto_type)
+
         self.check_crypto_type(crypto_type)
-        
         if not isinstance(data, dict):
             data = {'data': data }
         token_data = data.copy()        
@@ -53,15 +55,10 @@ class JWT:
             'exp': str(float(c.time() + expiration)),  # Expiration time
             'iss': key.key_address,  # Issuer (key address)
         })
-        
-        # Create JWT header
-        if crypto_type != key.crypto_type:
-            crypto_type = key.crypto_type
         header = {
             'alg': crypto_type,
             'typ': 'JWT',
         }
-        
         # Create message to sign
         message = f"{self._base64url_encode(header)}.{self._base64url_encode(token_data)}"
         # For asymmetric algorithms, use the key's sign method

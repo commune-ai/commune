@@ -27,7 +27,7 @@ class c:
         # Initialize cache if needed
         if not hasattr(c, 'module_cache'):
             c.module_cache = {}
-        
+    
         # Return path if it's already a module object
         if not isinstance(path, str) and path is not None:
             return path
@@ -37,12 +37,12 @@ class c:
         # Handle self-references
         if path in ['module', c.repo_name[0], c.repo_name] or c.repo_name.startswith(path):
             return c
-            
+        
         # Normalize path
         path = path.replace('/', '.')
         path = c.shortcuts.get(path, path)
-        module = c.tree().get(path, path)
-        
+        tree = c.tree()
+        module = tree.get(path, path)
         if (c.repo_name + '.' + c.repo_name) == module:
             return c
         # Try to load the module
@@ -738,7 +738,7 @@ class c:
         return {'success': True, 'path': f'{path}', 'size': len(text)*8}
     
     @classmethod
-    def ls(cls, path:str = '', 
+    def ls(cls, path:str = './', 
            search = None,
            include_hidden = False, 
            depth=None,
@@ -1156,29 +1156,6 @@ class c:
             tags = [t for t in tags if search in t]
         return tags
 
-    def module2info(self, search=None, max_age = 1000, update=False):
-
-        module2info_path = 'info/module2info'
-        module2error_path = 'info/module2error'
-        module2info = {}
-        path = c.resolve_path(module2info_path)
-        error_path = c.resolve_path(module2error_path)
-        module2error = c.get(error_path, {})
-        module2info = c.get(path, module2info, max_age=max_age, update=update)
-        if len(module2info) == 0:
-            modules = c.modules()
-            progress = c.tqdm(len(modules))
-            for m in modules:
-                progress.update(1)
-                try:
-                    module2info[m] = c.info(m)
-                except Exception as e:
-                    module2error[m] = c.detailed_error(e)
-                    pass
-            c.put(path, module2info)
-            c.put(error_path, module2error)
-        return module2info
-
     def pwd2key(self, pwd):
         return c.module('key').str2key(pwd)
 
@@ -1384,9 +1361,6 @@ class c:
                 path = rep + path[len(pre):]
         return path
             
-            
-
-    
     @staticmethod
     def round(x, sig=6, small_value=1.0e-9):
         import math
@@ -1661,7 +1635,6 @@ class c:
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
-        
     @classmethod
     def modules_tree(cls, search=None, **kwargs):
         tree =  c.get_tree(c.modules_path, search=search, **kwargs)
@@ -1707,10 +1680,9 @@ class c:
         if name.endswith('.git'):
             git_path = c.giturl(path)
             name =  path.split('/')[-1].replace('.git', '')
-        
         dirpath = os.path.abspath(c.modules_path +'/'+ name.replace('.', '/'))
-        path = dirpath + '/src/module.py'
-        path = path.replace('.', '_')
+        filename = name.replace('.', '_') + '.py'
+        path = f'{dirpath}/{filename}'
         # path = dirpath + '/' + module_name + '.py'
         base_module_obj = c.module(base_module)
         code = c.code(base_module)
@@ -1718,7 +1690,6 @@ class c:
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
         c.put_text(path, 'import commune as c \n'+code)
-        c.go(name)
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
     add_module = new_module = new
