@@ -27,7 +27,7 @@ class c:
         # Initialize cache if needed
         if not hasattr(c, 'module_cache'):
             c.module_cache = {}
-    
+
         # Return path if it's already a module object
         if not isinstance(path, str) and path is not None:
             return path
@@ -45,6 +45,7 @@ class c:
         module = tree.get(path, path)
         if (c.repo_name + '.' + c.repo_name) == module:
             return c
+            
         # Try to load the module
         try:
             obj = c.obj(module)
@@ -61,32 +62,14 @@ class c:
         
         # Add utility methods to non-module objects
         if not c.is_module(obj):
-            methods = {
-                'resolve_module': lambda *args, **kwargs: c.resolve_module(obj),
-                'module_name': lambda *args, **kwargs: c.module_name(obj),
-                'storage_dir': lambda *args, **kwargs: c.storage_dir(obj),
-                'filepath': lambda *args, **kwargs: c.filepath(obj),
-                'dirpath': lambda *args, **kwargs: c.dirpath(obj),
-                'code': lambda *args, **kwargs: c.code(obj),
-                'info': lambda *args, **kwargs: c.info(obj),
-                'cid': lambda *args, **kwargs: c.cid(obj),
-                'schema': lambda *args, **kwargs: c.schema(obj),
-                'fns': lambda *args, **kwargs: c.fns(obj),
-                'fn2code': lambda *args, **kwargs: c.fn2code(obj),
-                'fn2hash': lambda *args, **kwargs: c.fn2hash(obj),
-                'dir': lambda *args, **kwargs: c.dir(obj),
-                'chat': lambda *args, **kwargs: c.chat(obj),
-                'ask': lambda *args, **kwargs: c.ask(obj),
-                'config_path': lambda *args, **kwargs: c.config_path(obj),
-                'config': lambda *args, **kwargs: c.config(obj),
-            }
-        
+            
             # Set all methods at once
-            for name, method in methods.items():
-                if not hasattr(obj, name):                
-                    setattr(obj, name, method)
-            # Add optional methods if they don't exist
-
+            for name in c.core_features:
+                if not hasattr(obj, name):
+                    setattr(obj, name, lambda *args, method=name, **kwargs: getattr(c, method)(obj))
+                else:
+                    if verbose:
+                        print(f'{name} already exists in {obj}')
         
         # Apply parameters if provided
         if isinstance(params, dict):
@@ -99,7 +82,6 @@ class c:
             c.print(f'Module({module} t={(c.time() - t0):.2f})')
             
         return obj
-
     get_agent = block =  get_block = get_module =  mod =  module
 
     def go(self, module=None, **kwargs):
@@ -176,7 +158,11 @@ class c:
         
     @classmethod
     def dirpath(cls, obj=None) -> str:
-        return os.path.dirname(cls.filepath(obj))
+
+        dirpath =  os.path.dirname(cls.filepath(obj))
+        if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
+            dirpath = '/'.join(dirpath.split('/')[:-1])
+        return dirpath
     
     @classmethod
     def module_name(cls, obj=None):
@@ -210,7 +196,7 @@ class c:
         yaml_path =  c.dirpath(obj) + '/config.yaml'
         if os.path.exists(json_path):
             return json_path
-        elif ocore_featuress.path.exists(yaml_path):
+        elif os.path.exists(yaml_path):
             return yaml_path
 
     @classmethod
@@ -557,17 +543,6 @@ class c:
 
     def search(self, search:str = None, **kwargs):
         return c.objects(search=search, **kwargs)
-
-    @classmethod
-    def name2config(cls,**kwargs):
-        return {p.split('/')[-2]:p for p in c.configs(c.modules_path)}
-
-
-
-
-    @classmethod
-    def cfg(cls, module=None, mode='dict', fn='__init__') -> 'Munch':
-        return cls.config(module=module, mode=mode, fn=fn)
 
     @classmethod
     def config(cls, module=None, mode='dict', fn='__init__', modes=['json', 'yaml']) -> 'Munch':
@@ -1142,27 +1117,11 @@ class c:
             info = {k: v for k,v in info.items() if k in lite_features}
         return  info
 
-
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
 
-    def get_tags(self,module=None, search=None, **kwargs):
-        tags = []
-        module =  c.resolve_module(module)
-        if hasattr(module, 'tags'):
-            tags = module.tags
-        assert isinstance(tags, list), f'{module} does not have tags'
-        if search != None:
-            tags = [t for t in tags if search in t]
-        return tags
-
     def pwd2key(self, pwd):
         return c.module('key').str2key(pwd)
-
-        
-    def module2hash(self, search = None, max_age = None, **kwargs):
-        infos = self.infos(search=search, max_age=max_age, **kwargs)
-        return {i['name']: i['hash'] for i in infos if 'name' in i}
 
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -1505,7 +1464,6 @@ class c:
             key = key.replace(splitter, '.')
         if (c.repo_name + '.' + c.repo_name) in key:
             key = key.replace((c.repo_name + '.' + c.repo_name) ,c.repo_name)
-
         if key.split('.')[0] == c.repo_name[0]:
             key = key.replace(c.repo_name[0] + '.', c.repo_name + '.')
         module_path = '.'.join(key.split('.')[:-1])
@@ -2126,30 +2084,30 @@ class c:
         output = output.split('START_OUTPUT>')[-1].split('<END_OUTPUT')[0]
         return json.loads(output)
 
+    def isrepo(self, module:str = None):
+        path = c.dirpath(module)
+        return os.path.exists(path + '/.git')
 
     @classmethod
     def core_context(cls):
         return c.readme2text(c.core_path)
 
+    def diff(self, module:str = 'model.openai', name:str = None):
+        dirpath = c.dirpath(module)
+        cmd = 'git diff'
+        cwd = dirpath
+        return c.cmd(cmd, cwd=cwd)
 
-    def requirements(self, module='model.openai'):
-        return c.ask(f'make a dope module for the followin return outputs as a json', module=module)
-
-
-    @classmethod
-    def help(cls, *question, mod:str='module', model='google/gemini-2.0-flash-001',  search=None):
-        x = {
-            'code_map': c.code(mod),
-            'core_context': c.core_context(),
-            'question' : ' '.join(question), 
-            'goal': 'respond in the output field',
-            'output': None
-        }
-        output = ''
-        for ch in  c.ask(str(x), process_text=False, model=model):
-            print(ch, end='')
-            output += ch
-        return output
+    def push(self, module:str = 'model.openai', name:str = None):
+        """
+        Push the module to the git repository
+        """
+        name = name or module
+        if not os.path.exists(module):
+            c.cmd(f'git clone {module} {name}')
+        else:
+            c.cmd(f'git pull {module} {name}')
+        return {'success': True, 'msg': 'pushed module'}
 
     @classmethod
     def sync(cls, max_age=10, update=True, **kwargs):
@@ -2176,7 +2134,6 @@ class c:
                     sys.path.append(p)
             c.included_pwd_in_path = True
 
-
         # config attributes
         config = c.config()
         c.core_modules = config['core_modules'] # the core modules
@@ -2186,12 +2143,13 @@ class c:
         c.core_features = config['core_features']
         c.port_range = config['port_range'] # the port range between 50050 and 50150
         c.shortcuts =  c.shortys = config["shortcuts"]
-
-
         c.sync_routes()
         c.sync_modules(max_age=max_age, update=update)
-
         return {'success': True, 'msg': 'synced config'}
+
+    @classmethod
+    def main(cls):
+        c.module('cli')().forward()
 
 c.sync()
 Module = c # Module is alias of c

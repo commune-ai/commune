@@ -14,4 +14,5 @@ class Middleware(BaseHTTPMiddleware):
         if len(body) > self.max_bytes:
             return JSONResponse(status_code=413, content={"error": "Request too large"})
         response = await call_next(request)
+        print(response)
         return response

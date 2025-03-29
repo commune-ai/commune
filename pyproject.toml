@@ -62,7 +62,7 @@ isort = "^5.13.2"
 pytest-cov = "^4.1.0"
 
 [tool.poetry.scripts]
-c = "commune.cli:main"
+c = "commune:main"
 
 [tool.mypy]
 files = ["commune"]

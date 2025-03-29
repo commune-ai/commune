@@ -6,33 +6,14 @@
     "app": "communeai.org",
     "core_modules": ["key", "chain", "server", "vali", "client", "cli"],
     "test_modules": ["key", "chain", "server", "vali"],
-    "modules": [
-        "commune-ai/modules",
-        "commune-ai/app",
-        "commune-ai/chain"
-    ],
+    "modules": ["commune-ai/modules", "commune-ai/app", "commune-ai/chain"],
+    "endpoints": ["forward", "info"],
 
     "core_features": [
-        "module",
-        "resolve_module",
-        "module_name",
-        "storage_dir",
-        "filepath",
-        "dirpath",
-        "code",
-        "info",
-        "cid",
-        "schema",
-        "fns",
-        "fn2code",
-        "fn2hash",
-        "dir",
-        "chat",
-        "ask",
-        "config_path",
-        "config"
-      ],
-    "endpoints": ["forward", "info"],
+        "resolve_module", "module_name", "storage_dir", "filepath", 
+        "dirpath", "code", "info", "cid", "schema", "fns", 
+        "fn2code", "fn2hash",  "chat", "ask", "config_path", "config"
+    ],
     "port_range":  [50050, 50150],
     "shortcuts": { 
         "d": "docker",
@@ -43,8 +24,7 @@
         "client": "server.client",
         "local": "server",
         "serv": "server", 
-        "tweet": "x",
-        "serializer": "server.serializer"
+        "tweet": "x"
         },
     "routes": {
             "vali": [

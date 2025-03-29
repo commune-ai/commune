@@ -20,6 +20,7 @@ from hashlib import blake2b
 import json
 from scalecodec.types import Bytes
 import hashlib
+from copy import deepcopy
 import hmac
 import struct
 from eth_keys.datatypes import Signature, PrivateKey
@@ -228,15 +229,6 @@ class Key:
         key_paths  = c.ls(self.storage_path)
         key2path = {}
         for p in key_paths:
-            if p.endswith('.json'):
-                old_path = p
-                key_json  = c.get(p)
-                name = p.split('/')[-1].split('.')[0]
-                crypto_type = key_json['crypto_type']
-                new_path = '/'.join(p.split('/')[:-1]) + '/' + f'{name}/{crypto_type}/{key_json["key_address"]}.json'
-                c.mv(old_path, new_path)
-                
-                key2path[name] = new_path
             files = c.glob(f'{p}/{crypto_type}')
             if len(files) >= 1:
                 file2age = {f:os.path.getmtime(f) for f in files}
@@ -310,7 +302,6 @@ class Key:
             output = output.replace("'", '"')
         return json.loads(output) if isinstance(output, str) else output
 
-    
     def rm_key(self, key=None, crypto_type=None, **kwargs):
         key2path = self.key2path(crypto_type=crypto_type)
         keys = list(key2path.keys())
@@ -321,7 +312,6 @@ class Key:
                 raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
         return {'deleted':[key]}
-
 
     def is_mnemonic(self, mnemonic:str) -> bool:
         """
@@ -440,7 +430,6 @@ class Key:
             data = data.encode()
         return data
 
-
     def resolve_signature(self, signature: Union[bytes, str]):
         if isinstance(signature,str) and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
@@ -475,9 +464,7 @@ class Key:
         signature in bytes
 
         """
-
         data = self.encode_signature_data(data)
-
         crypto_type = self.get_crypto_type(self.crypto_type)
 
         if crypto_type == "sr25519":
@@ -504,7 +491,6 @@ class Key:
 
         return signature
 
-
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
@@ -522,8 +508,6 @@ class Key:
         signature: signature in bytes or hex string format
         public_key: public key in bytes or hex string format
         """
-
-
         if isinstance(data, dict) and  all(k in data for k in ['data','signature', 'address']):
             data, signature, address = data['data'], data['signature'], data['address']
         data = self.encode_signature_data(data)
@@ -545,21 +529,24 @@ class Key:
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
-        
-    def encrypt(self, data, password=None):
-        return self.encryption_key.encrypt(data, password or self.private_key)
 
-    def decrypt(self, data, password=None):
-        return self.encryption_key.decrypt(data, password or self.private_key)
+    def encrypt(self, data, password=None, key=None):
+        key = self.get_key(key) if key != None else self
+        return key.encryption_key.encrypt(data, password or self.private_key)
 
-    def encrypt_key(self, path = 'test.enc', password=None):
+    def decrypt(self, data, password=None, key=None):
+        key = self.get_key(key) if key != None else self
+        return key.encryption_key.decrypt(data, password or self.private_key)
+
+    def encrypt_key(self, path = 'test.enc', key=None, crypto_type=None,  password=None):
         assert self.key_exists(path), f'file {path} does not exist'
         assert not self.is_key_encrypted(path), f'{path} already encrypted'
         path = self.get_key_path(path)
         data = c.get(path)
-        enc_data = c.encrypt(c.copy(data), password=password)
+        key = self.get_key(key)
+        enc_data = key.encrypt(deepcopy(data), password=password)
         enc_text = {'data': enc_data, 
-                    "key_address": data['ss58_address'],
+                    "key_address": data['key_address'],
                     "crypto_type": data['crypto_type'],
                     'encrypted': True}
         c.put(path, enc_text)
@@ -576,10 +563,11 @@ class Key:
         path = self.get_key_path(path, crypto_type=crypto_type)
         data = self.get_key_data(path, crypto_type=crypto_type)
         assert self.is_encrypted(data), f'{path} not encrypted'
-        dec_text =  c.decrypt(data['data'], password=password)
+        key = self.get_key(key, crypto_type=crypto_type)
+        dec_text =  key.decrypt(data['data'], password=password)
         c.put(path, dec_text)
         assert not self.is_key_encrypted(path), f'failed to decrypt {path}'
-        loaded_key = c.get_key(path)
+        loaded_key = self.get_key(path)
         return { 'path':path , 'key_address': loaded_key.ss58_address,'crypto_type': loaded_key.crypto_type}
 
     def __str__(self):

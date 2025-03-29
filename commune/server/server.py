@@ -22,18 +22,17 @@ class Server:
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
         # NETWORK
         port: Optional[int] = None, # the port the server is running on
-        tempo:int = 10000, # (in seconds) the maximum age of the history
+        tempo:int = 10000, # (in seconds) the maximum age of the txtracker
         name: Optional[str] = None, # the name of the server, 
         network: Optional[str] = 'local', # the network the server is running on
-        history_path: Optional[str] = None, # the path to the user data
+        tx_path: Optional[str] = None, # the path to the user data (txs)
         timeout:int = 10, # (in seconds) the maximum time to wait for a response
 
         # EXTERNAL MODULES
-        executor = 'executor', # the executor for the server to run the functions
-        serializer = 'server.serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
-        auth = 'server.auth.jwt', # the auth for the server,
-        middleware = 'server.middleware', # the middleware for the server
-        history = 'history', # the history for the server
+        serializer = 'serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
+        auth = 'auth.jwt', # the auth for the server,
+        middleware = 'middleware', # the middleware for the server
+        txtracker = 'txhistory', # the txtracker for the server
         pm = 'pm2', # the process manager for the server
         helper_functions  = ['info', 'forward'], # the helper functions
 
@@ -44,21 +43,17 @@ class Server:
 
         ) -> 'Server':
 
-
         self.helper_functions = helper_functions
         self.network = network or 'local'
         self.tempo = tempo
-        self.history_manager_path = history_path or self.get_path('history')
         self.modules_path = f'{self.get_path(self.network)}/modules'
         self.verbose = verbose
         self.timeout = timeout
         self.pm = c.module(pm)(proc_prefix= 'server/' + network + '/')
-        self.hist = c.module(history)(path=self.history_manager_path)
-
+        self.txtracker = c.module(txtracker)(tx_path or self.get_path('transactions'))
+        # set modules 
+        self.serializer = c.module(serializer)()
         if run_api:
-            # set modules 
-            self.serializer = c.module(serializer)()
-            self.executor = c.module(executor)()
             self.auth = c.module(auth)()
             self.middleware = c.module(middleware)
             self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
@@ -67,7 +62,12 @@ class Server:
             self.app.add_middleware(self.middleware)
             self.app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
             def server_function(fn: str, request: Request):
-                return self.forward(fn, request)
+                try:
+                    return self.forward(fn, request)
+                except Exception as e:
+                    err = c.detailed_error(e)
+                    c.print(f'Error({fn}) --> {err}', color='red')
+                    return err
             self.app.post("/{fn}")(server_function)
             c.print(f'Served({self.module.info})', color='purple')
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
@@ -98,7 +98,7 @@ class Server:
         params = json.loads(params) if isinstance(params, str) else params
         headers = dict(request.headers)
         data = {'fn': fn, 'params': params}
-        data['client'] = self.auth.verify_headers(headers=dict(request.headers), data=data) # verify the headers
+        data['client'] = self.auth.verify_headers(headers=headers, data=data) # verify the headers
         self.rate_limit(data)   # check the rate limit
         if self.verbose:
             shortkey = lambda x: x[:3] + '...' + x[-3:]
@@ -116,20 +116,20 @@ class Server:
             output = str(result)
             def generator_wrapper(generator):
                 for item in generator:
+                    print(item, end='')
                     yield item
             result = EventSourceResponse(generator_wrapper(result))   
-        
         data['time'] = data['client']['time']
-        data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
+        data[f'result'] = 'stream' if isinstance(result, EventSourceResponse) else result
         data['server'] = self.auth.get_headers(data=data, key=self.module.key)
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
         path = f'{self.module.name}/{data["client"]["key"]}/{data["fn"]}/{data["time"]}.json'
-        self.hist.save_data(path, data)
-        return data
+        self.txtracker.save_data(path, data)
+        return result
   
     def get_path(self, path):
-        return  c.storage_path + '/server/' + path
+        return  os.path.expanduser('~/.commune') + '/server/' + path
         
     def set_module(self, module:str, functions: List[str], name: str , key:Union[str, 'Key'], params:dict, port:int):
         module = module or 'module'
@@ -239,7 +239,6 @@ class Server:
         """
         get port from the logs
         """
-
         logs = self.logs(name, tail=tail, stream=False, **kwargs)
         port = None
         tag = 'Uvicorn running on '
@@ -325,28 +324,13 @@ class Server:
         return rate_limit
         
     def rate(self, address:str):
-        path2age = self.hist.path2age(address)
+        path2age = self.txtracker.path2age(address)
         for path, age  in path2age.items():
             if age > self.tempo:
                 if os.path.exists(path):
                     print(f'RemovingStalePath(age={age} tempo={self.tempo}) --> {path}')
                     os.remove(path)
-        return len(self.hist.call_paths(address))
-
-    def history(self, address = '' , paths=None,  df=True, features=['time', 'fn', 'cost', 'duration',  'client', 'server']):
-        return self.hist.history(address=address, paths=paths, df=df, features=features)
-
-    def clear_history(self, address = 'module' ):
-        return self.hist.clear_history(address)
-
-    def kill(self, name):
-        return self.pm.kill(name)
-
-    def kill_all(self):
-        return self.pm.kill_all()
-    
-    def logs(self, name, **kwargs):
-        return self.pm.logs(name, **kwargs)
+        return len(self.txtracker.call_paths(address))
 
     def wait_for_server(self, name:str, trials:int=10, trial_backoff:int=1, network:str='local', max_age:int=60):
         # wait for the server to start
@@ -362,5 +346,17 @@ class Server:
             c.sleep(trial_backoff)
         raise Exception(f'Failed to start {name} after {trials} trials')
 
+    def txs(self, address = '' , paths=None,  df=True, features=['time', 'fn', 'cost', 'duration',  'client', 'server']):
+        return self.txtracker.get_history(address=address, paths=paths, df=df, features=features)
+
+    def clear_history(self, address = 'module' ):
+        return self.txtracker.clear_history(address)
+
+    def kill(self, name):
+        return self.pm.kill(name)
+
+    def kill_all(self):
+        return self.pm.kill_all()
     
-    
+    def logs(self, name, **kwargs):
+        return self.pm.logs(name, **kwargs)

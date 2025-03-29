@@ -12,10 +12,9 @@ class Client:
                  url : str = 'module',  
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
-                 auth = 'server.auth.jwt',
+                 auth = 'auth.jwt',
                  mode='http',
                  history_path = '~/.commune/client/history',
-
                  **kwargs):
         self.auth = c.module(auth)()
         self.key  = c.get_key(key)
@@ -39,6 +38,7 @@ class Client:
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
         else :
             url = self.url
+            fn = str(fn)
         url = self.get_url(url, mode=mode)
         key = self.get_key(key) # step 1: get the key
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
@@ -51,16 +51,15 @@ class Client:
             raise Exception(response.text)
         if 'text/event-stream' in response.headers.get('Content-Type', ''):
             result = self.stream(response)
-        if 'application/json' in response.headers.get('Content-Type', ''):
-            result = response.json()
-        elif 'text/plain' in response.headers.get('Content-Type', ''):
-            result = response.text
         else:
-            result = response.content
-            if response.status_code != 200:
-                raise Exception(result)
-        if 'result' in result:
-            result = result['result']
+            if 'application/json' in response.headers.get('Content-Type', ''):
+                result = response.json()
+            elif 'text/plain' in response.headers.get('Content-Type', ''):
+                result = response.text
+            else:
+                result = response.content
+                if response.status_code != 200:
+                    raise Exception(result)
         return result
     
     def get_key(self,key=None):
@@ -71,6 +70,8 @@ class Client:
         return key
 
     def get_params(self, params=None, args=[], kwargs={}, extra_kwargs={}):
+        if isinstance(params, dict) and 'args' in params and 'kwargs' in params:
+            return params
         params = params or {}
         args = args or []
         kwargs = kwargs or {}
@@ -99,30 +100,22 @@ class Client:
 
     @classmethod
     def call(cls, 
-                fn:str = 'info',
+                fn:str = 'module/info',
                 *args,
-                kwargs = None,
                 params = None,
                 module : str = None,
                 network:str = 'local',
                 key: Optional[str] = None, # defaults to module key (c.default_key)
                 timeout=40,
-                default_fn = 'info',
-                **extra_kwargs) -> None:
+                **kwargs) -> None:
         fn = str(fn)
-        if not fn.startswith('http'):
-            if '/' in str(fn):
-                module = '.'.join(fn.split('/')[:-1])
-                fn = fn.split('/')[-1]
-            else:
-                module = fn 
-                fn = default_fn
-        kwargs = (params or kwargs) or {}
-        kwargs = {**kwargs, **extra_kwargs}
+        if '/' in fn and not '//' in fn:
+            module, fn = '.'.join(fn.split('/')[:-1]), fn.split('/')[-1]
+        else:
+            module, fn = fn, 'info'
+        kwargs.update(params or {}) 
         return cls(url=module, network=network).forward(fn=fn, 
-                                                            args=args, 
-                                                            kwargs=kwargs, 
-                                                            params=params,
+                                                            params={'args': args, 'kwargs': kwargs},
                                                             timeout=timeout, 
                                                             key=key)
 
