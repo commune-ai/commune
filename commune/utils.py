@@ -18,6 +18,8 @@ import netaddr
 from loguru import logger
 from typing import Any, Optional, List, Dict, Tuple, Union
 import gc
+import asyncio
+asyncio.BaseEventLoop.__del__ = lambda self: None
 
 def path_exists(path:str):
     return os.path.exists(path)
@@ -142,7 +144,7 @@ def test_loading_animation():
     with print_load("Testing", duration=3):
         time.sleep(3)
 
-def resolve_console( console = None, **kwargs):
+def get_console( console = None, **kwargs):
     import logging
     from rich.logging import RichHandler
     from rich.console import Console
@@ -167,7 +169,7 @@ def print_console( *text:str,
     if buffer != None:
         text = [buffer] + list(text) + [buffer]
 
-    console = resolve_console(console)
+    console = get_console(console)
     try:
         if flush:
             console.print(**kwargs, end='\r')
@@ -193,11 +195,11 @@ def warning( *args, **kwargs):
     return logger.warning(*args, **kwargs)
 
 def status( *args, **kwargs):
-    console = resolve_console()
+    console = get_console()
     return console.status(*args, **kwargs)
 
 def log( *args, **kwargs):
-    console = resolve_console()
+    console = get_console()
     return console.log(*args, **kwargs)
 
 ### LOGGER LAND ###
@@ -212,7 +214,7 @@ def resolve_logger( logger = None):
 
 
 def critical( *args, **kwargs):
-    console = resolve_console()
+    console = get_console()
     return console.critical(*args, **kwargs)
 
 def echo(x):
@@ -683,12 +685,8 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
                 x[k] = munch2dict(v)
     return x 
 
-def time(t=None) -> float:
-    import time
-    return time.time()
-
 def timestamp(t=None) -> float:
-    return int(time())
+    return int(time.time())
 
 def time2date(self, x:float=None):
     import datetime
@@ -1069,9 +1067,6 @@ def get_port_range(port_range: list = None) -> list:
     assert isinstance(port_range[0], int), 'Port range must be a list of integers'
     assert isinstance(port_range[1], int), 'Port range must be a list of integers'
     return port_range
-
-
-
 
 def is_valid_ip(ip:str) -> bool:
     import netaddr
@@ -2431,7 +2426,6 @@ def thread(fn: Union['callable', str],
 
     t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
     # set the time it starts
-    setattr(t, 'start_time', c.time())
     t.daemon = daemon
     if start:
         t.start()
@@ -2655,3 +2649,21 @@ def round(x, sig=6, small_value=1.0e-9):
     return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
 
+
+
+def get_args_kwargs(params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
+    """
+    resolve params as args 
+    """
+    params = params or {}
+    args = args or []
+    kwargs = kwargs or {}
+    if isinstance(params, list):
+        args = params
+    elif isinstance(params, dict):
+        if 'args' in params and 'kwargs' in params and len(params) == 2:
+            args = params['args']
+            kwargs = params['kwargs']
+        else:
+            kwargs = params
+    return args, kwargs

@@ -1,7 +1,7 @@
 from Crypto import Random
 import hashlib
 from Crypto.Cipher import AES
-import commune as c
+import copy
 import base64
 
 class Aes:
@@ -10,7 +10,7 @@ class Aes:
     """
     def encrypt(self, data, password):
         password = self.get_password(password)  
-        data = c.copy(data)
+        data = copy.deepcopy(data)
         if not isinstance(data, str):
             data = str(data)
         data = data + (AES.block_size - len(data) % AES.block_size) * chr(AES.block_size - len(data) % AES.block_size)

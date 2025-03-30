@@ -14,12 +14,10 @@ class Client:
                  network: Optional[bool] = 'local', 
                  auth = 'auth.jwt',
                  mode='http',
-                 history_path = '~/.commune/client/history',
                  **kwargs):
         self.auth = c.module(auth)()
         self.key  = c.get_key(key)
         self.url = self.get_url(url, mode=mode)
-        self.history_path = os.path.abspath(os.path.expanduser(history_path))
 
     def forward(self, 
                 fn  = 'info', 
