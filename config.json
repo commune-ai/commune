@@ -4,8 +4,7 @@
     "version": "1.0.0", 
     "code": "commune-ai/commune.git",
     "app": "communeai.org",
-    "core_modules": ["key", "chain", "server", "vali", "client", "cli"],
-    "test_modules": ["key", "chain", "server", "vali"],
+    "core_modules": ["key", "chain", "server", "vali", "client", "cli", "storage"],
     "modules": ["commune-ai/modules", "commune-ai/app", "commune-ai/chain"],
     "endpoints": ["forward", "info"],
 
@@ -26,6 +25,9 @@
         "serv": "server", 
         "tweet": "x"
         },
+
+
+        
     "routes": {
             "vali": [
                 "run_epoch",

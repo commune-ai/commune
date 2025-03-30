@@ -55,12 +55,17 @@ class Server:
         self.serializer = c.module(serializer)()
         if run_api:
             self.auth = c.module(auth)()
-            self.middleware = c.module(middleware)
             self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
             self.loop = asyncio.get_event_loop() # get the event loop
-            self.app = FastAPI()
-            self.app.add_middleware(self.middleware)
-            self.app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+            app = FastAPI()
+            app.add_middleware(c.module(middleware))
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],  # or your specific origins
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
             def server_function(fn: str, request: Request):
                 try:
                     return self.forward(fn, request)
@@ -68,9 +73,9 @@ class Server:
                     err = c.detailed_error(e)
                     c.print(f'Error({fn}) --> {err}', color='red')
                     return err
-            self.app.post("/{fn}")(server_function)
+            app.post("/{fn}")(server_function)
             c.print(f'Served({self.module.info})', color='purple')
-            uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+            uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:

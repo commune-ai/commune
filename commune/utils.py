@@ -17,6 +17,36 @@ import psutil
 import netaddr
 from loguru import logger
 from typing import Any, Optional, List, Dict, Tuple, Union
+import gc
+
+def path_exists(path:str):
+    return os.path.exists(path)
+
+def exists(path:str):
+    return os.path.exists(path)
+
+def import_module( import_path:str ) -> 'Object':
+    from importlib import import_module
+    return import_module(import_path)
+
+def import_object( key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
+
+    ''' Import an object from a string with the format of {module_path}.{object}'''
+    module_path = None
+    object_name = None
+    for splitter in splitters:
+        key = key.replace(splitter, '.')
+    module_path = '.'.join(key.split('.')[:-1])
+    object_name = key.split('.')[-1]
+    
+    if isinstance(key, str) and key.endswith('.py') and path_exists(key):
+        key = c.path2objectpath(key)
+    assert module_path != None and object_name != None, f'Invalid key {key}'
+    module_obj = import_module(module_path)
+    try:
+        return  getattr(module_obj, object_name)
+    except Exception as e:
+        return import_module(key)
 
 def shlex_split(s):
     result = []
@@ -1584,12 +1614,6 @@ def file2size( path='./', fmt='b') -> int:
     return file2size
 
 
-def path_exists(path:str):
-    return os.path.exists(path)
-
-def exists(path:str):
-    return os.path.exists(path)
-
 def get_folder_size( folder_path:str='/'):
     folder_path = os.path.abspath(folder_path)
     """Calculate the total size of all files in the folder."""
@@ -2607,5 +2631,27 @@ def module2hash(search = None, max_age = None, **kwargs):
     infos = self.infos(search=search, max_age=max_age, **kwargs)
     return {i['name']: i['hash'] for i in infos if 'name' in i}
 
+
+
+def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+    import commune as c
+    if module != None:
+        if isinstance(module, str) and '/' in module:
+            fn = module.split('/')[-1]
+            module = '/'.join(module.split('/')[:-1])
+            module = getattr(c.module(module), fn)
+        else:
+            module = cls.resolve_module(module)
+    else: 
+        module = cls
+    return inspect.getsourcelines(module)
+
+
+def round(x, sig=6, small_value=1.0e-9):
+    import math
+    """
+    rounds a number to a certain number of significant figures
+    """
+    return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
 
