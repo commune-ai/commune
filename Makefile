@@ -1,16 +1,14 @@
 SCRIPTS_PATH=./run
 build:
-	${SCRIPTS_PATH}/build.sh 
+	${SCRIPTS_PATH}/start.sh --build
 start:
-	${SCRIPTS_PATH}/start.sh 
+	${SCRIPTS_PATH}/start.sh
 stop:
 	${SCRIPTS_PATH}/stop.sh 
 enter:
 	${SCRIPTS_PATH}/enter.sh
 test:
-	${SCRIPTS_PATH}/test.sh
-freshtest:
-	make build && make test
+	${SCRIPTS_PATH}/start.sh --test
 install:
 	${SCRIPTS_PATH}/install.sh	
 restart:

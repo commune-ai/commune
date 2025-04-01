@@ -23,10 +23,10 @@
         "client": "server.client",
         "local": "server",
         "serv": "server", 
-        "tweet": "x"
+        "tweet": "x",
+        "dock": "docker",
+        "d" : "docker"
         },
-
-
         
     "routes": {
             "vali": [

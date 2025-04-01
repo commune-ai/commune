@@ -17,7 +17,8 @@ class Client:
                  **kwargs):
         self.auth = c.module(auth)()
         self.key  = c.get_key(key)
-        self.url = self.get_url(url, mode=mode)
+        self.url = url
+        print(f"Client url: {self.url}")
 
     def forward(self, 
                 fn  = 'info', 
@@ -41,7 +42,6 @@ class Client:
         key = self.get_key(key) # step 1: get the key
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
-
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
         ## handle the response
@@ -134,8 +134,7 @@ class Client:
         except Exception as e:
             yield c.detailed_error(e)
 
-    @staticmethod
-    def is_url( url:str) -> bool:
+    def is_url(self,  url:str) -> bool:
         if not isinstance(url, str):
             return False
         if '://' in url:
@@ -146,8 +145,7 @@ class Client:
         conds.append(c.is_int(url.split(':')[-1]))
         return all(conds)
 
-    @staticmethod
-    def client(module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
+    def client(self, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
         """
         Create a client instance.
         """
@@ -163,11 +161,9 @@ class Client:
                     return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
         client = Client(url=module)
         return ClientVirtual(client) if virtual else client
-        return client
 
-    @staticmethod
-    def connect( module:str, **kwargs):
+    def connect(self, module:str, **kwargs):
         """
         Connect to a module and return a client instance.
         """
-        return Client.client(module, **kwargs)
+        return self.client(module, **kwargs)

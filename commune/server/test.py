@@ -11,6 +11,7 @@ class Test:
         module = c.connect(name)
         r = module.info()
         r2 = c.call(name+'/info')
+        print(r, r2)
         assert c.hash(r) == c.hash(r2)
         deployer_key = c.get_key(deployer)
         assert r['key'] == deployer_key.ss58_address
