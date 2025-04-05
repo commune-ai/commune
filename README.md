@@ -136,7 +136,7 @@ To make a new module
 c new_module agi
 ```
 ```python
-c.new_module("agi")
+c.new("agi")
 ```
 
 

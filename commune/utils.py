@@ -760,7 +760,7 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
     
     try:
         import commune as c
-        path = c.resolve_path('ip')
+        path = c.get_path('ip')
         ip = c.get(path, None, max_age=max_age, update=update)
         if ip == None:
             ip = external_ip()
@@ -1584,7 +1584,7 @@ def file2chars( path='./', fmt='b') -> int:
     return file2size
 
 def find_largest_folder(directory: str = '~/'):
-    directory = resolve_path(directory)
+    directory = get_path(directory)
     """Find the largest folder in the given directory."""
     largest_size = 0
     largest_folder = ""

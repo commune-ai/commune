@@ -4,18 +4,11 @@
     "version": "1.0.0", 
     "code": "commune-ai/commune.git",
     "app": "communeai.org",
-    "core_modules": ["key", "chain", "server", "vali", "client", "cli", "storage"],
+    "core": ["key", "server", "vali", "chain", "client", "cli", "storage"],
     "modules": ["commune-ai/modules", "commune-ai/app", "commune-ai/chain"],
     "endpoints": ["forward", "info"],
-
-    "core_features": [
-        "resolve_module", "module_name", "storage_dir", "filepath", 
-        "dirpath", "code", "info", "cid", "schema", "fns", 
-        "fn2code", "fn2hash",  "chat", "ask", "config_path", "config"
-    ],
     "port_range":  [50050, 50150],
     "shortcuts": { 
-        "d": "docker",
         "or" : "model.openrouter",
         "r" :  "remote",
         "ch" :  "chain",
@@ -24,8 +17,8 @@
         "local": "server",
         "serv": "server", 
         "tweet": "x",
-        "dock": "docker",
-        "d" : "docker"
+        "d": "docker",
+        "dock": "docker"
         },
         
     "routes": {
@@ -166,11 +159,27 @@
             "agent": [ 
             "models",  
             "model2info", 
-            "reduce", 
             "generate"
-        ],
-            "builder": ["build"]
-        }
-        
+        ]
+        },
+    
+        "core_features": [
+            "resolve_module",
+            "module_name", 
+            "storage_dir", 
+            "filepath", 
+            "dirpath", 
+            "code", 
+            "info", 
+            "cid",
+            "schema", 
+            "fns", 
+            "fn2code", 
+            "fn2hash",  
+            "chat", 
+            "ask", 
+            "config_path", 
+            "config"
+        ]
     
 }
