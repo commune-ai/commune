@@ -437,24 +437,18 @@ def check_word( word:str)-> str:
         progress.update(1)
     return False
 
-def colors():
-    return ['black', 'red', 'green', 
+def random_color():
+    colors = ['black', 'red', 'green', 
             'yellow', 'blue', 'magenta', 
             'cyan', 'white', 'bright_black', 
             'bright_red', 'bright_green', 
             'bright_yellow', 'bright_blue', 
             'bright_magenta', 'bright_cyan', 
             'bright_white']
-
-colours = colors
-
-def random_color():
-    return random.choice(colors())
+    return random.choice(colors)
     
-randcolor = randcolour = colour = color = random_colour = random_color
 
-  
-def hash( x, mode: str='sha256',*args,**kwargs) -> str:
+def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
     import hashlib
     x = python2str(x)
     if mode == 'keccak':
@@ -503,8 +497,6 @@ def sample( options:list, n=2):
         options = list(range(options))
     options = shuffle(options)
     return options[:n]
-
-
 
 def round_decimals( x:Union[float, int], decimals: int=6, small_value: float=1.0e-9):
     
@@ -713,10 +705,8 @@ def module2size(search=None, depth=10000, **kwargs):
     module2size = dict(sorted(module2size.items(), key=lambda x: x[1], reverse=True))
     return module2size
 
-
 def port_available(port:int, ip:str ='0.0.0.0'):
     return not port_used(port=port, ip=ip)
-
 
 def resolve_ip(ip=None, external:bool=True) -> str:
     if ip == None:
@@ -726,8 +716,6 @@ def resolve_ip(ip=None, external:bool=True) -> str:
             ip = '0.0.0.0'
     assert isinstance(ip, str)
     return ip
-
-
 
 def get_available_ports(port_range: List[int] = None , ip:str =None) -> int:
     import commune as c
@@ -1239,7 +1227,6 @@ def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
     x = x/scale 
     
     return x
-
 
 def hardware(fmt:str='gb'):
     return {

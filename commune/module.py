@@ -25,15 +25,17 @@ class Module:
                 cache=True, 
                 verbose=False, 
                 **kwargs) -> str:
-        t0 = time.time()
-        # Initialize cache if needed
 
+        # Load the module
+        t0 = time.time()
         path = path or 'module'
+
         # Normalize path
         path = path.replace('/', '.')
         path = self.shortcuts.get(path, path)
         tree = self.tree(update=1)
         module = self.tree().get(path, path)
+
         # Try to load the module
         if module in ['module']:
             return Module
@@ -45,6 +47,7 @@ class Module:
                 if tree_keys:
                     module = tree.get(tree_keys[0])
             obj = self.obj(module)
+        
         # Apply parameters if provided
         if isinstance(params, dict):
             obj = obj(**params)
@@ -53,7 +56,9 @@ class Module:
         else: 
             # no params set
             pass
+
         latency = time.time() - t0
+
         return obj
 
     def mod(self, path:str = 'module', params:dict = None, cache=True, verbose=False, **kwargs) -> str:
@@ -69,14 +74,39 @@ class Module:
         return fn_obj(**params)
 
     def go(self, module=None, **kwargs):
+
+        repo2path = self.repo2path(module)
+        module = module or 'module'
+
         try:
-            path = self.dirpath(module)
+            if module in repo2path:
+                path = repo2path[module]
+            else:
+                path = self.dirpath(module)
         except:
             path = self.modules_path + '/' + module
         if path.split('/')[-1] == path.split('/')[-2]:
             path = '/'.join(path.split('/')[:-1])
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
+
+    def gofile(self, module=None, **kwargs):
+        """
+        go the file
+        """
+        try:
+            path = self.filepath(module)
+        except:
+            path = self.modules_path + '/' + module
+        if path.split('/')[-1] == path.split('/')[-2]:
+            path = '/'.join(path.split('/')[:-1])
+        assert os.path.exists(path), f'{path} does not exist'
+        return self.cmd(f'code {path}', **kwargs)
+    def gof(self, module=None, **kwargs):
+        """
+        go to the file
+        """
+        return self.gofile(module=module, **kwargs)
 
     def filepath(self, obj=None) -> str:
         return inspect.getfile(self.resolve_module(obj))
@@ -104,6 +134,11 @@ class Module:
         return self.path2name(module_file)
 
     def vs(self, path = None):
+        path = path or __file__
+        path = os.path.abspath(path)
+        return self.cmd(f'code {path}')
+        
+    def co(self, path = None):
         path = path or self.lib_path
         path = os.path.abspath(path)
         return self.cmd(f'code {path}')
@@ -148,8 +183,10 @@ class Module:
         return obj
 
     def pwd(self):
-        pwd = os.getcwd() # the current wor king directory from the process starts 
-        return pwd
+        """
+        working directory
+        """
+        return os.getcwd()
 
     def token(self, data, key=None, module='auth.jwt',  **kwargs) -> str:
         token = self.module(module)().get_token(data=data, key=key, **kwargs)
@@ -328,7 +365,9 @@ class Module:
         return self.objs(search=search, **kwargs)
 
     def config(self, module=None, mode='dict', fn='__init__', file_types=['json', 'yaml', 'yml']) -> 'Munch':
-        # if os.path.exists(self.modules_path + '/' in module):
+        """
+        check if there is a config 
+        """
         path = None
         for file_type in file_types:
             if os.path.exists(f'./config.{file_type}'):
@@ -352,6 +391,8 @@ class Module:
         else:
             module = self.module(module)
             config =  self.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
+        
+        # parse output
         if mode == 'dict':
             pass
         elif mode == 'munch':
@@ -361,7 +402,6 @@ class Module:
             raise Exception(f'Invalid mode {mode}')
         return config
 
-    
     def dict2munch(self, d:Dict) -> 'Munch':
         from munch import Munch
         return Munch(d)
@@ -708,11 +748,9 @@ class Module:
     def code_hash_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
         return {k:self.hash(str(v)) for k,v in self.code_map(module=module, search=search,**kwargs).items()}
 
-    
     def cid(self, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return self.hash(self.code_hash_map(module=module, search=search,**kwargs))
 
-    
     def getsource(self, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
             if isinstance(module, str) and '/' in module:
@@ -1007,11 +1045,11 @@ class Module:
    
         return path2classes
 
-    def path2fns(self, path = './', tolist=False, **kwargs):
+    def path2fns(self, path = './', tolist=False,**kwargs):
+        path2fns = {}
         fns = []
         path = os.path.abspath(path)
         if os.path.isdir(path):
-            path2fns = {}
             for p in self.glob(path+'/**/**.py', recursive=True):
                 for k,v in self.path2fns(p, tolist=False).items():
                     if len(v) > 0:
@@ -1039,7 +1077,6 @@ class Module:
             objs = [f for f in objs if search in f]
         return objs
 
-
     def obj(self, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
         if not hasattr(self, 'obj_cache'): 
             self.obj_cache = {}
@@ -1052,7 +1089,7 @@ class Module:
         self.obj_cache[key] = obj
         return obj
     
-    def object_exists(self, path:str, verbose=False)-> Any:
+    def obj_exists(self, path:str, verbose=False)-> Any:
 
         # better way to check if an object exists?
 
@@ -1061,6 +1098,12 @@ class Module:
             return True
         except Exception as e:
             return False
+
+    def object_exists(self, path:str, verbose=False)-> Any:
+
+        # better way to check if an object exists?
+
+        return self.obj_exists(path, verbose=verbose)
 
     def m(self):
         """enter modules path in vscode"""
@@ -1132,7 +1175,7 @@ class Module:
     def tree(self, search=None,  max_age=60,update=False, **kwargs):
         local_tree = self.local_tree(update=update, max_age=max_age)
         lib_tree = self.lib_tree(update=update, max_age=max_age)
-        tree = {**local_tree, **lib_tree }
+        tree = { **lib_tree, **local_tree }
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
@@ -1201,6 +1244,12 @@ class Module:
         if module != None:
             args = [self.code(module)] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
+
+    def help(self, query:str, *extra_query, module=None, **kwargs):
+        query = query + ' '.join(extra_query)
+        code = self.code(module)
+        prompt = 'given {code} '
+        return self.module("agent")().ask(prompt)
     
     def ask(self, *args, module=None, path='./' , **kwargs):
         if module != None:
@@ -1439,8 +1488,7 @@ class Module:
             return False
         return len(filtered_features) > 0
 
-
-    def exref(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
+    def expand_ref(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
         dirpath = self.dirpath(module)
         module = self.module(module)
         code_link = module.code
@@ -1623,9 +1671,10 @@ class Module:
         else:
             self.print(result)
 
-    
+    def hash(self, obj, *args, **kwargs):
+        from commune.utils import get_hash
+        return get_hash(obj, *args, **kwargs)
 
-c = Module()
 if __name__ == "__main__":
     Module().run()
 
