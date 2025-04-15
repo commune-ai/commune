@@ -459,16 +459,21 @@ def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
         y =  hash(x)
     elif mode == 'md5':
         y =  hashlib.md5(x.encode()).hexdigest()
-    elif mode == 'sha256':
+    elif mode == 'sha256' or mode == 'sha2':
         y =  hashlib.sha256(x.encode()).hexdigest()
+    elif mode == 'sha1':
+        y =  hashlib.sha1(x.encode()).hexdigest()
     elif mode == 'sha512':
         y =  hashlib.sha512(x.encode()).hexdigest()
     elif mode =='sha3_512':
         y =  hashlib.sha3_512(x.encode()).hexdigest()
+    elif mode == 'sha3_256' or mode == 'sha3':
+        y =  hashlib.sha3_256(x.encode()).hexdigest()
+        
     else:
         raise ValueError(f'unknown mode {mode}')
     
-    return mode + ':' + y
+    return y + ':' + mode
 
 def num_words( text):
     return len(text.split(' '))
@@ -545,7 +550,7 @@ def pip_install(lib:str= None,
     import commune as c
     if lib in c.modules():
         c.print(f'Installing {lib} Module from local directory')
-        lib = c.resolve_module(lib).dirpath()
+        lib = c.get_module(lib).dirpath()
     if lib == None:
         lib = c.lib_path
 
@@ -757,7 +762,6 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
         print('Error while getting IP')
         return '0.0.0.0'
     return ip
-
 
 def has_free_ports(n:int = 1, **kwargs):
     return len(free_ports(n=n, **kwargs)) > 0
@@ -2622,13 +2626,13 @@ def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, D
             module = '/'.join(module.split('/')[:-1])
             module = getattr(c.module(module), fn)
         else:
-            module = cls.resolve_module(module)
+            module = cls.get_module(module)
     else: 
         module = cls
     return inspect.getsourcelines(module)
 
 
-def round(x, sig=6, small_value=1.0e-9):
+def roundsig(x, sig=6, small_value=1.0e-9):
     import math
     """
     rounds a number to a certain number of significant figures

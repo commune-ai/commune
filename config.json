@@ -150,7 +150,7 @@
                 "subnet_params",
                 "global_params",
                 "balance",
-                ["balance","bal"],
+                {"from": "balance", "to": "bal"},
                 "get_stake",
                 "my_stake_to",
                 "is_registered",
@@ -164,7 +164,7 @@
         },
     
         "core_features": [
-            "resolve_module",
+            "get_module",
             "module_name", 
             "storage_dir", 
             "filepath", 

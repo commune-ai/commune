@@ -6,6 +6,7 @@ import yaml
 import shutil
 import time
 import sys
+import glob
 import argparse
 from functools import partial
 import os
@@ -24,30 +25,59 @@ class Module:
                 params: dict = None,  
                 cache=True, 
                 verbose=False, 
+                trials = 2,
                 **kwargs) -> str:
 
-        # Load the module
+        """
+        loads the module based on the tree path or regular path 
+
+        for instance 
+        val.val.Val is 
+        val
+
+        the rules are this
+
+        repeated val 
+
+        """
+
         t0 = time.time()
         path = path or 'module'
-
-        # Normalize path
         path = path.replace('/', '.')
         path = self.shortcuts.get(path, path)
-        tree = self.tree(update=1)
-        module = self.tree().get(path, path)
+        tree = self.tree()
+        if not path in tree:
+            if self.is_module_repo(path):
+                self.add_mod(path, safety=False)
+            if self.object_exists(path):
+                path = path
+            else:
+                # possible options 
+                modules = list(tree.keys())
+                module_options = [m for m in modules if path in m]
+                if len(module_options) > 1:
+                    # have the user choose 
+                    print(f'Found multiple modules for {path}')
+                    for i, m in enumerate(module_options):
+                        print(f'{i}: {m}')
+                    idx = int(input('Choose the module index: '))
+                    path = module_options[idx]
+                elif len(module_options) == 1:
+                    path = module_options[0]
+                else: 
+                    if trials > 0:
+                        return self.module(path, params=params, cache=cache, verbose=verbose, trials=trials - 1, **kwargs)
+                    raise Exception(f'Module {path} not found in {tree.keys()}')
+                
 
+
+        module = tree.get(path, path)
         # Try to load the module
         if module in ['module']:
             return Module
-        if module in tree:
-            obj = self.obj(module)
-        else:
-            if module not in tree:
-                tree_keys = [k for k in tree.keys() if module.endswith(k) or k.endswith(module)]
-                if tree_keys:
-                    module = tree.get(tree_keys[0])
-            obj = self.obj(module)
-        
+
+        obj = self.obj(module)
+
         # Apply parameters if provided
         if isinstance(params, dict):
             obj = obj(**params)
@@ -56,9 +86,7 @@ class Module:
         else: 
             # no params set
             pass
-
         latency = time.time() - t0
-
         return obj
 
     def mod(self, path:str = 'module', params:dict = None, cache=True, verbose=False, **kwargs) -> str:
@@ -77,20 +105,16 @@ class Module:
 
         repo2path = self.repo2path(module)
         module = module or 'module'
-
-        try:
-            if module in repo2path:
-                path = repo2path[module]
-            else:
-                path = self.dirpath(module)
-        except:
-            path = self.modules_path + '/' + module
+        if module in repo2path:
+            path = repo2path[module]
+        else:
+            path = self.dirpath(module)
         if path.split('/')[-1] == path.split('/')[-2]:
             path = '/'.join(path.split('/')[:-1])
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
 
-    def gofile(self, module=None, **kwargs):
+    def gof(self, module=None, **kwargs):
         """
         go the file
         """
@@ -102,20 +126,15 @@ class Module:
             path = '/'.join(path.split('/')[:-1])
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
-    def gof(self, module=None, **kwargs):
-        """
-        go to the file
-        """
-        return self.gofile(module=module, **kwargs)
 
     def filepath(self, obj=None) -> str:
-        return inspect.getfile(self.resolve_module(obj))
+        return inspect.getfile(self.get_module(obj))
 
     def getfile(self, obj=None) -> str:
-        return inspect.getfile(self.resolve_module(obj))
+        return inspect.getfile(self.get_module(obj))
 
     def path(self, obj=None) -> str:
-        return inspect.getfile(self.resolve_module(obj))
+        return inspect.getfile(self.get_module(obj))
 
     def abspath(self,path:str):
         return os.path.abspath(os.path.expanduser(path))
@@ -142,6 +161,20 @@ class Module:
         path = path or self.lib_path
         path = os.path.abspath(path)
         return self.cmd(f'code {path}')
+
+    def cpmod(self, from_mod='store', path='./store2'): 
+        from_path = self.dirpath(from_mod)
+        result =  {'from': from_dirpath, 'to':to_dirpath}
+        return self.cmd(f'cp -r {from_path} {path}')
+
+    def rmmod(self, module): 
+        return self.rm(self.dirpath(module))
+
+    def core_modules(self):
+        """
+        returns the core modules
+        """
+        return self.config['core_modules']
     
     def module_class(self, obj=None) -> str:
         return (obj or self).__name__
@@ -162,7 +195,7 @@ class Module:
             return yaml_path
     
     def storage_dir(self, module=None):
-        module = self.resolve_module(module)
+        module = self.get_module(module)
         return os.path.abspath(os.path.expanduser(f'~/.commune/{self.module_name(module)}'))
     
     def is_admin(self, key:str) -> bool:
@@ -175,7 +208,7 @@ class Module:
         import time
         return time.time()
         
-    def resolve_module(self, obj:str = None, default=None, fn_splitter='/', **kwargs):
+    def get_module(self, obj:str = None, default=None, fn_splitter='/', **kwargs):
         if obj == None:
             obj = Module
         if isinstance(obj, str):
@@ -187,6 +220,20 @@ class Module:
         working directory
         """
         return os.getcwd()
+
+    def tools(self, search=None):
+        tools = self.modules(search='tool.')
+        if search != None:
+            tools = [t for t in tools if search in t]
+        return sorted(tools)
+
+    def toolbox(self, search=None):
+        tools = self.tools(search=search)
+        toolbox = {}
+        for t in tools:
+            toolbox[t.split('.')[-1]] = t
+        return toolbox
+    tb = toolbox
 
     def token(self, data, key=None, module='auth.jwt',  **kwargs) -> str:
         token = self.module(module)().get_token(data=data, key=key, **kwargs)
@@ -342,7 +389,7 @@ class Module:
         return util2path
 
     def routes(self):
-        routes = self.config()['routes']
+        routes = self.config['routes']
         for util in  self.utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -355,7 +402,9 @@ class Module:
         Set the config as well as its local params
         '''
         config = config or {}
-        config = {**self.config(), **config}
+        if hasattr(self, 'config') and callable(self.config):
+            self.config = self.config()
+        config = {**self.config, **config}
         if isinstance(config, dict):
             config = self.dict2munch(config)
         self.config = config 
@@ -369,6 +418,7 @@ class Module:
         check if there is a config 
         """
         path = None
+        
         for file_type in file_types:
             if os.path.exists(f'./config.{file_type}'):
                 dirpath = f'./'
@@ -379,8 +429,10 @@ class Module:
             path = os.path.join(dirpath, f'config.{file_type}')
             if os.path.exists(path):
                 break
+
         assert path != None, f'Config file not found in {self.modules_path} or {self.lib_path}'
         filetype = path.split('.')[-1] if path != None else mode
+
         if os.path.exists(path):
             if filetype == 'json':
                 config = json.load(open(path, 'r'))
@@ -391,7 +443,7 @@ class Module:
         else:
             module = self.module(module)
             config =  self.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
-        
+
         # parse output
         if mode == 'dict':
             pass
@@ -420,6 +472,14 @@ class Module:
         self.put_text(path, data)
         return path
 
+    def rm_module(self, module, safety=True):
+        path =  self.dirpath(module)
+        if safety:
+            if input(f'Are you sure you want to remove {module} at {path} (y/n)') != 'y':
+                return {'success': False, 'message': f'Aborted removing {module}'}
+            assert os.path.exists(path), f'{path} does not exist'
+        return shutil.rmtree(path)
+
     def rm(self, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/', './']):
         avoid_paths = list(set((avoid_paths)))
         path = self.get_path(path)
@@ -441,7 +501,6 @@ class Module:
         return {'success':True, 'message':f'{path} removed'}
     
     def glob(self, path:str='./', depth:Optional[int]=None, recursive:bool=True, files_only:bool = True,):
-        import glob
         path = self.get_path(path)
         if depth != None:
             if isinstance(depth, int) and depth > 0:
@@ -610,6 +669,8 @@ class Module:
     def get_text(self, path: str, **kwargs ) -> str:
         # Get the absolute path of the file
         path = self.get_path(path)
+        if os.path.isdir(path):
+            return self.file2text(path)
         from commune.utils import get_text
         return get_text(path, **kwargs)
 
@@ -627,7 +688,7 @@ class Module:
         time.sleep(period) 
 
     def fn2code(self, module=None)-> Dict[str, str]:
-        module = self.resolve_module(module)
+        module = self.get_module(module)
         functions = self.fns(module)
         fn_code_map = {}
         for fn in functions:
@@ -638,7 +699,7 @@ class Module:
         return fn_code_map
     
     def fn2hash(self, module=None)-> Dict[str, str]:
-        module = self.resolve_module(module)   
+        module = self.get_module(module)   
         return {k:self.hash(v) for k,v in self.fn2code(module).items()}
 
     def fn_code(self,fn:str, module=None,**kwargs) -> str:
@@ -713,27 +774,26 @@ class Module:
         if '/' in str(obj) or callable(obj) :
             schema = self.fnschema(obj, **kwargs)
         else:
-            module = self.resolve_module(obj)
+            module = self.get_module(obj)
             fns = self.fns(module)
             schema = {fn: self.fnschema(getattr(module, fn)) for fn in fns}
         return schema
  
-    def resolve_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+    def get_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if isinstance(obj, str):
-            if '/' in obj:
-                obj = self.fn(obj)
-            if self.module_exists(obj):
-                obj = self.module(obj)
+            if hasattr(self, obj):
+                obj = getattr(self, obj)
+            elif  '/' in obj:
+                obj = getattr(self, obj.split('/')[-1])
             else:
-                util2path = self.util2path()
-                if  obj in util2path:
-                    obj = self.obj(util2path[obj])
+                obj = self.module(obj)
         else:
-            obj = self.resolve_module(obj)
+            obj = self.module(obj)
+        
         return obj
 
     def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        return inspect.getsource(self.resolve_obj(obj))
+        return inspect.getsource(self.get_obj(obj))
     
     def codemap(self, module = None , search=None, *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -751,6 +811,13 @@ class Module:
     def cid(self, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return self.hash(self.code_hash_map(module=module, search=search,**kwargs))
 
+
+    def dev(self, *args, **kwargs):
+        """
+        dev mode
+        """
+        return self.module('dev')().forward(*args, **kwargs)
+
     def getsource(self, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
             if isinstance(module, str) and '/' in module:
@@ -758,7 +825,7 @@ class Module:
                 module = '/'.join(module.split('/')[:-1])
                 module = getattr(self.module(module), fn)
             else:
-                module = self.resolve_module(module)
+                module = self.get_module(module)
         else: 
             module = self
         return inspect.getsource(module)
@@ -777,7 +844,7 @@ class Module:
         return params
 
     def dir(self, obj=None, search=None, *args, **kwargs):
-        obj = self.resolve_obj(obj)
+        obj = self.get_obj(obj)
         if search != None:
             return [f for f in dir(obj) if search in f]
         return dir(obj)
@@ -794,23 +861,16 @@ class Module:
             include_parents: whether to include the parent functions
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
-        obj = self.resolve_module(obj)
-        text = inspect.getsource(obj)
         functions = []
-        for splitter in ["   def " , "    def "]:
-            for line in text.split('\n'):
-                if f'"{splitter}"' in line: # removing edge case
-                    continue
-                if line.startswith(splitter):
-                    functions += [line.split(splitter)[1].split('(')[0].strip()]
-        functions = sorted(list(set(functions)))
-        if search != None:
-            functions = [f for f in functions if search in f]
-        if not include_hidden: 
-            functions = [f for f in functions if not f.startswith('__') and not f.startswith('_')]
+        obj = self.get_module(obj)
+        for attr in dir(obj):
+            if not include_hidden and (attr.startswith('__') or attr.startswith('_')):
+                continue
+            attr_obj = getattr(obj, attr)
+            if callable(attr_obj):
+                functions.append(attr)
         return functions
         
-    
     def clear_info_history(self):
         return self.rm('info')
 
@@ -1069,7 +1129,7 @@ class Module:
             return fns
         return path2fns
 
-    def objs(self, path:str = './', depth=10, search=None, **kwargs) -> List[str]:
+    def objs(self, path:str = './', depth=3, search=None, **kwargs) -> List[str]:
         classes = self.classes(path,depth=depth)
         functions = self.path2fns(path, tolist=True)
         objs = functions + classes
@@ -1077,7 +1137,9 @@ class Module:
             objs = [f for f in objs if search in f]
         return objs
 
-    def obj(self, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
+    def obj(self, key:str=None, splitters:list=['/', '::', '.'], **kwargs)-> Any:
+        if key == None: 
+            return Module
         if not hasattr(self, 'obj_cache'): 
             self.obj_cache = {}
         if key in self.obj_cache:
@@ -1088,22 +1150,14 @@ class Module:
         obj =  import_object(key, splitters=splitters, **kwargs)
         self.obj_cache[key] = obj
         return obj
-    
-    def obj_exists(self, path:str, verbose=False)-> Any:
 
-        # better way to check if an object exists?
+    def object_exists(self, path:str, verbose=False)-> Any:
 
         try:
             self.obj(path, verbose=verbose)
             return True
         except Exception as e:
             return False
-
-    def object_exists(self, path:str, verbose=False)-> Any:
-
-        # better way to check if an object exists?
-
-        return self.obj_exists(path, verbose=verbose)
 
     def m(self):
         """enter modules path in vscode"""
@@ -1114,8 +1168,7 @@ class Module:
         Returns true if the module exists
         '''
         try:
-            tree = self.tree()
-            module_exists =  module in tree
+            module_exists =  self.module(module, **kwargs)
         except Exception as e:
             module_exists =  False
         return module_exists
@@ -1148,6 +1201,12 @@ class Module:
             if path.endswith(avoid) and path != avoid:
                 path = path[:-(1+len(avoid))]
         return path
+
+    def local_modules(self, search=None, **kwargs):
+        """
+        Get the local modules
+        """
+        return list(self.local_tree(search=search, **kwargs).keys())
     
     def local_tree(self , **kwargs):
         return self.get_tree(os.getcwd(), **kwargs)
@@ -1201,6 +1260,7 @@ class Module:
     def new( self,
                    path : str ,
                    name= None, 
+                   vibe = None, 
                    base_module : str = 'base', 
                    update=0
                    ):
@@ -1218,10 +1278,12 @@ class Module:
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
         self.put_text(path, 'import commune as c \n'+code)
+        if vibe != None:
+            return self.dev(vibe, to=dirpath)
         return {'name': name, 'path': path, 'msg': 'Module Created'}
-    
-    add_module = new_module = new
-    
+
+    def dev(self, *args, **kwargs):
+        return self.module('dev')().forward(*args, **kwargs)
     def util(self, util:str, prefix='commune.utils'):
         return self.obj(self.util2path().get(util))
 
@@ -1229,6 +1291,9 @@ class Module:
         return self.get_key()
 
     def repo2path(self, search=None):
+        """
+        Returns a dictionary of the form {repo_name: repo_path}
+        """
         repo2path = {}
         for p in self.ls('~/'): 
             if os.path.exists(p+'/.git'):
@@ -1254,7 +1319,8 @@ class Module:
     def ask(self, *args, module=None, path='./' , **kwargs):
         if module != None:
             args = [self.code(module)] + list(args)
-        return self.module("agent")().ask(*args, **kwargs) 
+        text = ' '.join(map(str, args)) 
+        return self.module("agent")().forward(text, **kwargs) 
 
     def ai(self, *args, **kwargs):
         return self.module("agent")().ask(*args, **kwargs) 
@@ -1530,7 +1596,7 @@ class Module:
             return synced_modules
         
         futures = []
-        for url in self.config()['modules']:
+        for url in self.config['modules']:
             params = {'url': url, 'max_age': max_age, 'update': update}
             futures += [self.submit(self.sync_module, params)]
         
@@ -1600,8 +1666,8 @@ class Module:
             self.included_pwd_in_path = True
 
         # config attributes
-        config = self.config()
-        self.core = config['core'] # the core modules
+        self.config = config = self.config()
+        self.core = self.core_modules = config['core'] # the core modules
         self.repo_name  = config['name'] # the name of the library
         self.endpoints = config['endpoints']
         self.core_features = config['core_features']
@@ -1615,23 +1681,36 @@ class Module:
 
         return {'success': True, 'msg': 'synced config'}
         
+    def core2hash(self, core:str = None):
+        """
+        Returns the hash of the core module
+        """
+        core_modules = self.core_modules
+        core2hash = {}
+        for m in core_modules:
+            try:
+                core2hash[m] = self.hash(self.code(m))
+            except Exception as e:
+                core2hash[m] = None
+        return core2hash
 
-    def main(self,
+    def cli(self,
                 fn='vs',  
                 module='module', 
                 default_fn = 'forward'):
+
+        # ensure your not in the system home
+        assert not os.path.abspath(os.getcwd()) == self.home_path, 'You are in the system home directory'
         t0 = time.time()
         argv = sys.argv[1:]
         # ---- FUNCTION
-        module = self.module(module)()
         if len(argv) == 0:
             argv += [fn]
 
         fn = argv.pop(0)
 
-        if hasattr(module, fn):
-            fn_obj = getattr(module, fn)
-        elif '/' in fn:
+
+        if '/' in fn:
             if fn.startswith('/'):
                 fn = fn[1:]
             if fn.endswith('/'):
@@ -1640,10 +1719,10 @@ class Module:
             module =  self.module(new_module)()
             fn = fn.split('/')[-1]
             fn_obj = getattr(module, fn)
-
         else:
-            raise Exception(f'Function {fn} not found in module {module}')
-        # ---- PARAMS ----
+            module = self.module(module)()
+            fn_obj = getattr(module, fn)
+            
         params = {'args': [], 'kwargs': {}} 
         parsing_kwargs = False
         if len(argv) > 0:
@@ -1660,20 +1739,88 @@ class Module:
         speed = time.time() - t0
         module_name = module.__class__.__name__
         self.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
-        duration = time.time() - t0
-        is_generator = self.is_generator(result)
-        if is_generator:
+        if self.is_generator(result):
             for item in result:
-                if isinstance(item, dict):
-                    self.print(item)
-                else:
-                    self.print(item, end='')
+                self.print(item, end='')
         else:
             self.print(result)
 
     def hash(self, obj, *args, **kwargs):
         from commune.utils import get_hash
         return get_hash(obj, *args, **kwargs)
+
+    def giturl(self, module):
+        """
+        Get the git url of the module
+        """
+        path = self.modules_path + '/' + module.replace('.', '/')
+        if os.path.exists(path + '/.git'):
+            cmd = f'git config --get remote.origin.url'
+            return self.cmd(cmd, cwd=path)
+        else:
+            raise Exception(f'{module} is not a git repository')
+
+    def gitpath(self , module): 
+        path = self.modules_path + '/' + module.replace('.', '/')
+        while len(path.split('/')) > 1:
+            path = '/'.join(path.split('/')[:-1])
+            git_path = path + '/.git'
+            if os.path.exists(git_path):
+                return git_path
+        return None
+
+    def add_mod(self, module='dev', to=None, safety=True):
+        """
+        Add a module to the repo
+        """
+        plan = []
+        repo2path = self.repo2path()
+        if 'github.com/' in module :
+            giturl = module
+            if giturl.endswith('.git'):
+                giturl = giturl[:-4]
+            if not giturl.startswith('https://'):
+                giturl = 'https://' + giturl 
+            module = giturl.split('/')[-1]
+            path = self.modules_path +  '/' + module.replace('.', '/')
+            plan.append(f'git clone {giturl} {path}')
+        else:
+            assert module in repo2path, f'{module} is not in {repo2path}'
+            path = repo2path[module]
+        if to != None:
+            to = self.modules_path + '/' + to.replace('.', '/')
+        else:
+            to =  (self.modules_path + '/' + module.replace('.', '/'))
+        assert not to == self.abspath('~/'), f'Cannot sync to the same path {to}'
+        plan.append(f'cp -rf {path} {to}')
+        if bool(os.path.exists(to)):
+            plan  = [ f'rm -rf {to}' ] + plan
+        for i, plan_cmd in enumerate(plan):
+            self.print(f'(step {i}) {plan_cmd}', color='green')
+        if input(f'You good with PLAN? [y/n]') != 'y':
+            return {'msg': 'Aborting'}
+        for cmd in plan:
+            print(f'Running {cmd}')
+            self.cmd(cmd)
+        # update the tree
+        tree = self.tree(update=1)
+
+    addmod = add_mod
+
+    def is_module_repo(self, module):
+        """
+        Check if the module is a git repository
+        """
+        path = self.modules_path + '/' + module.replace('.', '/')
+        return os.path.exists(path + '/.git')
+    def is_repo(self, module):
+        repo2path = self.repo2path()
+        if module in repo2path:
+            return True
+        return False
+
+    def main(self):
+        self.cli()
 
 if __name__ == "__main__":
     Module().run()

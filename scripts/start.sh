@@ -1,3 +1,4 @@
+
 # starts the container with the name of the current directory
 
 
@@ -16,21 +17,25 @@ if [ $# -gt 0 ]; then
     # include the name of the container
     if [ "$arg" == "--build" ]; then
       BUILD=true
-      shift
     elif [ "$arg" == "--test" ]; then
       TEST=true
-      shift
-
     elif [[ "$arg" == "--image="* ]]; then
       # remove the --image= prefix
       IMAGE="${arg#--image=}"
-      shift
-
     elif [[ "$arg" == "--name="* ]]; then
       # remove the --name= prefix
       NAME="${arg#--name=}"
       echo "NAME=$NAME"
+    elif [[ "$arg" == "--name" ]]; then
+      # If just --name is provided, use the next argument as the name
       shift
+      if [ $# -gt 0 ]; then
+        NAME="$1"
+        echo "NAME=$NAME"
+      else
+        echo "Error: --name requires a value"
+        exit 1
+      fi
     elif [[ "$arg" == "--shm-size="* ]]; then
       # remove the --shm-size= prefix
       SHM_SIZE="${arg#--shm-size=}"
@@ -39,8 +44,6 @@ if [ $# -gt 0 ]; then
         echo "Invalid shm size: $SHM_SIZE"
         exit 1
       fi
-      shift
-
     elif [[ "$arg" == "--port="* ]]; then
       # remove the --port= prefix
       PORT="${arg#--port=}"
@@ -51,14 +54,10 @@ if [ $# -gt 0 ]; then
       fi
       # add the port mapping to the docker run command
       NETWORK_PART=" -p $PORT:$PORT" # map the port to the container
-      shift
     elif [[ "$arg" == "--"* ]]; then
       echo "Unknown argument: $arg"
       exit 1
-    else
-      shift
     fi
-
   done
 fi
 
