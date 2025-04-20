@@ -93,8 +93,6 @@ then
 fi
 
 
-
-
 # is commune installed
 
 if pip3 list | grep commune

@@ -2617,7 +2617,6 @@ def module2hash(search = None, max_age = None, **kwargs):
     return {i['name']: i['hash'] for i in infos if 'name' in i}
 
 
-
 def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
     import commune as c
     if module != None:
@@ -2631,16 +2630,12 @@ def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, D
         module = cls
     return inspect.getsourcelines(module)
 
-
 def roundsig(x, sig=6, small_value=1.0e-9):
     import math
     """
     rounds a number to a certain number of significant figures
     """
     return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-
-
-
 
 def get_args_kwargs(params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
     """
