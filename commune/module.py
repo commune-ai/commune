@@ -185,10 +185,6 @@ class Module:
             input(f'Are you sure you want to delete {dirpath}')
         return self.rm()
 
-
-
-
-
     def core_modules(self):
         """
         returns the core modules
@@ -810,17 +806,16 @@ class Module:
                              'hash': self.hash(source),
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
-    
  
     def get_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if isinstance(obj, str):
             if  '/' in obj:
                 module = '/'.join(obj.split('/')[:-1])
                 obj = getattr(self.module(module), obj.split('/')[-1])
+            if self.module_exists(obj):
+                obj = self.module(obj)
             elif  hasattr(self, obj):
                 obj = getattr(self, obj)
-            else:
-                obj = self.module(obj)
         return obj
 
     def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
@@ -850,16 +845,7 @@ class Module:
         return self.module('dev')().forward(*args, **kwargs)
 
     def getsource(self, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        if module != None:
-            if isinstance(module, str) and '/' in module:
-                fn = module.split('/')[-1]
-                module = '/'.join(module.split('/')[:-1])
-                module = getattr(self.module(module), fn)
-            else:
-                module = self.get_module(module)
-        else: 
-            module = self
-        return inspect.getsource(module)
+        return inspect.getsource(self. get_obj(module))
 
     def get_params(self, fn):
         """
@@ -1086,8 +1072,8 @@ class Module:
             path = path[:-3]
         return path.replace('__init__.', '.')
         
-    def path2name(self, path, ignore_folder_names = ['modules', 'agents', 'src', 'mods']):
-        name = self.path2objectpath(path)
+    def path2name(self, path, ignore_folder_names = ['_modules', 'agents', 'src', 'mods']):
+        name = path
         name_chunks = []
         for chunk in name.split('.'):
             if chunk in ignore_folder_names:
@@ -1181,12 +1167,12 @@ class Module:
             objs = [f for f in objs if search in f]
         return objs
 
-    def obj(self, key:str=None, splitters:list=['/', '::', '.'], **kwargs)-> Any:
+    def obj(self, key:str=None, splitters:list=['/', '::', '.'], cache=True, **kwargs)-> Any:
         if key == None: 
             return Module
         if not hasattr(self, 'obj_cache'): 
             self.obj_cache = {}
-        if key in self.obj_cache:
+        if key in self.obj_cache and cache:
             return self.obj_cache[key]
         from commune.utils import import_object
         if (self.repo_name + '.' + self.repo_name) in key:
@@ -1219,7 +1205,7 @@ class Module:
     
     def objectpath2name(self, 
                         p:str,
-                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', ],
+                        avoid_terms=['_modules', 'agents', 'module', '_modules', '_agents', ],
                         avoid_suffixes = ['module', 'mod']):
         chunks = p.split('.')
         if len(chunks) < 2:
@@ -1289,8 +1275,10 @@ class Module:
         return list(self.tree(search=search, **kwargs).keys())
 
     def modules(self, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:  
-        return self.get_modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs)
+        return self.get_modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs) 
 
+    def num_modules(self, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> int:
+        return len(self.modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs))
     
     def mods(self, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:   
         return self.modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs)
@@ -1507,7 +1495,6 @@ class Module:
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-
         for module, fns in routes.items():
             for fn in fns: 
                 if isinstance(fn, list):
@@ -1537,23 +1524,6 @@ class Module:
             url = url + gitsuffix
         return url
 
-    def sync_modules(self, max_age=10000,  path=None, update=False):
-        link = self.config['modules']
-
-        url = self.giturl(link)
-        path = self.modules_path
-        flag_path = 'sync_modules'
-        flag = self.get(flag_path,  max_age=max_age, update=update)
-        if flag != None:
-            return {'msg': 'Module already synced', 'success': True}
-        if os.path.exists(path+'/.git'):
-            cmd = f'git pull {url} {path}' 
-        else:
-            os.makedirs(path, exist_ok=True)
-            cmd = f'git clone {url} {path}'
-        self.cmd(cmd, cwd=path)
-        self.put(flag_path, True)
-        return {'msg': 'Module synced', 'success': True}
 
     def dict(self, module='module'):
         """get the dict of the module"""
@@ -1613,9 +1583,7 @@ class Module:
         dirpath = self.modules_path + '/' + module_name.replace('.','/')
         if 'github' in url:
             self.cmd(f'git clone {url} {dirpath}')
-        
         return dirpath
-    
 
     def push(self, module='store'):
         modules_path = self.modules_path
@@ -1675,7 +1643,7 @@ class Module:
         self.repo_path  = self.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
         self.lib_path  = self.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
         self.home_path = self.homepath  = os.path.expanduser('~') # the home path
-        self.modules_path = self.modspath = self.core_path + '/modules'
+        self.modules_path = self.modspath = self.core_path + '/_modules'
         self.app_path = self.core_path + '/app'
         self.tests_path = f'{self.lib_path}/tests'
         if not hasattr(Module, 'included_pwd_in_path'):
@@ -1695,7 +1663,21 @@ class Module:
         self.port_range = config['port_range'] # the port range between 50050 and 50150
         self.shortcuts =  self.shortys = config["shortcuts"]
         self.sync_routes()
-        self.sync_modules(max_age=max_age, update=update)
+
+        link = self.config['modules']
+        url = self.giturl(link)
+        path = self.modules_path
+        flag_path = 'sync_modules'
+        flag = self.get(flag_path,  max_age=max_age, update=update)
+        if flag != None:
+            return {'msg': 'Module already synced', 'success': True}
+        if os.path.exists(path+'/.git'):
+            cmd = f'git pull {url} {path}' 
+        else:
+            os.makedirs(path, exist_ok=True)
+            cmd = f'git clone {url} {path}'
+        self.cmd(cmd, cwd=path)
+        self.put(flag_path, True)
         if globals_input != None:
             globals_input = self.add_globals(globals_input)
 
@@ -1714,55 +1696,6 @@ class Module:
                 core2hash[m] = None
         return core2hash
 
-    def cli(self,
-                fn='vs',  
-                module='module', 
-                default_fn = 'forward'):
-
-        # ensure your not in the system home
-        assert not os.path.abspath(os.getcwd()) == self.home_path, 'You are in the system home directory'
-        t0 = time.time()
-        argv = sys.argv[1:]
-        # ---- FUNCTION
-        if len(argv) == 0:
-            argv += [fn]
-
-        fn = argv.pop(0)
-        local_modules = self.local_modules()
-        if '/' in fn:
-            if fn.startswith('/'):
-                fn = fn[1:]
-            if fn.endswith('/'):
-                fn = fn + default_fn
-            module =  self.module( '/'.join(fn.split('/')[:-1]).replace('/', '.'))()
-            fn = fn.split('/')[-1]
-            fn_obj = getattr(module, fn)
-        else:
-            module = self.module(module)()
-            fn_obj = getattr(module, fn)
-            
-        params = {'args': [], 'kwargs': {}} 
-        parsing_kwargs = False
-        if len(argv) > 0:
-            for arg in argv:
-                if '=' in arg:
-                    parsing_kwargs = True
-                    key, value = arg.split('=')
-                    params['kwargs'][key] = self.str2python(value)
-                else:
-                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                    params['args'].append(self.str2python(arg))        
-        # run thefunction
-        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        speed = time.time() - t0
-        module_name = module.__class__.__name__
-        self.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
-        if self.is_generator(result):
-            for item in result:
-                self.print(item, end='')
-        else:
-            self.print(result)
-
     def hash(self, obj, *args, **kwargs):
         from commune.utils import get_hash
         return get_hash(obj, *args, **kwargs)
@@ -1776,14 +1709,7 @@ class Module:
             url = url + suffix
         return url
 
-    def gitpath(self , module): 
-        path = self.modules_path + '/' + module.replace('.', '/')
-        while len(path.split('/')) > 1:
-            path = '/'.join(path.split('/')[:-1])
-            git_path = path + '/.git'
-            if os.path.exists(git_path):
-                return git_path
-        return None
+
 
     def add_mod(self, module='dev', to=None, safety=True):
         """
@@ -1836,8 +1762,7 @@ class Module:
         return False
 
     def main(self):
-        self.cli()
-
+        self.module('cli')().forward()
 
     def context(self):
         core_modules = self.config['core']

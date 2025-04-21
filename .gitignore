@@ -8,9 +8,8 @@ __pycache__/**
 *$py.class
 *.pyc
 env/
-app
-chain
 **/modules
+**/_modules
 
 # benchmark results
 benchmarks/results/
