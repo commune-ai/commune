@@ -4,26 +4,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
 import os
+import sys
 import hashlib
-import os
 import pandas as pd
 import json
 import asyncio
 import commune as c
-from .utils import shortkey, abspath
-print = c.print
-
+import argparse
+from .utils import *
 class Server:
 
     def __init__(
         self, 
         module: Union[str, object] = 'module',
-        key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
         params : Optional[dict] = None, # the kwargs for the module
-        
-        # FUNCTIONS
+        key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
-        # NETWORK
         port: Optional[int] = None, # the port the server is running on
         tempo:int = 10000, # (in seconds) the maximum age of the history
         name: Optional[str] = None, # the name of the server, 
@@ -34,7 +30,7 @@ class Server:
         auth = 'server.auth', # the auth for the server,
         middleware = 'server.middleware', # the middleware for the server
         store = 'server.store', # the history for the server
-        pm = 'pm2', # the process manager for the server
+        pm = 'server.pm', # the process manager for the server
         helper_functions  = ['info', 'forward'], # the helper functions
 
         # MISC
@@ -50,11 +46,12 @@ class Server:
         self.tempo = tempo
         self.verbose = verbose
         self.timeout = timeout
+        self.store = c.module(store)(abspath(path))
         self.pm = c.module(pm)(proc_prefix= 'server/' + network + '/')
         self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
-        self.store = c.module(store)(abspath(path))
         # set modules 
         if run_api:
+            self.reg()
             self.auth = c.module(auth)()
             self.loop = asyncio.get_event_loop() # get the event loop
             app = FastAPI()
@@ -71,17 +68,15 @@ class Server:
                     return self.forward(fn, request)
                 except Exception as e:
                     err = c.detailed_error(e)
-                    print(f'Error({fn}) --> {err}', color='red')
+                    c.print(f'Error({fn}) --> {err}', color='red')
                     return err
             app.post("/{fn}")(server_function)
-            print(f'Served({self.module.info})', color='purple')
-            uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-
-    def fleet(self, module='module', n=2, timeout=10):
-        if '::' not in module:
-            module = module + '::'
-        names = [module+str(i) for i in range(n)]
-        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
+            c.print(f'Served({self.module.info["url"]})', color='purple')
+            try:
+                uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+            except:
+                self.dereg()
+                pass
 
     def get_params(self, request: Request):
         params = self.loop.run_until_complete(request.json())
@@ -121,7 +116,7 @@ class Server:
             output = str(result)
             def generator_wrapper(generator):
                 for item in generator:
-                    print(item, end='')
+                    c.print(item, end='')
                     yield item
             result = EventSourceResponse(generator_wrapper(result))   
         data['time'] = data['client']['time']
@@ -133,45 +128,15 @@ class Server:
         client_key = data['client']['key']
         path = f'results/{self.module.name}/{data["client"]["key"]}/{cid}.json'
         self.store.put(path, data)
-        print(f'fn({data["fn"]}) --> {data["duration"]} seconds')
-        print('Saved data to -->', path)
+        c.print(f'fn({data["fn"]}) --> {data["duration"]} seconds')
+        c.print('Saved data to -->', path)
         return result
-  
-    def results(self, module:str = 'module', paths: Optional[List] = None, df: bool = True, features: List = ['time', 'fn', 'duration', 'client', 'server']) -> Union[pd.DataFrame, List[Dict]]:
-        """
-        Get history data for a specific address
-        
-        Args:
-            address: The address to get history for
-            paths: Optional list of paths to load from
-            as_df: Whether to return as pandas DataFrame
-            features: Features to include
-            
-        Returns:
-            DataFrame or list of history records
-        """
-        paths = paths or self.store.paths('results/'+module)
+    
+    def reg(self):
+        self.store.put(self.module.info_path, self.module.info)
 
-        address2key = c.address2key()
-        history = [self.store.get(p) for p in paths]
-        if df and len(history) > 0:
-            history = pd.DataFrame(history)
-            if len(history) == 0:
-                return history
-            history = history[features]
-            def _shorten(x):
-                if x in address2key: 
-                    return address2key.get(x) + ' (' + shortkey(x) + ')'
-                else:
-                    return shortkey(x)
-                return x
-            history['server'] = history['server'].apply(lambda x: _shorten(x['key']))
-
-            history['client'] = history['client'].apply(lambda x: _shorten(x['key']))
-            history['age'] = history['time'].apply(lambda x:c.time() - float(x))
-            del history['time']
-
-        return history
+    def dereg(self):
+        self.store.rm(self.module.info_path)
 
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
@@ -188,6 +153,7 @@ class Server:
                 name = module
                 tag = name.split('::')[-1]
                 module = '::'.join(name.split('::')[:-1])
+    
         self.module = c.module(module)(**(params or {}))
         self.module.name = name = name or module 
         self.module.key = c.get_key(key or self.module.name)
@@ -202,6 +168,9 @@ class Server:
         }
         self.module.info['signature'] = c.sign(self.module.info, key=self.module.key, mode='str')
         self.verify_info(self.module.info) # verify the info
+        self.modules_path = self.store.get_path('modules')
+        self.module.info_path = f'{self.modules_path}/{self.module.name}.json'
+        
         return {'success':True, 'message':f'Set module to {self.module.name}'}
 
     def verify_info(self, info:dict) -> dict:
@@ -235,7 +204,7 @@ class Server:
                 setattr(self.module, fn, fn_obj)
                 schema[fn] = c.fnschema(fn_obj)
             else:
-                print(f'SEVER_FN_NOT_FOUND({fn}) --> REMOVING FUNCTION FROM FNS', color='red')
+                c.print(f'SEVER_FN_NOT_FOUND({fn}) --> REMOVING FUNCTION FROM FNS', color='red')
                 self.module.fns.remove(fn)
         self.module.schema = schema
         return {'fns': self.module.fns, 'fn2cost': self.module.fn2cost}
@@ -258,7 +227,7 @@ class Server:
         while c.port_used(port):
             c.kill_port(port)
             c.sleep(1)
-            print(f'Waiting for port {port} to be free')
+            c.print(f'Waiting for port {port} to be free')
         self.module.port = port
         self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
@@ -268,7 +237,7 @@ class Server:
               params:Optional[dict] = None,  # kwargs for the module
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
-              remote:bool = True, # runs the server remotely (pm2, ray)
+              remote:bool = False, # runs the server remotely (pm2, ray)
               functions = None, # list of functions to serve, if none, it will be the endpoints of the module
               key = None, # the key for the server
               cwd = None,
@@ -280,36 +249,23 @@ class Server:
         params = {**(params or {}), **extra_params}
         if remote and isinstance(module, str):
             params = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
-            self.pm.run("server/serve", name=name, params=params, cwd=cwd)
+            self.pm.run(name=name, params=params)
             return self.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
 
     def get_port(self, name:str,  tail:int=100, **kwargs):
-        """
-        get port from the logs
-        """
-        logs = self.logs(name, tail=tail, stream=False, **kwargs)
-        port = None
-        tag = 'Uvicorn running on '
-        for i, line in enumerate(logs.split('\n')[::-1]):
-            if tag in line:
-                return int(line.split(tag)[-1].split(' ')[0].split(':')[-1])
-        return port
+        return self.namespace().get(name, None).split(':')[-1] if name in self.namespace() else c.free_port()
 
     def namespace(self,  search=None, **kwargs) -> dict:
-        servers =  self.servers(search=search, **kwargs)
-        urls = [self.get_url(s) for s in servers]
-        namespace = {s: urls[i] for i, s in enumerate(servers)}
-        if search != None:
-            namespace = {k:v for k, v in namespace.items() if search in k}
-
-        return namespace
+        return {m['name']: m['url'] for m in self.modules(search=search, **kwargs)}
 
     def get_url(self, name:str,  tail:int=100, **kwargs):
-        return f'0.0.0.0:{self.get_port(name, tail=tail, **kwargs)}'
+        return self.namespace().get(name, None)
 
-    def servers(self, search=None,  **kwargs) -> List[str]:
-        return [ p[len(self.pm.process_prefix):] for p in self.pm.procs(search=search, **kwargs) if p.startswith(self.pm.process_prefix)]
+    def names(self, search=None,  **kwargs) -> List[str]:
+        return [m['name'] for m in self.modules(search=search, **kwargs)]
+
+    servers = names
 
     def urls(self, search=None,  **kwargs) -> List[str]:
         return list(self.namespace(search=search, **kwargs).values())   
@@ -319,22 +275,25 @@ class Server:
 
     def modules(self, 
                 search=None, 
-                max_age=60, 
+                max_age=None, 
                 update=False, 
                 features=['name', 'url', 'key'], 
                 timeout=8, 
                 **kwargs):
-
-        modules_path = self.get_path(f'modules')
-
-        modules = c.get(modules_path, max_age=max_age, update=update)
-        if modules == None:
-            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
-            modules = c.wait(futures, timeout=timeout)
-            c.put(modules_path, modules)
-        if search != None:
-            modules = [m for m in modules if search in m['name']]
-        return [m for m in modules if not c.is_error(m)]
+        paths = self.store.paths(self.modules_path)
+        modules = []
+        for p in paths:
+            data = self.store.get(p, max_age=max_age, update=update)
+            if search != None:
+                if search not in data['name']:
+                    continue
+            module_port = int(data['url'].split(':')[-1])
+            data = {k: data[k] for k in features if k in data}
+            if c.port_used(module_port):
+                modules.append(data)
+            else: 
+                self.store.rm(p)
+        return modules
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
@@ -400,8 +359,8 @@ class Server:
                     return  c.call(namespace[name]+'/info')
                 except Exception as e:
                     if trial > 1:
-                        print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
-                    # print(c.logs(name, tail=10))
+                        c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
+                    # c.print(c.logs(name, tail=10))
             c.sleep(trial_backoff)
         raise Exception(f'Failed to start {name} after {trials} trials')
 
@@ -413,3 +372,29 @@ class Server:
     
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
+
+    def __delete__(self):
+        self.dereg()
+
+
+    def rund(self, module='module', port: int = 8080, verbose: bool = False):
+        import subprocess
+        """
+        Run code-server in the background using nohup.
+
+        Args:
+            module (str, optional): The module to serve. Defaults to 'module'.
+            port (int, optional): The port to run the server on. Defaults to 8080.
+            verbose (bool, optional): Whether to print the output. Defaults to False.
+        
+        Returns:
+            dict: The result of the command
+        """
+        log_dir = os.path.join(self.path, 'running')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, f'{module}.logs')
+
+        # cmd = f"nohup c serve {module} > {log_path} 2>&1 &"
+        if verbose:
+            print(f"Running command: {cmd}")
+        return c.cmd(f'python3 --version',  verbose=verbose)

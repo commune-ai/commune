@@ -925,9 +925,7 @@ def free_port(ports = None,
     avoid_ports = avoid_ports if avoid_ports else []
     
     if ports == None:
-        port_range = c.get_port_range(port_range)
-        ports = list(range(*port_range))
-        
+        ports = list(range(*c.port_range))
         
     ip = ip if ip else '0.0.0.0'
 
@@ -991,22 +989,6 @@ def ports() -> List[int]:
 
 def resolve_port_range(port_range: list = None) -> list:
     return get_port_range(port_range)
-
-def set_port_range(*port_range: list):
-    import commune as c
-    if '-' in port_range[0]:
-        port_range = list(map(int, port_range[0].split('-')))
-    if len(port_range) ==0 :
-        port_range = c.port_range
-    elif len(port_range) == 1:
-        if port_range[0] == None:
-            port_range = c.port_range
-    assert len(port_range) == 2, 'Port range must be a list of two integers'        
-    for port in port_range:
-        assert isinstance(port, int), f'Port {port} range must be a list of integers'
-    assert port_range[0] < port_range[1], 'Port range must be a list of integers'
-    c.put('port_range', port_range)
-    return port_range
 
 def ip_to_int(str_val: str) -> int:
     r""" Maps an ip-string to a unique integer.

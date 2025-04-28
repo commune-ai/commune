@@ -12,13 +12,13 @@ class Middleware(BaseHTTPMiddleware):
                 max_bytes: int = 1000000, 
                 max_requests: int = 1000,
                 auth_module = 'server.auth',
-                tx_collector_module = 'server.txcollector',
+                txcollector = 'server.tx_collector',
                 ):
         super().__init__(app)
         self.max_bytes = max_bytes
         self.max_requests = max_requests
         self.auth = c.module(auth_module)()
-        self.tx_collector = c.module(tx_collector_module)()
+        self.tx_collector = c.module(txcollector)()
         self.request_count = 0
         self.last_reset = time.time()
         

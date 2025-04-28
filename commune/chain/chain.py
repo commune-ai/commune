@@ -1901,6 +1901,14 @@ class Chain:
         weights_dict = self.query_map("Weights",[subnet],extract_value=extract_value, module='SubnetEmissionModule')
         return weights_dict
 
+    def root_weights(self, key: str=None, extract_value: bool = False):
+        key_address = self.resolve_key_address(key)
+        weights = self.module(key_address, subnet=0)['weights']
+        netuid2subnet = self.netuid2subnet()
+        weights = {netuid2subnet.get(k):v for k,v in weights}
+        weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)
+        return weights
+
     def addresses( self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False ) -> dict[int, str]:
         subnet = self.resolve_subnet(subnet)
         addresses = self.query_map("Address", [subnet], extract_value=extract_value, max_age=max_age, update=update)
@@ -2565,14 +2573,21 @@ class Chain:
               update=False,
               df=1,
               search=None,
-              min_stake=0,
+              min_stake=50000,
               features=['name', 'key', 'stake_from', 'weights'],
               **kwargs):
          
         valis =  self.modules(subnet=subnet , max_age=max_age, features=features, update=update, **kwargs)
+        
         if search != None:
             valis = [v for v in valis if search in v['name'] or search in v['key'] ]
-        stake_total = sum([v['stake'] for v in valis])
+
+        for i in range(len(valis)):
+            v = valis[i]
+            v['stake'] =   round(sum((v.get('stake_from', {}) or {}).values()) / 10**9, 2)
+            valis[i] = v
+
+            
         valis = [v for v in valis if v['stake'] >= min_stake]
         valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
         if search != None:
@@ -2756,7 +2771,7 @@ class Chain:
         params = self.params(**kwargs)
         netuid2emission =  {k:params['emission'] * self.blocks_per_day for k,params in params.items()}
         netuid2subnet = self.netuid2subnet()
-        emissions = {netuid2subnet[str(k)]:v/10**9 for k,v in netuid2emission.items()}
+        emissions = {netuid2subnet[int(k)]:v/10**9 for k,v in netuid2emission.items()}
         return  dict(sorted(emissions.items(), key=lambda x: x[1], reverse=True))
 
     def subnet2emission(self, **kwargs ) -> Dict[str, str]:

@@ -23,8 +23,6 @@ nest_asyncio.apply()
 
 class Module:
     lib_name = __file__.split('/')[-2]
-    def __init__(self, globals_input = None, **kwargs): 
-        self.sync(globals_input=globals_input, **kwargs)
 
     def module(self, 
                 path: str = 'module', 
@@ -49,14 +47,14 @@ class Module:
         """
 
         t0 = time.time()
-        path = path or 'module'
+        if path == None:
+            return Module
         if not isinstance(path, str):
             return path
         path = path.replace('/', '.')
         path = self.shortcuts.get(path, path)
         tree = self.tree(update=update)
         if not path in tree:
-
             if self.is_repo(path):
                 self.add_mod(path, safety=False)
             if self.object_exists(path):
@@ -134,13 +132,13 @@ class Module:
         return self.cmd(f'code {path}', **kwargs)
 
     def filepath(self, obj=None) -> str:
-        return inspect.getfile(self.get_module(obj))
+        return inspect.getfile(self.module(obj))
 
     def getfile(self, obj=None) -> str:
-        return inspect.getfile(self.get_module(obj))
+        return inspect.getfile(self.module(obj))
 
     def path(self, obj=None) -> str:
-        return inspect.getfile(self.get_module(obj))
+        return inspect.getfile(self.module(obj))
 
     def abspath(self,path:str):
         return os.path.abspath(os.path.expanduser(path))
@@ -210,7 +208,7 @@ class Module:
             return yaml_path
     
     def storage_dir(self, module=None):
-        module = self.get_module(module)
+        module = self.module(module)
         return os.path.abspath(os.path.expanduser(f'~/.commune/{self.module_name(module)}'))
     
     def is_admin(self, key:str) -> bool:
@@ -223,12 +221,12 @@ class Module:
         import time
         return time.time()
         
-    def get_module(self, obj:str = None, default=None, fn_splitter='/', **kwargs):
-        if obj == None:
-            obj = Module
-        if isinstance(obj, str):
-            obj = self.module(obj)
-        return obj
+    # def module(self, obj:str = None, default=None, fn_splitter='/', **kwargs):
+    #     if obj == None:
+    #         obj = Module
+    #     if isinstance(obj, str):
+    #         obj = self.module(obj)
+    #     return obj
 
     def pwd(self):
         """
@@ -263,12 +261,13 @@ class Module:
         parser = argparse.ArgumentParser(description='Argparse for the module')
         parser.add_argument('--fn', dest='fn', help='The function', type=str, default="__init__")
         parser.add_argument('--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('--module', dest='module', help='The function', type=str, default=self.module_name())
-
+        parser.add_argument('--module', dest='module', help='The function', type=str, default='module')
         argv = parser.parse_args()
         argv.params = params or json.loads(argv.params.replace("'",'"'))
         argv.fn = fn or argv.fn
-        
+        if '/' in argv.fn:
+            argv.module, argv.fn = argv.fn.split('/')
+
         if len(argv.params) > 0:
             if isinstance(argv.params, dict):
                 argv.kwargs = argv.params
@@ -276,10 +275,8 @@ class Module:
                 argv.args = argv.params
             else:
                 raise Exception('Invalid params', argv.params)
-
         module = self.module(argv.module)()
-
-        return getattr(module, argv.fn)(**argv.kwargs)     
+        return getattr(module, argv.fn)(**argv.params)     
         
     def commit_hash(self, lib_path:str = None):
         if lib_path == None:
@@ -295,7 +292,7 @@ class Module:
             module, fn = fn.split('/')
         else:
             assert hasattr(module, fn), f'{fn} not in {module}'
-        module = self.module(module)
+        module = self.module(module)()
         params = params or {}
         fn_obj = getattr(module, fn)
         if 'self' in self.get_args(fn_obj):
@@ -720,7 +717,7 @@ class Module:
         time.sleep(period) 
 
     def fn2code(self, module=None)-> Dict[str, str]:
-        module = self.get_module(module)
+        module = self.module(module)
         functions = self.fns(module)
         fn_code_map = {}
         for fn in functions:
@@ -731,7 +728,7 @@ class Module:
         return fn_code_map
     
     def fn2hash(self, module=None)-> Dict[str, str]:
-        module = self.get_module(module)   
+        module = self.module(module)   
         return {k:self.hash(v) for k,v in self.fn2code(module).items()}
 
     def fn_code(self,fn:str, module=None,**kwargs) -> str:
@@ -788,7 +785,7 @@ class Module:
         '''
         Get function schema of function in self
         '''   
-        module = self.get_module(obj)
+        module = self.module(obj)
         return {fn: self.fn_schema(getattr(module, fn)) for fn in self.fns(module)}
     def source(self, obj, include_code=True):
         """
@@ -811,7 +808,10 @@ class Module:
         if isinstance(obj, str):
             if  '/' in obj:
                 module = '/'.join(obj.split('/')[:-1])
-                obj = getattr(self.module(module), obj.split('/')[-1])
+                module_obj = self.module(module)()
+                print(module_obj, dir(module_obj))
+                fn = obj.split('/')[-1]
+                obj = getattr(module_obj, fn)
             if self.module_exists(obj):
                 obj = self.module(obj)
             elif  hasattr(self, obj):
@@ -879,13 +879,12 @@ class Module:
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
         functions = []
-        obj = self.get_module(obj)
+        obj = self.module(obj)
         for attr in dir(obj):
             if not include_hidden and (attr.startswith('__') or attr.startswith('_')):
                 continue
-            attr_obj = getattr(obj, attr)
-            if callable(attr_obj):
-                functions.append(attr)
+            if search != None and search not in attr:
+                continue
         return functions
         
     def clear_info_history(self):
@@ -984,12 +983,12 @@ class Module:
                 fn = default_fn
                 return getattr(module, default_fn)
             fn_obj = None
-            module = Module()
+            mod = Module()
             if '/' in fn:
-                module = self.module('/'.join(fn.split('/')[:-1]))()
+                mod = self.module('/'.join(fn.split('/')[:-1]))()
                 fn = fn.split('/')[-1]
-            if hasattr(module, fn):
-                fn_obj = getattr(module, fn)
+            if hasattr(mod, fn):
+                fn_obj = getattr(mod, fn)
             elif self.object_exists(fn):
                 fn_obj =  self.obj(fn)
             else:
@@ -1168,10 +1167,12 @@ class Module:
         return objs
 
     def obj(self, key:str=None, splitters:list=['/', '::', '.'], cache=True, **kwargs)-> Any:
+        
         if key == None: 
             return Module
         if not hasattr(self, 'obj_cache'): 
             self.obj_cache = {}
+        self.sync_sys_paths()
         if key in self.obj_cache and cache:
             return self.obj_cache[key]
         from commune.utils import import_object
@@ -1271,11 +1272,11 @@ class Module:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
     
-    def get_modules(self, search=None, **kwargs):
+    def modules(self, search=None, **kwargs):
         return list(self.tree(search=search, **kwargs).keys())
 
     def modules(self, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:  
-        return self.get_modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs) 
+        return self.modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs) 
 
     def num_modules(self, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> int:
         return len(self.modules(search=search, cache=cache, max_age=max_age, update=update, **extra_kwargs))
@@ -1351,12 +1352,10 @@ class Module:
         prompt = 'given {code} '
         return self.module("agent")().ask(prompt)
     
-    def ask(self, *args, module=None,  add_context = True,  **kwargs):
+    def ask(self, *args, module=None, **kwargs):
         if module != None:
             args = [self.code(module)] + list(args)
         text = ' '.join(map(str, args)) 
-        if add_context: 
-            text = text + 'Context ' + str(self.context())
         return self.module("agent")().forward(text, **kwargs) 
 
     def a(self, *args, **kwargs):
@@ -1593,7 +1592,7 @@ class Module:
         return module_path
 
     def git_info(self, path:str = None, name:str = None, n=10):
-        return c.fn('git/git_info', {'path': path, 'name': name, 'n': n})
+        return self.fn('git/git_info', {'path': path, 'name': name, 'n': n})
 
 
     def isrepo(self, module:str = None):
@@ -1621,21 +1620,33 @@ class Module:
         """
         add the functions and classes of the module to the global namespace
         """
-        from functools import partial
+
         globals_input = globals_input or {}
         for k,v in self.__dict__.items():
             globals_input[k] = v     
-        for f in self.fns(Module, mode='self'):
-            def wrapper_fn(f, *args, **kwargs):
-                fn = getattr(Module(), f)
-                return fn(*args, **kwargs)
+        for f in self.fns(self):
+            def wrapper_fn(fn, *args, **kwargs):
+                return getattr(Module(), fn)(*args, **kwargs)
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-    def sync(self,  globals_input=None, max_age=10, update=True, **kwargs):
+    def sync_sys_paths(self):
+        if not hasattr(Module, 'included_pwd_in_path'):
+            self.included_pwd_in_path = False
+        if not self.included_pwd_in_path:
+            paths = [self.modules_path, os.getcwd(),  self.lib_path]
+            for p in paths:
+                if not p in sys.path:
+                    sys.path += [p]
+            self.included_pwd_in_path = True
+        return sys.path
+
+    @classmethod
+    def sync(cls,  globals_input=None, max_age=10, update=True, **kwargs):
         """
         Initialize the module by sycing with the config
         """
+        self = cls()
         # assume the name of this module is the name of .../
         self.repo_name = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
         self.storage_path = os.path.expanduser(f'~/.{self.repo_name}')
@@ -1646,16 +1657,8 @@ class Module:
         self.modules_path = self.modspath = self.core_path + '/_modules'
         self.app_path = self.core_path + '/app'
         self.tests_path = f'{self.lib_path}/tests'
-        if not hasattr(Module, 'included_pwd_in_path'):
-            self.included_pwd_in_path = False
-        if  not self.included_pwd_in_path:
-            paths = [self.modules_path, os.getcwd()]
-            for p in paths:
-                if not p in sys.path:
-                    sys.path.append(p)
-            self.included_pwd_in_path = True
         # config attributes
-        self.config = config = self.config()
+        self.config = config = self.get_config()
         self.core = self.core_modules = config['core'] # the core modules
         self.repo_name  = config['name'] # the name of the library
         self.endpoints = config['endpoints']
@@ -1761,8 +1764,52 @@ class Module:
             return True
         return False
 
-    def main(self):
-        self.module('cli')().forward()
+    def main(self, fn='vs',  
+                module='module', 
+                default_fn = 'forward'):
+
+        # ensure your not in the system home
+        assert not os.path.abspath(os.getcwd()) == self.home_path, 'You are in the system home directory'
+        t0 = time.time()
+        argv = sys.argv[1:]
+        # ---- FUNCTION
+        if len(argv) == 0:
+            argv += [fn]
+        fn = argv.pop(0)
+        local_modules = self.local_modules()
+        if '/' in fn:
+            if fn.startswith('/'):
+                fn = fn[1:]
+            if fn.endswith('/'):
+                fn = fn + default_fn
+            module =  self.module( '/'.join(fn.split('/')[:-1]).replace('/', '.'))()
+            fn = fn.split('/')[-1]
+            fn_obj = getattr(module, fn)
+        else:
+            module = self.module(module)()
+            fn_obj = getattr(module, fn)
+            
+        params = {'args': [], 'kwargs': {}} 
+        parsing_kwargs = False
+        if len(argv) > 0:
+            for arg in argv:
+                if '=' in arg:
+                    parsing_kwargs = True
+                    key, value = arg.split('=')
+                    params['kwargs'][key] = self.str2python(value)
+                else:
+                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                    params['args'].append(self.str2python(arg))        
+        # run thefunction
+        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
+        speed = time.time() - t0
+        module_name = module.__class__.__name__
+        self.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
+        if self.is_generator(result):
+            for item in result:
+                self.print(item, end='')
+        else:
+            self.print(result)
 
     def context(self):
         core_modules = self.config['core']
@@ -1777,4 +1824,5 @@ class Module:
 
 if __name__ == "__main__":
     Module().run()
+
 

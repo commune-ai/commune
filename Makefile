@@ -3,11 +3,11 @@ SCRIPTS_PATH=./scripts
 build:
 	${SCRIPTS_PATH}/start.sh --build
 start:
-	${SCRIPTS_PATH}/start.sh
+	${SCRIPTS_PATH}/start.sh 
 stop:
 	${SCRIPTS_PATH}/stop.sh 
 enter:
-	${SCRIPTS_PATH}/enter.sh
+	${SCRIPTS_PATH}/enter.sh 
 test:
 	${SCRIPTS_PATH}/start.sh --test
 install:
