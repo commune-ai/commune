@@ -342,7 +342,7 @@ class Module:
         return util2path
 
     def routes(self):
-        routes = self.config()['routes']
+        routes = self.config['routes']
         for util in  self.utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -1418,47 +1418,14 @@ class Module:
             url = url + gitsuffix
         return url
 
-    def sync_module(self, url, max_age=10000, update=False):
-        """ 
-        Syncs a module from a git repository
-
-        params:
-            url:
-                - can be a string
-                - a dictionary with the keys 'name' and 'url'
-                -  a list with the first element being the url and the second element being the name
-                
-        returns:
-            - True if the module was synced
-            - False if the module was not synced
-
-        """
-        if isinstance(url, str):
-            name = url.split('/')[-1].replace('.git', '')
-        elif isinstance(url, dict):
-            name = url['name']
-            url = url['url']
-        elif isinstance(url, list):
-            url = url[0]
-            name = url[1]
-        modules_flag_path = 'sync_modules/' + name
-        modules_flag = self.get(modules_flag_path, max_age=max_age, update=update)
-        if modules_flag != None:
-            return True
-        url = self.giturl(url)
-        if name in ['modules', 'mods']:
-            module_path = self.modules_path
-        else:
-            module_path = self.modules_path + '/' + name.replace('.','/')
+    def sync_modules(self, max_age=10000, update=False):
+        url = self.config['modules']
+        module_path = self.modules_path 
         if not os.path.exists(module_path):
             os.makedirs(module_path, exist_ok=True)
-        if os.path.exists(module_path+'/.git'):
-            cmd = f'git pull {url} {module_path}' 
-        else:
+        if not os.path.exists(module_path+'/.git'):
             cmd = f'git clone {url} {module_path}'
-        self.cmd(cmd, cwd=module_path)
-        self.put(modules_flag_path, True)
-        return True
+            self.cmd(cmd, cwd=module_path, verbose=True)
 
     def isref(self, module='datura', expected_features = ['api', 'app', 'code'], suffix_options = ['_url', 'url']):
         try:
@@ -1523,23 +1490,6 @@ class Module:
     def git_info(self, path:str = None, name:str = None, n=10):
         return c.fn('git/git_info', {'path': path, 'name': name, 'n': n})
     
-    def sync_modules(self, max_age=10, update=False):
-        results = []
-        synced_modules = self.get('synced_modules', max_age=max_age, update=update)
-        if synced_modules != None:
-            return synced_modules
-        
-        futures = []
-        for url in self.config()['modules']:
-            params = {'url': url, 'max_age': max_age, 'update': update}
-            futures += [self.submit(self.sync_module, params)]
-        
-        results = []
-        for future in self.as_completed(results):
-            results.append(self.sync_module(url, max_age=max_age, update=update))
-
-        return results
-
     def isrepo(self, module:str = None):
         path = self.dirpath(module)
         return os.path.exists(path + '/.git')
@@ -1600,7 +1550,7 @@ class Module:
             self.included_pwd_in_path = True
 
         # config attributes
-        config = self.config()
+        self.config  = config = self.config()
         self.core = config['core'] # the core modules
         self.repo_name  = config['name'] # the name of the library
         self.endpoints = config['endpoints']
@@ -1608,7 +1558,6 @@ class Module:
         self.port_range = config['port_range'] # the port range between 50050 and 50150
         self.shortcuts =  self.shortys = config["shortcuts"]
         self.sync_routes()
-        self.sync_modules(max_age=max_age, update=update)
 
         if globals_input != None:
             globals_input = self.add_globals(globals_input)

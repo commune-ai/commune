@@ -5,7 +5,7 @@
     "code": "commune-ai/commune.git",
     "app": "communeai.org",
     "core": ["key", "server", "vali", "chain", "client", "cli", "storage"],
-    "modules": ["commune-ai/modules", "commune-ai/app", "commune-ai/chain"],
+    "modules": "commune-ai/modules",
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
