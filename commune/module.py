@@ -329,7 +329,7 @@ class Module:
         return key.verify(data=data, signature=signature, address=address, **kwargs)
 
     def utils(self, search=None):
-        utils = self.path2fns(self.core_path + '/utils.py', tolist=True)
+        utils = self.path2fns(self.root_path + '/utils.py', tolist=True)
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
@@ -1122,7 +1122,7 @@ class Module:
     
     def objectpath2name(self, 
                         p:str,
-                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', ],
+                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', 'core'],
                         avoid_suffixes = ['module', 'mod']):
         chunks = p.split('.')
         if len(chunks) < 2:
@@ -1152,15 +1152,33 @@ class Module:
     def local_tree(self , **kwargs):
         return self.get_tree(os.getcwd(), **kwargs)
 
+    def core_tree(self, **kwargs):
+        return {**self.get_tree(self.core_path,  **kwargs), **self.get_tree(self.lib_path, depth=1, **kwargs)}
+
     def lib_tree(self,**kwargs):
-        return self.get_tree(self.lib_path,  **kwargs)
+        return 
+
+    def modules_tree(self, **kwargs):
+        return self.get_tree(self.modules_path,  **kwargs)
     
-    def get_tree(self, path='./', depth = 10, max_age=60, update=False, **kwargs):
+
+    def tree(self, search=None,  max_age=60,update=False, **kwargs):
+        local_tree = self.local_tree(update=update, max_age=max_age)
+        core_tree = self.core_tree(update=update, max_age=max_age)
+        modules_tree = self.modules_tree(update=update, max_age=max_age)
+        tree = {**local_tree , **modules_tree,  **core_tree, }
+        if search != None:
+            tree = {k:v for k,v in tree.items() if search in k}
+        return tree
+
+
+    def get_tree(self, path='./', depth = 3, max_age=60, update=False, **kwargs):
         """
         Get the tree of the modules in the path
         a tree is a dictionary of the form {module_name: module_path}
         the module_name is based on the directory path 
         """
+    
         path = self.abspath(path)
         path_hash = self.hash(path)
         tree_cache_path = 'tree/'+self.hash(os.path.abspath(path))
@@ -1172,14 +1190,16 @@ class Module:
             self.put(tree_cache_path, tree)
         return tree
     
-    def tree(self, search=None,  max_age=60,update=False, **kwargs):
-        local_tree = self.local_tree(update=update, max_age=max_age)
-        lib_tree = self.lib_tree(update=update, max_age=max_age)
-        tree = { **lib_tree, **local_tree }
-        if search != None:
-            tree = {k:v for k,v in tree.items() if search in k}
-        return tree
+
     
+    def clone_specific_branch_commit(self, repo_url=None, target_dir=None, branch='main', commit_hash=None):
+        repo_url = repo_url or self.config['module']
+        import subprocess
+        cmd = f"git clone --branch {branch} --single-branch {repo_url} {target_dir}"
+        if commit_hash:
+            cmd += f" && cd {target_dir} && git checkout {commit_hash}"
+        return subprocess.run(cmd, shell=True)
+
     def get_modules(self, search=None, **kwargs):
         return list(self.tree(search=search, **kwargs).keys())
 
@@ -1533,12 +1553,12 @@ class Module:
         # assume the name of this module is the name of .../
         self.repo_name = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
         self.storage_path = os.path.expanduser(f'~/.{self.repo_name}')
-        self.core_path  = self.corepath = os.path.dirname(__file__)
+        self.root_path = os.path.dirname(__file__)
+        self.core_path = os.path.dirname(__file__) + '/core' # the path to the core
         self.repo_path  = self.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
         self.lib_path  = self.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
         self.home_path = self.homepath  = os.path.expanduser('~') # the home path
-        self.modules_path = self.modspath = self.core_path + '/modules'
-        self.app_path = self.core_path + '/app'
+        self.modules_path = self.modspath = self.root_path + '/modules'
         self.tests_path = f'{self.lib_path}/tests'
         if not hasattr(Module, 'included_pwd_in_path'):
             self.included_pwd_in_path = False
@@ -1623,6 +1643,13 @@ class Module:
     def hash(self, obj, *args, **kwargs):
         from commune.utils import get_hash
         return get_hash(obj, *args, **kwargs)
+
+
+    def __getattr__(self, k):
+        if k in self.__dict__:
+            return self.__dict__[k]
+        else:
+            raise AttributeError(f'{k} not found in {self.__class__.__name__}')
 
 if __name__ == "__main__":
     Module().run()
