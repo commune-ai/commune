@@ -1574,7 +1574,6 @@ class Module:
         self.core = config['core'] # the core modules
         self.repo_name  = config['name'] # the name of the library
         self.endpoints = config['endpoints']
-        self.core_features = config['core_features']
         self.port_range = config['port_range'] # the port range between 50050 and 50150
         self.shortcuts =  self.shortys = config["shortcuts"]
         self.sync_routes()

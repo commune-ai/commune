@@ -10,7 +10,7 @@ class Storage:
         self.mode = mode
 
     def put(self, path, data):
-        path = self.get_item_path(path)
+        path = self.get_path(path)
         dirpath = '/'.join(path.split('/')[:-1])
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
@@ -19,7 +19,7 @@ class Storage:
         return path
 
     def get(self, path, default=None, max_age=None, update=False):
-        path = self.get_item_path(path)
+        path = self.get_path(path)
         with open(path, 'r') as f:
             data = json.load(f)
         if update:
@@ -29,7 +29,7 @@ class Storage:
                 data = default
         return data
 
-    def get_item_path(self, path):
+    def get_path(self, path):
         if not path.startswith('/'):
             path  = f'{self.storage_dirpath}/{path}'
             if self.mode != None:
@@ -38,7 +38,7 @@ class Storage:
         return path
 
     def rm(self, path):
-        path = self.get_item_path(path)
+        path = self.get_path(path)
         assert os.path.exists(path), f'Failed to find path {path}'
         os.remove(path)
         return path
@@ -62,7 +62,7 @@ class Storage:
         return [self.abspath(p) for p in paths if os.path.isfile(p)]
 
     def exists(self, path):
-        path = self.get_item_path(path)
+        path = self.get_path(path)
         return os.path.exists(path)
         
 
