@@ -1,4 +1,4 @@
-SCRIPTS_PATH=./run
+SCRIPTS_PATH=./scripts
 build:
 	${SCRIPTS_PATH}/start.sh --build
 start:

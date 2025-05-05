@@ -2,10 +2,10 @@ import sys
 import time
 import sys
 from typing import Any
-import commune as c
 import inspect
+import commune as c
 
-class Cli:
+class Cli(c.Module):
 
     def forward(self,
                 fn='vs',  
@@ -14,7 +14,7 @@ class Cli:
         t0 = time.time()
         argv = sys.argv[1:]
         # ---- FUNCTION
-        module = self.module(module)()
+        module = c.module(module)()
         if len(argv) == 0:
             argv += [fn]
 
@@ -50,17 +50,17 @@ class Cli:
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         speed = time.time() - t0
         module_name = module.__class__.__name__
-        self.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
+        c.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
         duration = time.time() - t0
         is_generator = self.is_generator(result)
         if is_generator:
             for item in result:
                 if isinstance(item, dict):
-                    self.print(item)
+                    c.print(item)
                 else:
-                    self.print(item, end='')
+                    c.print(item, end='')
         else:
-            self.print(result)
+            c.print(result)
 
 
     def str2python(self, x):
@@ -131,3 +131,59 @@ class Cli:
         else:
             result =  inspect.isgeneratorfunction(obj)
         return result
+
+
+    def main(self,
+                fn='vs',  
+                module='module', 
+                default_fn = 'forward'):
+        t0 = time.time()
+        argv = sys.argv[1:]
+        # ---- FUNCTION
+        module = self.module(module)()
+        if len(argv) == 0:
+            argv += [fn]
+
+        fn = argv.pop(0)
+
+        if hasattr(module, fn):
+            fn_obj = getattr(module, fn)
+        elif '/' in fn:
+            if fn.startswith('/'):
+                fn = fn[1:]
+            if fn.endswith('/'):
+                fn = fn + default_fn
+            new_module = '/'.join(fn.split('/')[:-1]).replace('/', '.')
+            module =  self.get_module(new_module)()
+            fn = fn.split('/')[-1]
+            fn_obj = getattr(module, fn)
+
+        else:
+            raise Exception(f'Function {fn} not found in module {module}')
+        # ---- PARAMS ----
+        params = {'args': [], 'kwargs': {}} 
+        parsing_kwargs = False
+        if len(argv) > 0:
+            for arg in argv:
+                if '=' in arg:
+                    parsing_kwargs = True
+                    key, value = arg.split('=')
+                    params['kwargs'][key] = self.str2python(value)
+                else:
+                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                    params['args'].append(self.str2python(arg))        
+        # run thefunction
+        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
+        speed = time.time() - t0
+        module_name = module.__class__.__name__
+        self.print(f'Call({module_name}/{fn}, speed={speed:.2f}s)')
+        duration = time.time() - t0
+        is_generator = self.is_generator(result)
+        if is_generator:
+            for item in result:
+                if isinstance(item, dict):
+                    self.print(item)
+                else:
+                    self.print(item, end='')
+        else:
+            self.print(result)
