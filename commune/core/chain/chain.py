@@ -1243,7 +1243,7 @@ class Chain:
         assert isinstance(key, str) or name != None
         name = name or key
         key = self.resolve_key(key)
-        balance = self.balance(key)
+        balance = self.balance(key.ss58_address)
         if balance < min_balance:
             raise ValueError(f'Key {key.ss58_address} has insufficient balance {balance} < {min_balance}')
         subnet = self.resolve_subnet(subnet)
@@ -1262,6 +1262,35 @@ class Chain:
             'netuid': subnet,
         }
         return self.compose_call("update_module", params=params, key=key) 
+    
+
+
+
+    def update_vali(
+        self,
+        key: str,
+        name: str=None,
+        url: str = None,
+        metadata: str = None,
+        delegation_fee: int = None,
+        validator_weight_fee = None,
+        subnet = 0,
+        min_balance = 10,
+        public = False,
+
+    ) -> ExtrinsicReceipt:
+
+        return self.update_module(
+            key=key,
+            name=name,
+            url=url,
+            metadata=metadata,
+            delegation_fee=delegation_fee,
+            validator_weight_fee=validator_weight_fee,
+            subnet=subnet,
+            min_balance=min_balance,
+            public=public
+        )
     
 
     updatemod = upmod = update_module
@@ -1908,6 +1937,22 @@ class Chain:
         weights = {netuid2subnet.get(k):v for k,v in weights}
         weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)
         return weights
+
+
+    def val2subnet(self) -> dict[int, list[tuple[int, int]]]:
+        """
+        Retrieves a mapping of validator weights to subnets.
+        """
+        weights = self.weights()
+        netuid2subnet = self.netuid2subnet()
+        val2subnet = {}
+        for k, v in weights.items():
+            for kk, vv in v:
+                if not kk in val2subnet:
+                    val2subnet[kk] = []
+                val2subnet[kk].append((netuid2subnet.get(k), vv))
+        return val2subnet
+
 
     def addresses( self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False ) -> dict[int, str]:
         subnet = self.resolve_subnet(subnet)
@@ -2577,7 +2622,11 @@ class Chain:
               features=['name', 'key', 'stake_from', 'weights'],
               **kwargs):
          
-        valis =  self.modules(subnet=subnet , max_age=max_age, features=features, update=update, **kwargs)
+        valis =  self.modules(subnet=subnet , 
+                              max_age=max_age, 
+                              features=features, 
+                              update=update, 
+                              **kwargs)
         
         if search != None:
             valis = [v for v in valis if search in v['name'] or search in v['key'] ]
@@ -2586,7 +2635,6 @@ class Chain:
             v = valis[i]
             v['stake'] =   round(sum((v.get('stake_from', {}) or {}).values()) / 10**9, 2)
             valis[i] = v
-
             
         valis = [v for v in valis if v['stake'] >= min_stake]
         valis = sorted(valis, key=lambda x: x["stake"], reverse=True)

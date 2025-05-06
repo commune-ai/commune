@@ -5,7 +5,7 @@ description = "Gobal toolbox that allows you to connect and share any tool (modu
 authors = ["commune ai organization <contact@communeai.org>"]
 license = "MITehe"
 readme = "README.md"
-packages = [{ include = "commune" }]
+packages = [{ include = "commune"}]
 repository = "https://github.com/commune-ai/commune"
 homepage = "https://communeai.org/"
 

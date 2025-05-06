@@ -115,6 +115,7 @@ class Server:
         data['client'] = self.auth.verify_headers(headers=headers, data=params) # verify the headers
         self.rate_limit(data)   # check the rate limit
         fn_obj = getattr(self.module, fn)
+        args, kwargs = params['args'], params['kwargs']
         result = fn_obj(*args, **kwargs) if callable(fn_obj) else fn_obj
         if c.is_generator(result):
             output = str(result)

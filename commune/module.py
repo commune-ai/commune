@@ -35,17 +35,10 @@ class Module:
         # Normalize path
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
-        tree = self.tree(update=1)
-        module = self.tree().get(module, module)
-
-        if module in tree:
-            obj = self.obj(module)
-        else:
-            if module not in tree:
-                tree_keys = [k for k in tree.keys() if module.endswith(k) or k.endswith(module)]
-                if tree_keys:
-                    module = tree.get(tree_keys[0])
-            obj = self.obj(module)
+        tree = self.tree()
+        module = tree.get(module, module)
+        
+        obj = self.obj(module)
         # Apply parameters if provided
         if isinstance(params, dict):
             obj = obj(**params)
@@ -704,7 +697,7 @@ class Module:
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None, **kwargs)->dict:
+    def schema(self, obj = None, verbose=False, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
@@ -713,7 +706,13 @@ class Module:
         else:
             module = self.resolve_module(obj)
             fns = self.fns(module)
-            schema = {fn: self.fnschema(getattr(module, fn)) for fn in fns}
+            schema = {}
+            for fn in fns:
+                try:
+                    schema[fn] = self.fnschema(getattr(module, fn), **kwargs)
+                except Exception as e:
+                    self.print(f'Error {e} {fn}', color='red', verbose=verbose)
+                
         return schema
  
     def resolve_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
@@ -733,16 +732,18 @@ class Module:
     def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return inspect.getsource(self.resolve_obj(obj))
     
-    def codemap(self, module = None , search=None, *args, **kwargs) ->  Dict[str, str]:
+    def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
         path = dirpath if self.is_module_folder(module) else self.filepath(module)
         code_map = self.file2text(path)
         code_map = {k[len(dirpath+'/'): ]:v for k,v in code_map.items()}
+        # ignore if .modules. is in the path
+        code_map = {k:v for k,v in code_map.items() if not any(['/'+f+'/' in k for f in ignore_folders])}
+        
         return code_map
 
-    def code_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
-        return self.codemap(module=module, search=search,**kwargs)
-    
+    codemap = code_map
+
     def code_hash_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
         return {k:self.hash(str(v)) for k,v in self.code_map(module=module, search=search,**kwargs).items()}
 
@@ -818,9 +819,37 @@ class Module:
             name = str(name)
         return self.get_path('info/' + name)
 
+
+    def module2fns(self,max_age=30, update=False, core=True) -> List[str]:
+        module2schema = self.module2schema(max_age=max_age, update=update, core=core)
+        module2fns = {}
+        for module in module2schema:
+            module2fns[module] = list(module2schema[module].keys())
+        return module2fns
+    
+    def fn2module(self, max_age=30, update=False, core=True) -> List[str]:
+        module2fns = self.module2fns(max_age=max_age, update=update, core=core)
+        fn2module = {}
+        for module in module2fns:
+            for fn in module2fns[module]:
+                fn2module[fn] = module
+        return fn2module
+
+    def module2schema(self,max_age=30, update=False, core=True) -> List[str]:
+        module2schema = self.get('module2schema', None, max_age=max_age, update=update)
+        if module2schema == None:
+            modules = self.core_modules if core else self.modules()
+            module2schema = {}
+            for module in modules:
+                module2schema[module] = self.schema(module)
+            self.put('module2schema', module2schema)
+        return module2schema 
+
+
+
      
     def info(self, module:str='module',  # fam
-            lite: bool =True, 
+            lite: bool =False, 
             max_age : Optional[int]=1000, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
@@ -845,9 +874,7 @@ class Module:
                     'cid': self.cid(module),
                     'time': time.time()
                     }
-           
             info['signature'] = self.sign(module)
-
             self.put(path, info)
         if lite:
             info = {k: v for k,v in info.items() if k in lite_features}
@@ -901,7 +928,8 @@ class Module:
             elif self.object_exists(fn):
                 fn_obj =  self.obj(fn)
             else:
-                raise Exception(f'{fn} is not a function or object')
+                raise Exception(f'{fn} not found in {module}')
+                
         elif callable(fn):
             fn_obj = fn
         else:
@@ -1168,11 +1196,9 @@ class Module:
     def core_tree(self, **kwargs):
         return {**self.get_tree(self.core_path,  **kwargs)}
 
-
     def modules_tree(self, **kwargs):
         return self.get_tree(self.modules_path, depth=10,  **kwargs)
     
-
     def tree(self, search=None,  max_age=60,update=False, **kwargs):
         local_tree = self.local_tree(update=update, max_age=max_age)
         core_tree = self.core_tree(update=update, max_age=max_age)
@@ -1196,7 +1222,10 @@ class Module:
         tree = self.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
             class_paths = self.classes(path, depth=depth)
+            filter_path = lambda p: p.replace('src.', '') if p.startswith('src.' + self.repo_name) else p
+            class_paths = [filter_path(p) for p in class_paths]
             simple_paths = [self.objectpath2name(p) for p in class_paths]
+
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
         return tree
@@ -1493,7 +1522,7 @@ class Module:
             self.print('Aborting')
             return False
     
-    def refs(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
+    def links(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
         modules = self.modules()
         filtered_modules = []
         for module in modules:
@@ -1533,7 +1562,37 @@ class Module:
             self.cmd(f'git pull {module} {name}')
         return {'success': True, 'msg': 'pushed module'}
 
-    
+
+    def add_mod(self, module:str = 'dev', name:str = None):
+        repo2path = self.repo2path()
+        if module not in repo2path:
+            raise Exception(f'Module {module} does not exist')
+        from_path = repo2path[module]
+        # add to modules_path 
+        to_path =  self.modules_path + '/' + module.replace('.', '/')
+        if os.path.exists(to_path):
+            self.rm(to_path)
+        self.cp(from_path, to_path)
+        git_path = to_path + '/.git'
+        if os.path.exists(git_path):
+            self.rm(git_path)
+        assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+        self.tree(update=1)
+        return {'success': True, 'msg': 'added module', 'from': from_path, 'to': to_path}
+
+
+    def rm_mod(self, module:str = 'dev'):
+        """
+        Remove the module from the git repository
+        """
+        path = self.dirpath(module)
+        if not os.path.exists(path):
+            raise Exception(f'Module {path} does not exist')
+        self.rm(path)
+        return {'success': True, 'msg': 'removed module'}
+
+    rmmod = rm_mod
+    addmod = add_mod
 
     def add_globals(self, globals_input:dict = None):
         """
@@ -1557,19 +1616,18 @@ class Module:
         Initialize the module by sycing with the config
         """
         # assume the name of this module is the name of .../
-        self.repo_name = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
+        self.repo_name = os.path.dirname(os.path.abspath(__file__))
         self.storage_path = os.path.expanduser(f'~/.{self.repo_name}')
-        self.root_path = os.path.dirname(__file__)
-        self.core_path = os.path.dirname(__file__) + '/core' # the path to the core
-        self.repo_path  = self.repopath = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
-        self.lib_path  = self.libpath = os.path.dirname(os.path.dirname(__file__)) # the path to the library
+        self.root_path =os.path.dirname(__file__)
+        self.core_path = self.root_path + '/core' # the path to the core
+        self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
         self.home_path = self.homepath  = os.path.expanduser('~') # the home path
         self.modules_path = self.modspath = self.root_path + '/modules'
         self.tests_path = f'{self.lib_path}/tests'
 
         # config attributes
         self.config  = config = self.get_config()
-        self.core = config['core'] # the core modules
+        self.core_modules = config['core_modules'] # the core modules
         self.repo_name  = config['repo_name'] # the name of the library
         self.endpoints = config['endpoints']
         self.port_range = config['port_range'] # the port range between 50050 and 50150

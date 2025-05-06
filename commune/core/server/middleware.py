@@ -55,7 +55,6 @@ class Middleware(BaseHTTPMiddleware):
                 # Parse the body to verify it against the token
                 try:
                     body_json = json.loads(body)
-                    print(headers, body_json)
                     # Verify the token matches the request data
                     verified = self.auth.verify_headers(headers, data=body_json)
                     
