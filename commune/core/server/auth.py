@@ -6,7 +6,8 @@ from typing import Dict, Optional, Any
 
 import commune as c
 
-class JWT:
+class Auth:
+    description = 'auth'
 
     def get_headers(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
         """

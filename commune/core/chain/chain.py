@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 import queue
 import re
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -696,7 +697,7 @@ class Chain:
         """
         c.print(f'QueryBatchMap({functions})', verbose=verbose)
         if path != None:
-            path = self.resolve_path(f'{self.network}/query_batch_map/{path}')
+            path = self.get_path(f'{self.network}/query_batch_map/{path}')
             return c.get(path, max_age=max_age, update=update)
         multi_result: dict[str, dict[Any, Any]] = {}
 
@@ -817,7 +818,7 @@ class Chain:
 
         if name == 'Weights':
             module = 'SubnetEmissionModule'
-        path =  self.resolve_path(f'{self.network}/query_map/{module}/{name}_params={params}')
+        path =  self.get_path(f'{self.network}/query_map/{module}/{name}_params={params}')
         result = c.get(path, None, max_age=max_age, update=update)
         if result == None:
             result = self.query_batch_map({module: [(name, params)]}, block_hash)
@@ -873,7 +874,7 @@ class Chain:
                                 value=value)
 
 
-    def compose_call(
+    def call(
         self,
         fn: str,
         params: dict[str, Any],
@@ -881,10 +882,10 @@ class Chain:
         module: str = "SubspaceModule",
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
+        multisig = None,
         sudo: bool = False,
         tip = 0,
         nonce=None,
-        unsigned: bool = False,
     ) -> ExtrinsicReceipt:
         """
         Composes and submits a call to the network node.
@@ -912,38 +913,35 @@ class Chain:
             ChainTransactionError: If the transaction fails.
         """
 
-        key = self.resolve_key(key)
+        key = self.get_key(key)
         
         c.print(f'Calling(module={module} fn={fn} network={self.network} key={key.key_address} params={params}', color='blue')
 
-        if key is None and not unsigned:
-            raise ValueError("Key must be provided for signed extrinsics.")
-
         with self.get_conn() as substrate:
-            if wait_for_finalization is None:
-                wait_for_finalization = self.wait_for_finalization
+
+    
 
             call = substrate.compose_call(  # type: ignore
-                call_module=module, call_function=fn, call_params=params
+                call_module=module, 
+                call_function=fn, 
+                call_params=params
             )
             if sudo:
-                call = substrate.compose_call(  # type: ignore
-                    call_module="Sudo",
-                    call_function="sudo",
-                    call_params={
-                        "call": call.value,  # type: ignore
-                    },
-                )
+                call = substrate.compose_call(call_module="Sudo", call_function="sudo", call_params={"call": call.value})
 
-            if not unsigned:
-                extrinsic = substrate.create_signed_extrinsic(  # type: ignore
-                    call=call, 
-                    keypair=key, # type: ignore
-                    nonce=nonce,
-                    tip=tip
-                )  # type: ignore
+            if multisig != None:
+                multisig = self.get_multisig(multisig)
+                print('Creating multisig extrinsic with --->', multisig)
+                # send the multisig extrinsic
+                extrinsic = substrate.create_multisig_extrinsic(  
+                                                                call=call,   
+                                                                keypair=key, 
+                                                                multisig_account=multisig, 
+                                                                era=None,  # type: ignore
+                )
             else:
-                extrinsic = substrate.create_unsigned_extrinsic(call=call)  # type: ignore
+                extrinsic = substrate.create_signed_extrinsic(call=call, keypair=key, nonce=nonce, tip=tip)  # type: ignore
+
 
             response = substrate.submit_extrinsic(
                 extrinsic=extrinsic,
@@ -959,20 +957,21 @@ class Chain:
         if wait_for_finalization:
             response.process_events()
             if response.is_success:
-                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'module': module, 'fn':fn, 'url': self.url,  'network': self.network, 'key':key.ss58_address }
             else:
-                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                response =  {'success': False, 'error': response.error_message, 'module': module, 'fn':fn, 'url': self.url,  'network': self.network, 'key':key.ss58_address }
         return response
 
 
  
-    def compose_call_multisig(
+    def call_multisig(
         self,
         fn: str,
         params: dict[str, Any],
         key: Keypair,
-        signatories: list[Ss58Address],
-        threshold: int,
+        multisig = None,
+        signatories: list[Ss58Address]=None,
+        threshold: int = None,
         module: str = "SubspaceModule",
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = None,
@@ -1017,15 +1016,12 @@ class Chain:
 
         # getting the call ready
         with self.get_conn() as substrate:
-            if wait_for_finalization is None:
-                wait_for_finalization = self.wait_for_finalization
-
             # prepares the `GenericCall` object
-            call = substrate.compose_call(  # type: ignore
+            call = substrate.call(  # type: ignore
                 call_module=module, call_function=fn, call_params=params
             )
             if sudo:
-                call = substrate.compose_call(  # type: ignore
+                call = substrate.call(  # type: ignore
                     call_module="Sudo",
                     call_function="sudo",
                     call_params={
@@ -1033,23 +1029,15 @@ class Chain:
                     },
                 )
 
-            # modify the rpc methods at runtime, to allow for correct payment
-            # fee calculation parity has a bug in this version,
-            # where the method has to be removed
-            rpc_methods = substrate.config.get("rpc_methods")  # type: ignore
-            rpc_methods.pop("state_call", None)  # type: ignore # remove the method
             # create the multisig account
-            multisig_acc = substrate.generate_multisig_account(  # type: ignore
-                signatories, threshold
-            )
-
-            # send the multisig extrinsic
-            extrinsic = substrate.create_multisig_extrinsic(  # type: ignore
-                call=call,  # type: ignore
-                keypair=key,
-                multisig_account=multisig_acc,  # type: ignore
-                era=era,  # type: ignore
-            )  # type: ignore
+            if multisig != None :
+                # send the multisig extrinsic
+                extrinsic = substrate.create_multisig_extrinsic(  # type: ignore
+                    call=call,  # type: ignore
+                    keypair=key,
+                    multisig_account=multisig,  # type: ignore
+                    era=era,  # type: ignore
+                )  # type: ignore
 
             response = substrate.submit_extrinsic(
                 extrinsic=extrinsic,
@@ -1064,12 +1052,98 @@ class Chain:
                 )
 
         return response
+
+
+    def get_multisig_path(self, multisig):
+        return self.get_path(f'multisig/{multisig}')
+
+    def get_multisig_data(self, multisig):
+        if multisig == 'sudo':
+            return self.sudo_multisig_data
+        if isinstance(multisig, str):
+            multisig = c.get(self.get_multisig_path(multisig))
+            assert isinstance(multisig, dict)
+        return multisig
+
+
+    def get_multisig(self, multisig):
+        if isinstance(multisig, str):
+            multisig = self.multisigs().get(multisig)
+        if isinstance(multisig, dict):
+            return self.multisig(multisig.get('keys'),  multisig.get('threshold'))
+
+        return multisig
+
+
+    def check_multisig(self, multisig):
+        if isinstance(multisig, str):
+            multisig = self.get_multisig(multisig)
+        if isinstance(multisig, dict):
+            keys = multisig.get('signatories', multisig.get('keys'))
+            threshold = multisig.get('threshold')
+            assert len(keys) >= threshold
+            assert len(keys) > 0
+            return True
+        return False
+
+    def put_multisig(self, name='old_sudo', multisig = {'keys': [
+        "5GnXkyoCGVHD7PL3ZRGM2oELpUhDG6HFqAHZT3hHTmFD8CZF",  
+        "5HYB5wVSTfnnpdZhCghk4qpoz8AjZzRiJNXdTLVNkZme18nN",  
+        "5DAFjxqp9anjBNJfji2eLsYAj8L1tjsT4kfnFNpbhZtvA9u5",  
+        "5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC",  
+        "5Ccp9v5nwQTHhbe7uc2qKu5sv86YZ9wVEwGNCTcSWozPvUV1",  
+    ]
+, 'threshold': 3}):
+        multisig['keys'] = [self.get_key_address(k) for k in multisig['keys']]
+        assert self.check_multisig(multisig)
+        path = self.get_multisig_path(name)
+        print('put_multisig', multisig)
+        return c.put(path, multisig)
+
+
+    def bro(self):
+        for p in c.ls('~/.commune22/key'):
+            try: 
+                data = c.get(p)
+                if data['ss58_address'] == '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC':
+                    print(data['ss58_address'] ,p)
+            except Exception as e:
+                print(e)
+                pass
+
+    def multisig_exists(self, multisig):
+        if isinstance(multisig, str):
+            multisig = self.get_multisig(multisig)
+        if isinstance(multisig, dict):
+            self.check_multisig(multisig)
+        return False
+
+    def multisigs(self):
+        path = self.get_path(f'multisig')
+        paths = c.ls(path)
+        multisigs = {}
+        for p in paths:
+            multisig = c.get(p, None)
+            if multisig != None:
+                multisigs[p.split('/')[-1].split('.')[-2]] = self.get_multisig_data(multisig)
+
+        # add sudo multisig
+        multisigs['sudo'] = self.sudo_multisig_data
+
+        for k, v in multisigs.items():
+            if isinstance(v, dict):
+                multisig_address = self.multisig(v).ss58_address
+                multisigs[k]['address'] = multisig_address
+        return multisigs
+
+    mss = multisigs
     
     def transfer(
         self,
         key: Keypair,
         dest: Ss58Address,
         amount: int,
+        multisig = None,
     ) -> ExtrinsicReceipt:
         """
         Transfers a specified amount of tokens from the signer's account to the
@@ -1088,14 +1162,15 @@ class Chain:
               enough balance.
             ChainTransactionError: If the transaction fails.
         """
-        dest = self.resolve_key_address(dest)
+        dest = self.get_key_address(dest)
         params = {"dest": dest, "value": self.to_nanos(amount)}
-        return self.compose_call( module="Balances", fn="transfer_keep_alive", params=params, key=key)
+        return self.call( module="Balances", fn="transfer_keep_alive", params=params, key=key, multisig=multisig)
     def send(
         self,
         key: Keypair,
         dest: Ss58Address,
         amount: int,
+        multisig = None,
     ) -> ExtrinsicReceipt:
         """
         Transfers a specified amount of tokens from the signer's account to the
@@ -1114,7 +1189,7 @@ class Chain:
               enough balance.
             ChainTransactionError: If the transaction fails.
         """
-        return self.transfer(key=key, dest=dest, amount=amount)
+        return self.transfer(key=key, dest=dest, amount=amount, multisig=multisig)
 
     def to_nanos(self, amount):
         return amount * 10**9
@@ -1155,7 +1230,7 @@ class Chain:
             "amounts": amounts,
         }
 
-        return self.compose_call(module="SubspaceModule", fn="transfer_multiple", params=params, key=key )
+        return self.call(module="SubspaceModule", fn="transfer_multiple", params=params, key=key )
     
     def get_stake(self, key=None):
         return sum(list(self.get_stake_from(key).values()))
@@ -1165,6 +1240,29 @@ class Chain:
         my_balance = self.my_balance()
         my_tokens =  {k:my_stake.get(k,0) + my_balance.get(k,0) for k in set(my_stake)}
         return dict(sorted({k:v for k,v in my_tokens.items() if v > min_value}.items(), key=lambda x: x[1], reverse=True))
+
+
+    def wallets(self,  max_age=600, update=0):
+        my_stake = self.my_stake(update=update, max_age=max_age)
+        my_balance = self.my_balance(update=update, max_age=max_age)
+        key2address = c.key2address()
+        wallets = []
+        wallet_names = set(list(my_stake) + list(my_balance))
+        for k in wallet_names:
+            address = key2address[k]
+            balance = my_balance.get(k, 0)
+            stake = my_stake.get(k, 0)
+            total = balance + stake
+            wallets.append({'name': k , 'address': address, 'balance': balance, 'stake': stake, 'total': total})
+
+        # add total balance to each wallet
+        wallets += [{'name': 'PORTFOLIO', 'address': '--', 'balance': sum([w['balance'] for w in wallets]), 'stake': sum([w['stake'] for w in wallets]), 'total': sum([w['total'] for w in wallets])}]
+        wallets = c.df(wallets)
+        wallets = wallets.sort_values(by='total', ascending=False)
+        wallets = wallets.reset_index(drop=True)
+        return wallets
+
+
         
     def my_total(self):
         return sum(self.my_tokens().values())
@@ -1211,7 +1309,7 @@ class Chain:
 
         params = {"amount": amount * 10**9, "module_key": dest}
 
-        return self.compose_call(fn="add_stake", params=params, key=key)
+        return self.call(fn="add_stake", params=params, key=key)
 
     def unstake(
         self,
@@ -1224,7 +1322,7 @@ class Chain:
         Unstakes the specified amount of tokens from a module key address.
         """
         params = {"amount":  amount*(10**9), "module_key": dest}
-        return self.compose_call(fn="remove_stake", params=params, key=key)
+        return self.call(fn="remove_stake", params=params, key=key)
     
 
     def update_module(
@@ -1242,11 +1340,11 @@ class Chain:
     ) -> ExtrinsicReceipt:
         assert isinstance(key, str) or name != None
         name = name or key
-        key = self.resolve_key(key)
+        key = self.get_key(key)
         balance = self.balance(key.ss58_address)
         if balance < min_balance:
             raise ValueError(f'Key {key.ss58_address} has insufficient balance {balance} < {min_balance}')
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         if url == None:
             url = c.namespace().get(name, '0.0.0.0:8888')
         url = url if public else ('0.0.0.0:' + url.split(':')[-1])
@@ -1261,7 +1359,7 @@ class Chain:
             'validator_weight_fee': validator_weight_fee,
             'netuid': subnet,
         }
-        return self.compose_call("update_module", params=params, key=key) 
+        return self.call("update_module", params=params, key=key) 
     
 
 
@@ -1328,13 +1426,13 @@ class Chain:
             port = url.split(':')[-1]
             url = ip +':'+ port
         params = {
-            "network_name": self.resolve_subnet_name(subnet),
+            "network_name": self.get_subnet_name(subnet),
             "address":  url,
             "name": name,
             "module_key": module_key,
             "metadata": metadata,
         }
-        return  self.compose_call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
+        return  self.call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
 
     def dereg(self, key: Keypair, subnet: int=0):
         return self.deregister(key=key, subnet=subnet)
@@ -1359,11 +1457,11 @@ class Chain:
         Raises:
             ChainTransactionError: If the transaction fails.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         
         params = {"netuid": subnet}
 
-        response = self.compose_call("deregister", params=params, key=key)
+        response = self.call("deregister", params=params, key=key)
 
         return response
     
@@ -1387,7 +1485,7 @@ class Chain:
             "name": name,
             "metadata": metadata,
         }
-        response = self.compose_call("register_subnet", params=params, key=key)
+        response = self.call("register_subnet", params=params, key=key)
         return response
     
     regnet = register_subnet
@@ -1419,12 +1517,12 @@ class Chain:
                 do not match.
             ChainTransactionError: If the transaction fails.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         assert len(modules) == len(weights)
         key2uid = self.key2uid(subnet)
         uids = [key2uid.get(m, m) for m in modules]
         params = {"uids": uids,"weights": weights,"netuid": subnet}
-        response = self.compose_call("set_weights", params=params, key=key, module="SubnetEmissionModule")
+        response = self.call("set_weights", params=params, key=key, module="SubnetEmissionModule")
         return response
     
     def set_weights(
@@ -1459,7 +1557,7 @@ class Chain:
             AuthorizationError: If the key is not authorized.
             ChainTransactionError: If the transaction fails.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         original_params = self.params(subnet=subnet, update=True)
         # ensure founder key
         address2key = c.address2key()
@@ -1469,13 +1567,13 @@ class Chain:
 
         params = {**(params or {}), **extra_params} 
         if 'founder' in params:
-            params['founder'] = self.resolve_key_address(params['founder'])
+            params['founder'] = self.get_key_address(params['founder'])
         params = {**original_params, **params} # update original params with params
         assert any([k in original_params for k in params.keys()]), f'Invalid params {params.keys()}'
         params["netuid"] = subnet
         params['vote_mode'] = params.pop('governance_configuration')['vote_mode']
         params["metadata"] = params.pop("metadata", None)
-        return self.compose_call(fn="update_subnet",params=params,key=key)
+        return self.call(fn="update_subnet",params=params,key=key)
 
     def metadata(self, subnet=2) -> str:
         metadata = self.query_map('Metadata', [subnet])
@@ -1524,7 +1622,7 @@ class Chain:
             "new_module_key": dest_module_address,
         }
 
-        response = self.compose_call("transfer_stake", key=key, params=params)
+        response = self.call("transfer_stake", key=key, params=params)
 
         return response
     
@@ -1562,7 +1660,7 @@ class Chain:
 
         params = {"module_keys": keys, "amounts": amounts}
 
-        response = self.compose_call("remove_stake_multiple", params=params, key=key)
+        response = self.call("remove_stake_multiple", params=params, key=key)
 
         return response
 
@@ -1600,7 +1698,7 @@ class Chain:
             "amounts": amounts,
         }
 
-        response = self.compose_call("add_stake_multiple", params=params, key=key)
+        response = self.call("add_stake_multiple", params=params, key=key)
 
         return response
 
@@ -1636,7 +1734,7 @@ class Chain:
 
         params = {"keys": keys, "shares": shares}
 
-        response = self.compose_call("add_profit_shares", params=params, key=key)
+        response = self.call("add_profit_shares", params=params, key=key)
 
         return response
 
@@ -1666,7 +1764,7 @@ class Chain:
                 parameters are invalid.
             ChainTransactionError: If the transaction fails.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         general_params = dict(params)
         general_params["netuid"] = subnet
         general_params["data"] = ipfs
@@ -1674,7 +1772,7 @@ class Chain:
             general_params["metadata"] = None
 
         # general_params["burn_config"] = json.dumps(general_params["burn_config"])
-        response = self.compose_call(
+        response = self.call(
             fn="add_params_proposal",
             params=general_params,
             key=key,
@@ -1691,7 +1789,7 @@ class Chain:
 
         params = {"data": cid}
 
-        response = self.compose_call(
+        response = self.call(
             fn="add_global_custom_proposal",
             params=params,
             key=key,
@@ -1710,7 +1808,7 @@ class Chain:
         network.
 
         The proposal includes various parameters like the name, founder, share
-        allocations, and other subnet-specific settings.
+        allocations, and other subnet-specific settings.c
 
         Args:
             key: The keypair used for signing the proposal transaction.
@@ -1721,13 +1819,13 @@ class Chain:
             A receipt of the subnet proposal transaction.
         """
 
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         params = {
             "data": cid,
             "netuid": subnet,
         }
 
-        response = self.compose_call(
+        response = self.call(
             fn="add_subnet_custom_proposal",
             params=params,
             key=key,
@@ -1769,7 +1867,7 @@ class Chain:
         cid = cid or ""
         general_params["data"] = cid
 
-        response = self.compose_call(
+        response = self.call(
             fn="add_global_params_proposal",
             params=general_params,
             key=key,
@@ -1802,7 +1900,7 @@ class Chain:
 
         params = {"proposal_id": proposal_id, "agree": agree}
 
-        response = self.compose_call(
+        response = self.call(
             "vote_proposal",
             key=key,
             params=params,
@@ -1836,7 +1934,7 @@ class Chain:
 
         params = {"proposal_id": proposal_id}
 
-        response = self.compose_call(
+        response = self.call(
             "remove_vote_proposal",
             key=key,
             params=params,
@@ -1859,7 +1957,7 @@ class Chain:
             ChainTransactionError: If the transaction fails.
         """
 
-        response = self.compose_call(
+        response = self.call(
             "enable_vote_power_delegation",
             params={},
             key=key,
@@ -1882,7 +1980,7 @@ class Chain:
             ChainTransactionError: If the transaction fails.
         """
 
-        response = self.compose_call(
+        response = self.call(
             "disable_vote_power_delegation",
             params={},
             key=key,
@@ -1911,7 +2009,7 @@ class Chain:
 
         params = {"application_key": application_key, "data": data}
 
-        response = self.compose_call(
+        response = self.call(
             "add_dao_application", module="GovernanceModule", key=key,
             params=params
         )
@@ -1926,12 +2024,12 @@ class Chain:
         return applications
 
     def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]]:
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         weights_dict = self.query_map("Weights",[subnet],extract_value=extract_value, module='SubnetEmissionModule')
         return weights_dict
 
     def root_weights(self, key: str=None, extract_value: bool = False):
-        key_address = self.resolve_key_address(key)
+        key_address = self.get_key_address(key)
         weights = self.module(key_address, subnet=0)['weights']
         netuid2subnet = self.netuid2subnet()
         weights = {netuid2subnet.get(k):v for k,v in weights}
@@ -1955,7 +2053,7 @@ class Chain:
 
 
     def addresses( self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False ) -> dict[int, str]:
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         addresses = self.query_map("Address", [subnet], extract_value=extract_value, max_age=max_age, update=update)
         sorted_uids = list(sorted(list(addresses.keys())))
         return [addresses[uid] for uid in sorted_uids]
@@ -1969,7 +2067,7 @@ class Chain:
         return state
     def subnet(self,subnet=0, update=False, max_age=60):
         futures = []
-        path = self.resolve_path(f'{self.network}/subnet_state/{subnet}')
+        path = self.get_path(f'{self.network}/subnet_state/{subnet}')
         state = c.get(path, max_age=max_age, update=update)
         if state == None:
             c.print(f"subnet_state: {path} not found")
@@ -1986,7 +2084,7 @@ class Chain:
         """
         Retrieves a mapping of stakes from various sources for keys on the network.
         """
-        params = [self.resolve_key_address(key)] if key else []
+        params = [self.get_key_address(key)] if key else []
         result = self.query_map("StakeFrom", params, extract_value=extract_value, **kwargs)
         return self.format_amount(result, fmt=fmt)
 
@@ -2039,7 +2137,7 @@ class Chain:
         return self.subnet2netuid(max_age=max_age, update=update, **kwargs)
 
 
-    def resolve_subnet(self, subnet: str) -> int:
+    def get_subnet(self, subnet: str) -> int:
         subnet_map = self.subnet_map()
         subnet_map_lower = {k.lower():v for k,v in subnet_map.items()}
         netuid2name = {v:k for k,v in subnet_map.items()}
@@ -2050,8 +2148,8 @@ class Chain:
         assert subnet in netuid2name, f"Subnet {subnet} not found"
         return subnet
 
-    def resolve_subnet_name(self, subnet: str) -> int:
-        subnet = self.resolve_subnet(subnet)
+    def get_subnet_name(self, subnet: str) -> int:
+        subnet = self.get_subnet(subnet)
         subnet_map = self.subnet_map()
         netuid2name = {v:k for k,v in subnet_map.items()}
         if subnet in netuid2name:
@@ -2060,7 +2158,7 @@ class Chain:
         assert subnet in subnet_map, f"Subnet {subnet} not found, {subnet_map}"
         return subnet
 
-    def resolve_subnet(self, subnet:Optional[str]=None) -> int:
+    def get_subnet(self, subnet:Optional[str]=None) -> int:
         subnet = subnet or 0 
         if c.is_int(subnet):
             subnet = int(subnet)
@@ -2076,8 +2174,6 @@ class Chain:
                 
         return subnet
     
-    def subnets(self):
-        return self.subnet_names()
 
     def get_balances(
         self, key_addresses=None, extract_value: bool = False, block_hash: str = None
@@ -2092,7 +2188,7 @@ class Chain:
         return balances
     
     def my_balance(self, batch_size=128, timeout=120, max_age=6000, update=False, num_connections=10):
-        path = self.resolve_path(f'{self.network}/my_balance')
+        path = self.get_path(f'{self.network}/my_balance')
         balances = c.get(path, None, update=update, max_age=max_age)
         if balances == None:
 
@@ -2136,7 +2232,7 @@ class Chain:
         """
         Retrieves a mapping of names for keys on the network.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         names =  self.query_map("Name", [subnet], extract_value=extract_value, max_age=max_age, update=update)
         names = {int(k):v for k,v in names.items()}
         names = dict(sorted(names.items(), key=lambda x: x[0]))
@@ -2161,8 +2257,8 @@ class Chain:
         return self.query("DaoTreasuryAddress", module="GovernanceModule")
 
     def namespace(self, subnet: int = 0, search=None, update=False, max_age=60) -> Dict[str, str]:
-        subnet = self.resolve_subnet(subnet)
-        path = self.resolve_path(f'{self.network}/namespace/{subnet}')
+        subnet = self.get_subnet(subnet)
+        path = self.get_path(f'{self.network}/namespace/{subnet}')
         namespace = c.get(path,None, max_age=max_age, update=update)
         if namespace == None:
             results =  self.query_batch_map({'SubspaceModule': [('Name', [subnet]), ('Address', [subnet])]})
@@ -2174,16 +2270,13 @@ class Chain:
         if search:
             namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
-    
-    def global_dao_treasury(self):
-        return self.query("GlobalDaoTreasury", module="GovernanceModule")
 
     def n(self, subnet: int = 0, max_age=60, update=False ) -> int:
         """
         Queries the network for the 'N' hyperparameter, which represents how
         many modules are on the network.
         """
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         n =  self.query_map("N", params=[], max_age=max_age, update=update)
         if str(subnet) in n:
             subnet = str(subnet)
@@ -2255,7 +2348,7 @@ class Chain:
         """
         Retrieves the stake amounts from all stakers to a specific staked address.
         """
-        key = self.resolve_key_address(key)
+        key = self.get_key_address(key)
         result = self.query_map("StakeFrom", [key], extract_value=False)
         return self.format_amount(result, fmt=fmt)
     get_stake_from = get_stakefrom
@@ -2267,7 +2360,7 @@ class Chain:
         """
         Retrieves the stake amounts provided by a specific staker to all staked addresses.
         """
-        key = self.resolve_key_address(key)
+        key = self.get_key_address(key)
         result =  self.query_map("StakeTo", [key], extract_value=False)
         return self.format_amount(result, fmt=fmt)
 
@@ -2281,7 +2374,7 @@ class Chain:
         Retrieves the balance of a specific key.
         """
 
-        addr = self.resolve_key_address(addr)
+        addr = self.get_key_address(addr)
         result = self.query("Account", module="System", params=[addr])
         return self.format_amount(result["data"]["free"], fmt=fmt)
 
@@ -2317,7 +2410,7 @@ class Chain:
     ):
         params = {"dest": dest, "value": amount_nano, "data": data}
 
-        return self.compose_call(
+        return self.call(
             module="GovernanceModule",
             fn="add_transfer_dao_treasury_proposal",
             params=params,
@@ -2327,7 +2420,7 @@ class Chain:
     def delegate_rootnet_control(self, key: Keypair, dest: Ss58Address):
         params = {"origin": key, "target": dest}
 
-        return self.compose_call(
+        return self.call(
             module="SubspaceModule",
             fn="delegate_rootnet_control",
             params=params,
@@ -2361,7 +2454,7 @@ class Chain:
         
         return True
 
-    def resolve_key_address(self, key:str ):
+    def get_key_address(self, key:str ):
         if key == None:
             key = 'module'
         if self.valid_h160_address(key) or c.valid_ss58_address(key):
@@ -2370,19 +2463,24 @@ class Chain:
             key = c.get_key( key )
             return key.key_address
 
-    def resolve_key(self, key:str ):
+    def get_key(self, key:str ):
         if isinstance(key, str):
             key = c.get_key( key )
         return key
 
-    def params(self, subnet = None, block_hash: str = None, max_age=tempo,  update=False) -> dict[int, SubnetParamsWithEmission]:
+    def subnets(self, 
+                    subnet : Optional[str] = None,
+                    block_hash: Optional[str] = None, 
+                    max_age: Optional[int] =None, 
+                    df: Optional[bool] = False,
+                    features=['name', 'emission', 'metadata', 'tempo'] , update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
-        """            
-        path = self.resolve_path(f'{self.network}/params_map')
+        """ 
+        max_age = max_age or self.tempo           
+        path = self.get_path(f'{self.network}/params_map')
         results = c.get(path,None, max_age=max_age, update=update)
         if results == None:
-            c.print(f"SUBSPACE_UPDATE(params)")
             params = []
             bulk_query = self.query_batch_map(
                 {
@@ -2415,7 +2513,7 @@ class Chain:
                 block_hash,
             )
 
-        
+            # Extract the relevant data from the bulk query
             subnet_maps: SubnetParamsMaps = {
                 "emission": bulk_query["SubnetEmission"],
                 "tempo": bulk_query["Tempo"],
@@ -2437,6 +2535,7 @@ class Chain:
                 "metadata": bulk_query.get("SubnetMetadata", {}),
             }
 
+            # Create a dictionary to store the results
             results: dict[int, SubnetParamsWithEmission] = {}
 
             default_subnet_map = {
@@ -2451,22 +2550,27 @@ class Chain:
                 subnet_result['module_burn_config'] = cast(BurnConfiguration, subnet_result["module_burn_config"])
                 results[_netuid] = subnet_result
             c.put(path, results)
+        
         results = {int(k):v for k,v in results.items()}
         if subnet != None: 
-            subnet = self.resolve_subnet(subnet)
+            subnet = self.get_subnet(subnet)
             print(f"UpdatingSubnet({subnet})")
             results =  results[subnet]
+
+        if df:
+            results =  c.df(results.values())[features]
+            results.sort_values('emission', inplace=True, ascending=False)
+            results['emission'] = results['emission'].apply(lambda x: x/10**9 * self.blocks_per_day)
         return results
 
-    subnet_params = params 
-    def resolve_path(self, path:str) -> str:
+    def get_path(self, path:str) -> str:
         return c.abspath(f'~/.commune/chain/{path}')
 
     def global_params(self, max_age=60, update=False) -> NetworkParams:
         """
         Returns global parameters of the whole commune ecosystem
         """
-        path = self.resolve_path(f'{self.network}/global_params')
+        path = self.get_path(f'{self.network}/global_params')
         result = c.get(path, None, max_age=max_age, update=update)
         if result == None:
 
@@ -2557,13 +2661,13 @@ class Chain:
     def mynets(self, update=False):
         return self.my_subnets(update=update)
     
-    def my_modules(self, subnet="all", 
+    def my_modules(self, subnet=None, 
                    max_age=60, 
                    keys=None, 
                    features=['name', 'key', 'url', 'emission', 'weights', 'stake'],
                    df = False, 
                    update=False):
-        if subnet == "all":
+        if subnet == None:
             modules = []
             for sn, ks in self.keys_map().items():
                 sn_modules = self.my_modules(subnet=sn, keys=ks, df=False)
@@ -2575,8 +2679,8 @@ class Chain:
                 # modules = modules.groupb('key').agg(list).reset_index()
                 # modules['stake'] = modules['stake'].apply(sum)
         else:
-            subnet = self.resolve_subnet(subnet)
-            path = self.resolve_path(f'my_modules/{self.network}/{subnet}')
+            subnet = self.get_subnet(subnet)
+            path = self.get_path(f'my_modules/{self.network}/{subnet}')
             modules = c.get(path, None, max_age=max_age, update=update)
             namespace = c.namespace()
             if modules == None:
@@ -2688,8 +2792,8 @@ class Chain:
                     search=None,
                     df = False,
                     **kwargs):
-        subnet = self.resolve_subnet(subnet)
-        subnet_path = self.resolve_path(f'{self.network}/modules/{subnet}')
+        subnet = self.get_subnet(subnet)
+        subnet_path = self.get_path(f'{self.network}/modules/{subnet}')
         feature2path = {f:subnet_path + '/' + f for f in features}
         future2feature = {}
         params = [subnet] if subnet != None else []
@@ -2758,14 +2862,14 @@ class Chain:
         return self.get_conn().block_number(block_hash=None)
     
     def keys(self, subnet=0, max_age=60) -> List[str]:
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         return self.keys_map(max_age=max_age)[int(subnet)]
     
     def keys_map(self, max_age=60):
         return {int(k):list(v.values()) for k,v in self.query_map('Keys', params=[], max_age=max_age).items()}
 
     def key2uid(self, subnet=0) -> int:
-        subnet = self.resolve_subnet(subnet)
+        subnet = self.get_subnet(subnet)
         return {v:k for k,v in self.query_map('Keys', params=[subnet]).items()}
 
     def uid2key(self,subnet=0) -> int:
@@ -2785,8 +2889,8 @@ class Chain:
                    block = None, 
                    **kwargs ) -> 'ModuleInfo':
         url = self.get_url( mode=mode)
-        subnet = self.resolve_subnet(subnet)
-        module = self.resolve_key_address(module)
+        subnet = self.get_subnet(subnet)
+        module = self.get_key_address(module)
         module = requests.post(url, 
                                json={'id':1, 
                                      'jsonrpc':'2.0',  
@@ -2816,15 +2920,8 @@ class Chain:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
     def emissions(self, **kwargs ) -> Dict[str, str]:
-        params = self.params(**kwargs)
-        netuid2emission =  {k:params['emission'] * self.blocks_per_day for k,params in params.items()}
-        netuid2subnet = self.netuid2subnet()
-        emissions = {netuid2subnet[int(k)]:v/10**9 for k,v in netuid2emission.items()}
+        subnets = self.subnets(**kwargs)[['name', 'emission']]
         return  dict(sorted(emissions.items(), key=lambda x: x[1], reverse=True))
-
-    def subnet2emission(self, **kwargs ) -> Dict[str, str]:
-        return self.emissions(**kwargs)
-        
 
     def e(self):
         return self.emissions()
@@ -2835,7 +2932,7 @@ class Chain:
     name2netuid = subnet2netuid
 
     def netuid2subnet(self, update=False, block=None, max_age=None) -> Dict[int, str]:
-        path = self.resolve_path(f'{self.network}/netuid2subnet')
+        path = self.get_path(f'{self.network}/netuid2subnet')
         netuid2subnet = c.get(path, None, update=update, max_age=max_age)
         if netuid2subnet == None:
             netuid2subnet = self.query_map("SubnetNames", extract_value=False, block=block)
@@ -2900,7 +2997,7 @@ class Chain:
         Returns:
             List of transactions
         """
-        address = self.resolve_key_address(key)
+        address = self.get_key_address(key)
         block = self.block()
         with self.get_conn(init=True) as substrate:
             end_block = end_block or block
@@ -2931,3 +3028,54 @@ class Chain:
                             transactions.append(tx_info)
             
             return transactions
+
+
+
+    sudo_multisig_data = {'keys': [
+            '5H47pSknyzk4NM5LyE6Z3YiRKb3JjhYbea2pAUdocb95HrQL', # sudo
+            '5FZsiAJS5WMzsrisfLWosyzaCEQ141rncjv55VFLHcUER99c', # krishna
+            '5DPSqGAAy5ze1JGuSJb68fFPKbDmXhfMqoNSHLFnJgUNTPaU', # sentinal
+            '5CMNEDouxNdMUEM6NE9HRYaJwCSBarwr765jeLdHvWEE15NH', # liaonu
+            '5CwXN5zQFQNoFRaycsiE29ibDDp2mXwnof228y76fMbs2jHd', # huck
+        ],
+    'threshold': 3
+    }
+    sudo_multisig_threshold = 3
+
+    def sudo_multisig(self) -> List[str]:
+        return self.get_multisig(sudo_multisig_data)
+
+    def sudo_transfer(self,
+        key: Keypair,
+        dest: Ss58Address,
+        amount: int,
+        data: str = None,
+    ):
+        """
+        Transfer funds to a specific address using the sudo key.
+        """
+
+        key = self.get_key(key)
+        return self.call_multisig(
+            key=key,
+            multisig=self.sudo_multisig(),
+            dest=dest,
+            amount=amount,
+            data=data,
+        )
+
+    def multisig(self, keys=None, threshold=3):
+        if isinstance(keys, str) or isinstance(keys, dict):
+            multisig_data = self.get_multisig_data(keys)
+            keys = multisig_data['keys']
+            threshold = multisig_data['threshold']
+    
+        keys = keys or self.sudo_multisig_data['keys']
+        keys = [self.get_key_address(k) for k in keys]
+        with self.get_conn(init=True) as substrate:
+        
+            multisig_acc = substrate.generate_multisig_account(  # type: ignore
+                keys, threshold
+            )
+
+        return multisig_acc

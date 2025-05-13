@@ -2,7 +2,7 @@ import commune as c
 from typing import *
 import json
 import os
-class Pm2:
+class ServerProcessManager:
 
     def __init__(self, process_prefix='proc/', **kwargs):
         self.process_prefix = process_prefix

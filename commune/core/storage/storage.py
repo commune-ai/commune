@@ -3,7 +3,9 @@ import json
 import os
 import time
 
-class Storage:
+class Store:
+
+    description = "this is a storage module"
 
     def __init__(self, storage_dirpath='~/.storage', mode='json'):
         self.storage_dirpath = self.abspath(storage_dirpath)
@@ -89,6 +91,19 @@ class Storage:
             os.remove(p)
         return paths
 
+    def abspath(self, path):
+        return os.path.abspath(os.path.expanduser(path))
+
+    def path2age(self):
+        """
+        returns the age of the item in seconds
+        """
+        paths = self.paths()
+        ages = {}
+        for p in paths:
+            ages[p] = time.time() - os.path.getmtime(p)
+        return ages
+
     def test(self, path='test.json', data={'test': 'test', 'fam': {'test': 'test'}}):
         t0 = time.time()
         n0 = self.n()
@@ -108,16 +123,3 @@ class Storage:
         t1 = time.time()
         print(f'Passed all tests in {t1 - t0} seconds')
         return {'success': True, 'msg': 'Passed all tests'}
-
-    def abspath(self, path):
-        return os.path.abspath(os.path.expanduser(path))
-
-    def path2age(self):
-        """
-        returns the age of the item in seconds
-        """
-        paths = self.paths()
-        ages = {}
-        for p in paths:
-            ages[p] = time.time() - os.path.getmtime(p)
-        return ages

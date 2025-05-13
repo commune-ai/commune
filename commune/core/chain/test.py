@@ -13,13 +13,12 @@ class Test:
         assert isinstance(global_params, dict)
         return {'msg': 'global_params test passed', 'success': True}
 
-    def test_subnet_params(self, subnet=0):
+    def test_subnet(self, subnet=0):
         self = c.module('chain')()
-        subnet_params = self.subnet_params(subnet=subnet)
-        assert isinstance(subnet_params, dict), f'{subnet_params} is not a dict'
-        return {'msg': 'subnet_params test passed', 'success': True}
-
-
+        subnets = self.subnets()
+        import pandas as pd
+        assert isinstance(subnets, dict)
+        return {'msg': 'subnet_params test passed', 'success': True, 'subsets': subnets}
     def test_module_params(self, keys=['dividends', 'incentive'], subnet=0):
         key = self.chain.keys(subnet)[0]
         module_info = self.chain.module(key, subnet=subnet)

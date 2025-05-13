@@ -8,37 +8,42 @@ import commune as c
 class Cli(c.Module):
 
     def forward(self,
-                fn='vs',  
                 module='module', 
-                default_fn = 'forward'):
+                fn='forward'):
+
         t0 = time.time()
-        argv = sys.argv[1:]
-        # ---- FUNCTION
-        module = c.module(module)()
+        argv = sys.argv[1:] # remove the first argument (the script name)
+        module_obj = c.module(module)()
+        fn_obj = None
         if len(argv) == 0:
-            argv += [fn]
-
-        fn = argv.pop(0)
-
-        if hasattr(module, fn):
-            fn_obj = getattr(module, fn)
-        elif '/' in fn:
-            if fn.startswith('/'):
-                fn = fn[1:]
-            if fn.endswith('/'):
-                fn = fn + default_fn
-            new_module = '/'.join(fn.split('/')[:-1]).replace('/', '.')
-            module =  self.module(new_module)()
-            fn = fn.split('/')[-1]
-            fn_obj = getattr(module, fn)
-
+            # scenario 1: no arguments, use the default function
+            fn_obj = getattr(module_obj, fn)
+        elif len(argv) > 0 and hasattr(module_obj, argv[0]):
+            # scenario 2: first argument is the function name c 
+            fn_obj = getattr(module_obj, argv.pop(0))
+        elif len(argv) >= 2 and c.module_exists(argv[0]):
+            # scenario 3: first argument is the module name c module fn *args **kwargs
+            module_obj = c.module(argv.pop(0))()
+            if hasattr(module_obj, argv[0]):
+                fn_obj = getattr(module_obj, argv.pop(0))
+            else:
+                raise Exception(f'Function {argv[0]} not found in module {module}')
+        elif len(argv[0].split('/')) == 2:
+            # scenario 4: first argument is a path to a function c module/fn *args **kwargs
+            fn = argv.pop(0)
+            module_obj =  c.module(fn.split('/')[0])()
+            fn_obj = getattr(module_obj, fn.split('/')[1])
         else:
+            fn = argv.pop(0)
             fn2module = self.fn2module()
             if fn in fn2module:
-                module = c.module(fn2module[fn])()
-                fn_obj = getattr(module, fn)
+                module = fn2module[fn]
+                module_obj = c.module(fn2module[fn])()
+                print(f'fn2module({fn} -> {module}/{fn})')
+                fn_obj = getattr(module_obj, fn)
             else:
                 raise Exception(f'Function {fn} not found in module {module}')
+        assert fn_obj is not None, f'Function {fn} not found in module {module}'
         # ---- PARAMS ----
         params = {'args': [], 'kwargs': {}} 
         parsing_kwargs = False
@@ -53,11 +58,14 @@ class Cli(c.Module):
                     params['args'].append(self.str2python(arg))        
         # run thefunction
         module_name = module.__class__.__name__.lower()
-        c.print(f'Request(module={module_name} fn={fn})')
+
+        params_hash = self.shorten(c.hash(params))
+        c.print(f'Request(module={module_name} fn={fn} tx_hash={params_hash})')
+        print(fn_obj)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         speed = time.time() - t0
 
-        c.print(f'Result(speed={speed:.2f}s)')
+
 
         duration = time.time() - t0
         is_generator = self.is_generator(result)
@@ -128,3 +136,10 @@ class Cli(c.Module):
         else:
             result =  inspect.isgeneratorfunction(obj)
         return result
+
+
+    def shorten(self, x, max_length=12):
+        """
+        Shorten the hash to 8 characters
+        """
+        return x[:max_length] + '...' + x[-max_length:]

@@ -50,11 +50,7 @@ class Module:
         latency = time.time() - t0
         return obj
 
-    get_module = module
-
-    def mod(self, path:str = 'module', params:dict = None, cache=True, verbose=False, **kwargs) -> str:
-        return self.module(path=path, params=params, cache=cache, verbose=verbose, **kwargs)
-    
+    mod = get_module = module
     def forward(self, fn:str='info', params:dict=None, signature=None) -> Any:
         params = params or {}
         assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
@@ -65,19 +61,16 @@ class Module:
         return fn_obj(**params)
 
     def go(self, module=None, **kwargs):
-
-        repo2path = self.repo2path(module)
         module = module or 'module'
-
-        try:
-            if module in repo2path:
-                path = repo2path[module]
-            else:
-                path = self.dirpath(module)
-        except:
-            path = self.modules_path + '/' + module
-        if path.split('/')[-1] == path.split('/')[-2]:
-            path = '/'.join(path.split('/')[:-1])
+        repo2path = self.repo2path(module)
+        if module in repo2path:
+            path = repo2path[module]
+        elif self.module_exists(module):
+            path = self.dirpath(module)
+        elif os.path.exists(module):
+            path = module
+        else:
+            raise Exception(f'{module} not found')
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
 
@@ -290,6 +283,8 @@ class Module:
         """
         Lists all files in the path
         """
+        if self.module_exists(path):
+            path = self.dirpath(path)
         files =self.glob(path, **kwargs)
         if not hidden:
             files = [f for f in files if not '/.' in f]
@@ -299,16 +294,16 @@ class Module:
         return files
 
     def encrypt(self,data: Union[str, bytes], key: str = None, password: str = None, **kwargs ) -> bytes:
-        key = self.get_key(key) 
-        return key.encrypt(data, password=password)
-
+        return self.get_key(key).encrypt(data, password=password)
     def decrypt(self, data: Any,  password : str = None, key: str = None, **kwargs) -> bytes:
-        key = self.get_key(key)
-        return key.decrypt(data, password=password)
-    
+        return self.get_key(key).decrypt(data, password=password)
+
+    def encrypt_test(self, data: Union[str, bytes], key: str = None, password: str = None, **kwargs) -> bool:
+        encrypted = self.encrypt(data, key=key, password=password, **kwargs)
+        decrypted = self.decrypt(encrypted, key=key, password=password, **kwargs)
+        return data == decrypted
     def sign(self, data:dict  = None, key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
-        key = self.get_key(key, crypto_type=crypto_type)
-        return key.sign(data, mode=mode, **kwargs)
+        return self.get_key(key, crypto_type=crypto_type).sign(data, mode=mode, **kwargs)
 
     def signtest(self, data:dict  = 'hey', key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
         signature = self.sign(data, key, crypto_type=crypto_type, mode=mode, **kwargs)
@@ -538,7 +533,7 @@ class Module:
             ls_files = list(filter(lambda x: search in x, ls_files))
 
         return ls_files
- 
+
     def put(self, 
             k: str, 
             v: Any,  
@@ -551,8 +546,7 @@ class Module:
         if encrypt or password != None:
             v = self.encrypt(v, password=password)
         data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}    
-        self.put_json(k, data)
-        return {'k': k, 'encrypted': encrypt, 'timestamp': time.time()}
+        return self.put_json(k, data)
     
     def get(self,
             k:str, 
@@ -586,7 +580,8 @@ class Module:
                     break
             age = int(time.time() - timestamp)
             if age > max_age: # if the age is greater than the max age
-                self.print(f'{k} is too old ({age} > {max_age})', verbose=verbose)
+                if verbose:
+                    print(f'TooOld(path={k} age={age} max_age={max_age})')
                 return default
         
         if not full:
@@ -655,7 +650,7 @@ class Module:
 
     fn2cost = {}
 
-    def fnschema(self, fn:str = '__init__', include_code=False, **kwargs)->dict:
+    def fn_schema(self, fn:str = '__init__', code=False, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''     
@@ -677,10 +672,11 @@ class Module:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__
         schema['name'] = fn_obj.__name__
-        schema['source'] = self.source(fn_obj, include_code=include_code)
+        schema['source'] = self.source(fn_obj, code=code)
         return schema
-    fn_schema = fnschema
-    def source(self, obj, include_code=True):
+
+    fnschema = fn_schema
+    def source(self, obj, code=True):
         """
         Get the source code of a function
         """
@@ -692,7 +688,7 @@ class Module:
                              'start': sourcelines[1], 
                              'length': len(sourcelines[0]),
                              'path': inspect.getfile(obj).replace(self.home_path, '~'),
-                             'code': source if include_code else None,
+                             'code': source if code else None,
                              'hash': self.hash(source),
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
@@ -701,25 +697,29 @@ class Module:
         '''
         Get function schema of function in self
         '''   
+        if  isinstance(obj, str) and hasattr(self, obj):
+            schema = self.fn_schema(hasattr(self, obj), **kwargs)
         if '/' in str(obj) or callable(obj) :
-            schema = self.fnschema(obj, **kwargs)
+            schema = self.fn_schema(obj, **kwargs)
         else:
             module = self.resolve_module(obj)
             fns = self.fns(module)
             schema = {}
             for fn in fns:
                 try:
-                    schema[fn] = self.fnschema(getattr(module, fn), **kwargs)
+                    schema[fn] = self.fn_schema(getattr(module, fn), **kwargs)
                 except Exception as e:
                     self.print(f'Error {e} {fn}', color='red', verbose=verbose)
                 
         return schema
  
-    def resolve_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+    def get_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if isinstance(obj, str):
-            if '/' in obj:
+            if hasattr(self, obj):
+                obj = getattr(self, obj)
+            elif '/' in obj:
                 obj = self.fn(obj)
-            if self.module_exists(obj):
+            elif self.module_exists(obj):
                 obj = self.module(obj)
             else:
                 util2path = self.util2path()
@@ -730,7 +730,7 @@ class Module:
         return obj
 
     def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        return inspect.getsource(self.resolve_obj(obj))
+        return inspect.getsource(self.get_obj(obj))
     
     def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -776,7 +776,7 @@ class Module:
         return params
 
     def dir(self, obj=None, search=None, *args, **kwargs):
-        obj = self.resolve_obj(obj)
+        obj = self.get_obj(obj)
         if search != None:
             return [f for f in dir(obj) if search in f]
         return dir(obj)
@@ -835,8 +835,8 @@ class Module:
                 fn2module[fn] = module
         return fn2module
 
-    def module2schema(self,max_age=30, update=False, core=True) -> List[str]:
-        module2schema = self.get('module2schema', None, max_age=max_age, update=update)
+    def module2schema(self, module=None, max_age=30, update=False, core=False) -> List[str]:
+        module2schema = self.get('module2schema', default=None, max_age=max_age, update=update)
         if module2schema == None:
             modules = self.core_modules if core else self.modules()
             module2schema = {}
@@ -845,11 +845,8 @@ class Module:
             self.put('module2schema', module2schema)
         return module2schema 
 
-
-
-     
     def info(self, module:str='module',  # fam
-            lite: bool =False, 
+            lite: bool =True, 
             max_age : Optional[int]=1000, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
@@ -880,6 +877,12 @@ class Module:
             info = {k: v for k,v in info.items() if k in lite_features}
         return  info
 
+
+    def verify_info(self, info:dict) -> bool:
+        signature = info.pop('signature')
+        verify = self.verify(info, signature)
+
+
     def epoch(self, *args, **kwargs):
         return self.run_epoch(*args, **kwargs)
 
@@ -903,40 +906,29 @@ class Module:
                 mode:str='thread',
                 max_workers : int = 100,
                 ):
-        fn = self.get_fn(fn)
-        executor = self.module('executor')(max_workers=max_workers, mode=mode) 
-        return executor.submit(fn=fn, params=params, args=args, kwargs=kwargs, timeout=timeout)
+        return self.module('executor')(max_workers=max_workers, mode=mode).submit(fn=self.get_fn(fn), params=params, args=args, kwargs=kwargs, timeout=timeout)
 
-    def get_fn(self, fn:str, params=None, splitter='/', default_fn='forward') -> 'Callable':
+    def get_fn(self, fn:str, params=None, splitter='/', default_fn='forward', default_module = 'module') -> 'Callable':
         """
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            if fn.startswith('/'):
-                fn = 'module' + fn
+            if hasattr(self, fn):
+                fn = getattr(self, fn)
+            elif fn.startswith('/'):
+                fn = getattr(self.module(default_module), fn)
             elif fn.endswith('/'):
-                module = self.module(fn[:-1])
-                fn = default_fn
-                return getattr(module, default_fn)
-            fn_obj = None
-            module = Module()
-            if '/' in fn:
-                module = self.module('/'.join(fn.split('/')[:-1]))()
-                fn = fn.split('/')[-1]
-            if hasattr(module, fn):
-                fn_obj = getattr(module, fn)
+                fn = getattr( self.module(fn[:-1]), default_fn)
+            elif '/' in fn:
+                module, fn = fn.split('/')
+                module = self.module(module)
+                if hasattr(module, fn):
+                    fn = getattr(module, fn)
+                else:
+                    raise Exception(f'Function {fn} not found in {module}')
             elif self.object_exists(fn):
-                fn_obj =  self.obj(fn)
-            else:
-                raise Exception(f'{fn} not found in {module}')
-                
-        elif callable(fn):
-            fn_obj = fn
-        else:
-            raise Exception(f'{fn} is not a function or object')
-        if params != None:
-            return fn_obj(**params)
-        return fn_obj
+                fn =  self.obj(fn)
+        return fn(**params) if params else fn
     
     def fn(self, fn:str,  params=None, splitter='/', default_fn='forward') -> 'Callable':
         return self.get_fn(fn, params=params, splitter=splitter, default_fn=default_fn)
@@ -1193,6 +1185,9 @@ class Module:
     def local_tree(self , **kwargs):
         return self.get_tree(os.getcwd(), **kwargs)
 
+    def locals(self, **kwargs):
+        return list(self.get_tree(self.pwd(), **kwargs).keys())
+
     def core_tree(self, **kwargs):
         return {**self.get_tree(self.core_path,  **kwargs)}
 
@@ -1258,13 +1253,10 @@ class Module:
             return False
         return True
     
-    def new( self,
-                   path : str ,
-                   name= None, 
-                   base_module : str = 'base', 
-                   update=0
-                   ):
-        name = name or path
+    def new( self, name= None, base_module : str = 'base', update=0):
+        """
+        make a new module
+        """
         if name.endswith('.git'):
             git_path = self.giturl(path)
             name =  path.split('/')[-1].replace('.git', '')
@@ -1275,8 +1267,6 @@ class Module:
         base_module_obj = self.module(base_module)
         code = self.code(base_module)
         code = code.replace(base_module_obj.__name__, ''.join([m[0].capitalize() + m[1:] for m in name.split('.')]))
-        if not os.path.exists(dirpath):
-            os.makedirs(dirpath, exist_ok=True)
         self.put_text(path, 'import commune as c \n'+code)
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
@@ -1535,8 +1525,7 @@ class Module:
         modules_path = self.modules_path
         module_path = modules_path + '/' + module.replace('.', '/')
         if not os.path.exists(module_path):
-            raise Exception(f'Module {module} does not exist')
-        
+            raise Exception(f'Module {module} does not exist') 
 
     def git_info(self, path:str = None, name:str = None, n=10):
         return c.fn('git/git_info', {'path': path, 'name': name, 'n': n})
@@ -1562,24 +1551,36 @@ class Module:
             self.cmd(f'git pull {module} {name}')
         return {'success': True, 'msg': 'pushed module'}
 
-
     def add_mod(self, module:str = 'dev', name:str = None):
-        repo2path = self.repo2path()
-        if module not in repo2path:
-            raise Exception(f'Module {module} does not exist')
-        from_path = repo2path[module]
-        # add to modules_path 
-        to_path =  self.modules_path + '/' + module.replace('.', '/')
-        if os.path.exists(to_path):
-            self.rm(to_path)
-        self.cp(from_path, to_path)
+
+        if 'github.com' in module:
+            giturl = module
+            module = module.split('/')[-1].replace('.git', '')
+            
+            # clone ionto the modules path
+            to_path = self.modules_path + '/' + module.replace('.', '/')
+            cmd = f'git clone {giturl} {self.modules_path}/{module}'
+            self.cmd(cmd, cwd=self.modules_path)
+
+        else:
+            repo2path = self.repo2path()
+            if module not in repo2path:
+                raise Exception(f'Module {module} does not exist')
+            from_path = repo2path[module]
+            # add to modules_path 
+            to_path =  self.modules_path + '/' + module.replace('.', '/')
+            if os.path.exists(to_path):
+                self.rm(to_path)
+            self.cp(from_path, to_path)
+            assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+        
         git_path = to_path + '/.git'
         if os.path.exists(git_path):
             self.rm(git_path)
-        assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
         self.tree(update=1)
-        return {'success': True, 'msg': 'added module', 'from': from_path, 'to': to_path}
+        return {'success': True, 'msg': 'added module',  'to': to_path}
 
+    add = add_mod
 
     def rm_mod(self, module:str = 'dev'):
         """
@@ -1610,6 +1611,7 @@ class Module:
                 return fn(*args, **kwargs)
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
+
 
     def sync(self,  globals_input=None, max_age=10, update=True, **kwargs):
         """
