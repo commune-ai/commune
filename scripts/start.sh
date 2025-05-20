@@ -6,7 +6,13 @@ NAME=$(basename $(pwd)) # default name is the current directory name
 IMAGE=$(basename $(pwd)) # get the name of the current directory
 BUILD=false # default to not build the image
 SHM_SIZE=4g # default shared memory size
-VOLUME_PART=" -v $(pwd):/app -v /var/run/docker.sock:/var/run/docker.sock" # mount the current directory to /app in the container
+# get ~/.commune directory
+CACHE_DIR=~/.commune
+# get the absolute path of the cache directory
+CACHE_DIR=$(realpath $CACHE_DIR)
+
+
+VOLUME_PART=" -v $(pwd):/app -v /var/run/docker.sock:/var/run/docker.sock -v $CACHE_DIR:/root/.commune" # mount the current directory to /app in the container
 NETWORK_PART="--network host" # use the host network to allow access to local services
 # ARGS
 

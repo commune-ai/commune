@@ -38,11 +38,19 @@ class Client:
             url = self.url
             fn = str(fn)
         url = self.get_url(url, mode=mode)
+
         key = self.get_key(key) # step 1: get the key
+        
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
+        
+        t0 = c.time()
+
         headers = self.auth.get_headers(params, key=key) # step 4: get the headers
+
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
+
+  
         ## handle the response
         if response.status_code != 200:
             raise Exception(response.text)
@@ -90,8 +98,13 @@ class Client:
         elif c.is_int(url):
             url = f'0.0.0.0:{url}'
         else:
-            url = c.namespace().get(str(url), url)
-        url = url if url.startswith(mode) else f'{mode}://{url}'
+            if not hasattr(self, 'namespace'):
+                self.namespace = c.namespace()
+            if not url in self.namespace:
+                self.namespace = c.namespace(update=True)
+            url = self.namespace.get(str(url), url)
+        if not url.startswith(mode):
+            url = f'{mode}://{url}'
         return url
 
 
@@ -143,6 +156,7 @@ class Client:
         conds.append(':' in url)
         conds.append(c.is_int(url.split(':')[-1]))
         return all(conds)
+
 
     def client(self, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
         """

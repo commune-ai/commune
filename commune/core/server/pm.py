@@ -2,7 +2,9 @@ import commune as c
 from typing import *
 import json
 import os
-class ServerProcessManager:
+
+
+class ProcessManager:
 
     def __init__(self, process_prefix='proc/', **kwargs):
         self.process_prefix = process_prefix
@@ -16,22 +18,22 @@ class ServerProcessManager:
         
     def proc_exists(self, name:str, **kwargs) -> bool:
         name = self.get_procname(name)
-        return name in self.procs(**kwargs)
+        return name in self.ps(**kwargs)
 
-    def procs(self, search=None,  **kwargs) -> List[str]:
+    def ps(self, search=None,  **kwargs) -> List[str]:
         output_string = c.cmd('pm2 status')
-        procs = []
+        ps = []
         tag = ' default '
         for line in output_string.split('\n'):
             if  tag in line:
                 name = line.split(tag)[0].strip()
                 name = name.split(' ')[-1]
-                procs += [name]
+                ps += [name]
         if search != None:
             search = self.get_procname(search)
-            procs = [m for m in procs if search in m]
-        procs = sorted(list(set(procs)))
-        return procs
+            ps = [m for m in ps if search in m]
+        ps = sorted(list(set(ps)))
+        return ps
 
     def run(self, 
                   fn: str = 'serve',
@@ -91,7 +93,7 @@ class ServerProcessManager:
         return result
     
     def kill_all(self, verbose:bool = True, timeout=20):
-        servers = self.procs()
+        servers = self.ps()
         futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}) for s in servers]
         results = c.wait(futures, timeout=timeout)
         return results

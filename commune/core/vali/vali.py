@@ -160,9 +160,10 @@ class Vali:
             futures = []
             future2module = {}
             for m in batch:
-                print(f'Batch {i}/{num_batches} {m["name"]} {m["url"]}')
-                future = c.submit(self.forward, [m], timeout=self.timeout)
-                future2module[future] = m
+                if 'name' in m:
+                    print(f'Batch {i}/{num_batches} {m["name"]} {m["url"]}')
+                    future = c.submit(self.forward, [m], timeout=self.timeout)
+                    future2module[future] = m
                 
             for future in c.as_completed(future2module):
                 try:

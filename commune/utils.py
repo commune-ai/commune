@@ -759,6 +759,16 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
     return ip
 
 
+@contextmanager
+def timer(name=None):
+    operation_name = name or "Operation"
+    start_time = time.time()
+    try:
+        yield
+    finally:
+        elapsed_time = time.time() - start_time
+        print(f"{operation_name} took {elapsed_time:.6f} seconds to complete")
+
 def has_free_ports(n:int = 1, **kwargs):
     return len(free_ports(n=n, **kwargs)) > 0
 
@@ -2235,6 +2245,19 @@ def cmd(
         if verbose:
             print(f"Error executing command: {str(e)}")
         raise
+
+    
+def loadenv():
+    from dotenv import load_dotenv
+    load_dotenv(verbose=True)
+    env = os.environ
+    return env
+
+def env_path():
+    from dotenv import find_dotenv
+    env_path = find_dotenv()
+    return env_path
+
 def determine_type( x):
     x_type = type(x)
     x_type_name = x_type.__name__.lower()

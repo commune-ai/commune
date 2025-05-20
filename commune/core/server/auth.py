@@ -3,11 +3,13 @@ import hmac
 import json
 import time
 from typing import Dict, Optional, Any
-
 import commune as c
 
 class Auth:
     description = 'auth'
+
+    def __init__(self, key=None):
+        self.key = c.get_key(key)
 
     def get_headers(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
         """
@@ -15,6 +17,16 @@ class Auth:
         """
         headers =  self.get_token(c.hash(data), key=key, crypto_type=crypto_type, mode=mode)
         return headers
+
+    def hash(self, data: Any) -> str:
+        """
+        Hash the data using sha256
+        """
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        elif isinstance(data, dict):
+            data = json.dumps(data, separators=(',', ':')).encode('utf-8')
+        return c.hash(data)
 
     def verify_headers(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
@@ -90,7 +102,7 @@ class Auth:
         # Verify signature
         message = f"{header_encoded}.{data_encoded}"
         signature = self._base64url_decode(signature_encoded)
-        assert c.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
+        assert self.key.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
         # data['data'] = message
         data['time'] = data['iat'] # set time field for semanitcally easy people
         data['signature'] = '0x'+signature.hex()

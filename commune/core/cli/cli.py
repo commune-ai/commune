@@ -5,68 +5,72 @@ from typing import Any
 import inspect
 import commune as c
 
-class Cli(c.Module):
+class Cli:
 
-    def forward(self,
-                module='module', 
-                fn='forward'):
+    def get_argv(self, argv=None):
+        """
+        Get the arguments passed to the script
+        """
+        argv = argv or sys.argv[1:] # remove the first argument (the script name)
+        return argv
+
+
+
+    def forward(self, module='module', fn='forward', argv=None, **kwargs):
 
         t0 = time.time()
-        argv = sys.argv[1:] # remove the first argument (the script name)
-        module_obj = c.module(module)()
+        argv = self.get_argv(argv)
+       
+        # ---- MODULE/FN ----
         fn_obj = None
+
+        base_module = module
+        module_obj = c.module(module)()
         if len(argv) == 0:
             # scenario 1: no arguments, use the default function
-            fn_obj = getattr(module_obj, fn)
+            fn = 'vs'
         elif len(argv) > 0 and hasattr(module_obj, argv[0]):
             # scenario 2: first argument is the function name c 
-            fn_obj = getattr(module_obj, argv.pop(0))
-        elif len(argv) >= 2 and c.module_exists(argv[0]):
-            # scenario 3: first argument is the module name c module fn *args **kwargs
-            module_obj = c.module(argv.pop(0))()
-            if hasattr(module_obj, argv[0]):
-                fn_obj = getattr(module_obj, argv.pop(0))
-            else:
-                raise Exception(f'Function {argv[0]} not found in module {module}')
+            fn = argv.pop(0)
+        elif c.module_exists(argv[0]):
+            # scenario 3: the fn name is of another module so we will look it up in the fn2module
+            # and then get the function from the module
+            module = argv.pop(0)
+        elif argv[0].endswith('/'):
+            # scenario 4: the fn name is of another module so we will look it up in the fn2module
+            module = argv.pop(0)[:-1]
+        elif argv[0].startswith('/'):
+            # scenario 5: the fn name is of another module so we will look it up in the fn2module
+            fn = argv.pop(0)[1:]
         elif len(argv[0].split('/')) == 2:
-            # scenario 4: first argument is a path to a function c module/fn *args **kwargs
+            # scenario 6: first argument is a path to a function c module/fn *args **kwargs
+            fn = argv[0].split('/')[1]
+            if not hasattr(module_obj, fn):
+                module = argv[0].split('/')[0]
+            argv.pop(0)
+        elif len(argv) >= 2 and c.module_exists(argv[0]):
+            # scenario 7: first argument is the module name c module fn *args **kwargs
+            module = argv.pop(0)
             fn = argv.pop(0)
-            module_obj =  c.module(fn.split('/')[0])()
-            fn_obj = getattr(module_obj, fn.split('/')[1])
         else:
+            # scenario 8: the fn name is of another module so we will look it up in the fn2module
+            # and then get the function from the module
             fn = argv.pop(0)
-            fn2module = self.fn2module()
-            if fn in fn2module:
-                module = fn2module[fn]
-                module_obj = c.module(fn2module[fn])()
-                print(f'fn2module({fn} -> {module}/{fn})')
-                fn_obj = getattr(module_obj, fn)
-            else:
-                raise Exception(f'Function {fn} not found in module {module}')
-        assert fn_obj is not None, f'Function {fn} not found in module {module}'
+            fn2module = c.fn2module()
+            assert fn in fn2module, f'Function {fn} not found in module {module}'
+            module = fn2module[fn]
+        if module != base_module:
+            module_obj = c.module(module)()
+        fn_obj = getattr(module_obj, fn)
         # ---- PARAMS ----
-        params = {'args': [], 'kwargs': {}} 
-        parsing_kwargs = False
-        if len(argv) > 0:
-            for arg in argv:
-                if '=' in arg:
-                    parsing_kwargs = True
-                    key, value = arg.split('=')
-                    params['kwargs'][key] = self.str2python(value)
-                else:
-                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                    params['args'].append(self.str2python(arg))        
-        # run thefunction
-        module_name = module.__class__.__name__.lower()
+        params = self.get_fn_params(argv)
+        c.print(f'Request(module={module} fn={fn} params={params})')
 
-        params_hash = self.shorten(c.hash(params))
-        c.print(f'Request(module={module_name} fn={fn} tx_hash={params_hash})')
-        print(fn_obj)
+
+        # ---- RESULT ----
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        speed = time.time() - t0
-
-
-
+        response_time = time.time() - t0
+        c.print(f'Result(speed={response_time:.2f}s)')
         duration = time.time() - t0
         is_generator = self.is_generator(result)
         if is_generator:
@@ -77,7 +81,6 @@ class Cli(c.Module):
                     c.print(item, end='')
         else:
             c.print(result)
-
 
     def str2python(self, x):
         x = str(x)
@@ -137,9 +140,41 @@ class Cli(c.Module):
             result =  inspect.isgeneratorfunction(obj)
         return result
 
-
     def shorten(self, x, max_length=12):
         """
         Shorten the hash to 8 characters
         """
         return x[:max_length] + '...' + x[-max_length:]
+
+    def get_fn_params(self, argv):
+
+        # ---- PARAMS ----
+        params = {'args': [], 'kwargs': {}} 
+        parsing_kwargs = False
+        if len(argv) > 0:
+            for arg in argv:
+                if '=' in arg:
+                    parsing_kwargs = True
+                    key, value = arg.split('=')
+                    params['kwargs'][key] = self.str2python(value)
+                else:
+                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                    params['args'].append(self.str2python(arg))        
+        return params
+
+    def get_module_init_params(self,argv = None):
+
+        # anything that has --{arg}={value} in the args
+        # will be considered as a parameter to the __init__ function of the module before the function is loaded
+        argv = self.get_argv(argv)
+        params  = {}
+        for arg in argv:
+            if arg.startswith('--'):
+                arg = arg[2:]
+                if '=' in arg:
+                    key, value = arg.split('=')
+                    params[key] = self.str2python(value)
+                else:
+                    raise Exception(f'Invalid argument {arg}')
+
+        return params

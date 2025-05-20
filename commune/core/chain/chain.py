@@ -31,18 +31,20 @@ T2 = TypeVar("T2")
 
 class Chain:
 
+    folder_path = os.path.expanduser(f'~/.commune/chain') 
     name2storage_exceptions = {'key': 'Keys'}
     storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
     min_stake = 50000
     tempo = 60
     blocktime = block_time = 8
     blocks_per_day = 24*60*60/block_time
-    url_map = {
-        "main": {"lite": ["api.communeai.net"], "archive": ["archive-node-0.communeai.net", "archive-node-1.communeai.net"]},
-        "test": {"lite": ["testnet.api.communeai.net"]}
+    net2info = {
+        "main": {'urls': {"lite": ["api.communeai.net"], "archive": ["archive-node-0.communeai.net", "archive-node-1.communeai.net"]}},
+        "test": {'urls':{"lite": ["testnet.api.communeai.net"]}}
     }
-    network : str = 'main' # og network
-    networks = list(url_map.keys())
+    nets = networks = list(net2info.keys())
+    network : str = 'main' # network name [main, test]
+    networks = list(net2info.keys())
     wait_for_finalization: bool
     _num_connections: int
     connections_queue: queue.Queue[SubstrateInterface]
@@ -50,7 +52,7 @@ class Chain:
 
     def __init__(
         self,
-        network=network,
+        network=None,
         url: str = None,
         mode = 'wss',
         num_connections: int = 1,
@@ -71,22 +73,21 @@ class Chain:
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
         
-    @classmethod
-    def switch(cls, network=None):
-        og_network = cls.network
+    def switch(self, network=None):
+        print(self.network)
         if network == None:
-            if og_network == 'main':
+            if self.network == 'main':
                 network = 'test'
             else:
                 network = 'main'
-        filepath = cls.filepath()
-        code = c.get_text(filepath)
-        replace_str = f"network : str = '{cls.network}' # og network"
-        new_str = f"network : str = '{network}' # og network"
+        path = __file__
+        code = c.get_text(path)
+        replace_str = f"network : str = '{self.network}' # network name [main, test]"
+        new_str = f"network : str = '{network}' # network name [main, test]"
         code =  code.replace(replace_str, new_str)
-        c.put_text(filepath, code)
-        cls.network = network
-        return {'network': network, 'og_network': og_network}
+        c.put_text(path, code)
+        self.network = network
+        return {'network': network, 'og_network': self.network}
                 
     def set_network(self, 
                         network=None,
@@ -98,6 +99,9 @@ class Chain:
                         ws_options: dict[str, int] = {},
                         wait_for_finalization: bool = False,
                         timeout: int  = None ):
+        if network == None:
+            network = self.network
+
         if network in ['chain']:
             network = 'main'
 
@@ -107,7 +111,7 @@ class Chain:
         network = network or self.network
         if timeout != None:
             ws_options["timeout"] = timeout
-        self.network = network
+        self.net = self.network = network
         self.ws_options = ws_options
         self.archive = archive
         self.mode = mode
@@ -121,16 +125,16 @@ class Chain:
         c.print(self.network_state)
         for _ in range(self.num_connections):
             self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-        self.connection_latency = c.time() - t0
+        self.connection_latency = round(c.time() - t0, 2)
         network_state = {"network": self.network, "url": self.url,"connections": self.num_connections,"latency": self.connection_latency,
         }
         c.print(f'Chain(network={self.network} url={self.url} connections={self.num_connections} latency={self.connection_latency}s)', color='blue') 
-        
 
+        
     def get_url(self,  mode=None, **kwargs):
         mode = mode or self.mode
         sub_key = 'archive' if self.archive else 'lite'
-        urls = self.url_map[self.network].get(sub_key)
+        urls = self.net2info[self.network]['urls'].get(sub_key)
         assert len(urls) > 0
         url = c.choice(urls)
         if not url.startswith(mode):
@@ -885,6 +889,7 @@ class Chain:
         multisig = None,
         sudo: bool = False,
         tip = 0,
+        safety: bool = False,
         nonce=None,
     ) -> ExtrinsicReceipt:
         """
@@ -915,7 +920,20 @@ class Chain:
 
         key = self.get_key(key)
         
-        c.print(f'Calling(module={module} fn={fn} network={self.network} key={key.key_address} params={params}', color='blue')
+        info_call = {
+            "module": module,
+            "fn": fn,
+            "params": params,
+            "key": key.ss58_address,
+            "network": self.network,
+        }
+
+        key_name = self.get_key_name(key.ss58_address)
+        c.print(f"Call(\nmodule={info_call['module']} \nfn={info_call['fn']} \nkey={key.ss58_address} ({key_name}) \nparams={info_call['params']}) \n)", color='cyan')
+
+        if safety:
+            if input('Are you sure you want to send this transaction? (y/n)') != 'y':
+                raise Exception('Transaction cancelled by user')
 
         with self.get_conn() as substrate:
 
@@ -931,7 +949,6 @@ class Chain:
 
             if multisig != None:
                 multisig = self.get_multisig(multisig)
-                print('Creating multisig extrinsic with --->', multisig)
                 # send the multisig extrinsic
                 extrinsic = substrate.create_multisig_extrinsic(  
                                                                 call=call,   
@@ -953,6 +970,8 @@ class Chain:
                 raise ChainTransactionError(
                     response.error_message, response  # type: ignore
                 )
+            else:
+                return {'success': True, 'tx_hash': response.extrinsic_hash, 'module': module, 'fn':fn, 'url': self.url,  'network': self.network, 'key':key.ss58_address }
             
         if wait_for_finalization:
             response.process_events()
@@ -1086,20 +1105,23 @@ class Chain:
             return True
         return False
 
-    def put_multisig(self, name='old_sudo', multisig = {'keys': [
-        "5GnXkyoCGVHD7PL3ZRGM2oELpUhDG6HFqAHZT3hHTmFD8CZF",  
-        "5HYB5wVSTfnnpdZhCghk4qpoz8AjZzRiJNXdTLVNkZme18nN",  
-        "5DAFjxqp9anjBNJfji2eLsYAj8L1tjsT4kfnFNpbhZtvA9u5",  
-        "5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC",  
-        "5Ccp9v5nwQTHhbe7uc2qKu5sv86YZ9wVEwGNCTcSWozPvUV1",  
-    ]
-, 'threshold': 3}):
-        multisig['keys'] = [self.get_key_address(k) for k in multisig['keys']]
+    def put_multisig(self, name='multisig',  keys=None, threshold=None):
+        assert not self.multisig_exists(name)
+        if keys == None:
+            keys = input('Enter keys (comma separated): ')
+            keys = [ k.strip() for k in keys.split(',') ]
+        if threshold == None:
+            threshold = input('Enter threshold: ')
+            threshold = int(threshold)
+            assert threshold <= len(keys)
+
+        multisig = {
+            'keys': keys,
+            'threshold': threshold,
+        }
         assert self.check_multisig(multisig)
         path = self.get_multisig_path(name)
-        print('put_multisig', multisig)
         return c.put(path, multisig)
-
 
     def bro(self):
         for p in c.ls('~/.commune22/key'):
@@ -1128,7 +1150,7 @@ class Chain:
                 multisigs[p.split('/')[-1].split('.')[-2]] = self.get_multisig_data(multisig)
 
         # add sudo multisig
-        multisigs['sudo'] = self.sudo_multisig_data
+        multisigs['sudo'] = self.c 
 
         for k, v in multisigs.items():
             if isinstance(v, dict):
@@ -1140,10 +1162,11 @@ class Chain:
     
     def transfer(
         self,
-        key: Keypair,
-        dest: Ss58Address,
-        amount: int,
-        multisig = None,
+        key: Keypair = None,
+        amount: int = None,
+        dest: Ss58Address = None,
+        safety: bool = True,
+        multisig: Optional[str] = None
     ) -> ExtrinsicReceipt:
         """
         Transfers a specified amount of tokens from the signer's account to the
@@ -1162,38 +1185,35 @@ class Chain:
               enough balance.
             ChainTransactionError: If the transaction fails.
         """
+        if self.is_float(dest):
+            dest = amount
+            amount = float(str(dest).replace(',', ''))
+        if key == None:
+            key = input('Enter key: ')
+        key = self.get_key(key)
+        if dest == None:
+            dest = input('Enter destination address: ')
         dest = self.get_key_address(dest)
-        params = {"dest": dest, "value": self.to_nanos(amount)}
+        if amount == None:
+            amount = input('Enter amount: ')
+        amount = float(str(amount).replace(',', ''))
+
+        params = {"dest": dest, "value":int(self.to_nanos(amount))}
+        if safety:
+            address2key = c.address2key()
+            from_name = address2key.get(key.ss58_address, key.ss58_address)
+            to_name = address2key.get(dest, dest)
+            c.print(f'Transfer({from_name} --({params["value"]/(10**9)}c)--> {to_name})')
+            if input(f'Are you sure you want to transfer? (y/n): ') != 'y':
+                return False
         return self.call( module="Balances", fn="transfer_keep_alive", params=params, key=key, multisig=multisig)
     def send(
-        self,
-        key: Keypair,
-        dest: Ss58Address,
-        amount: int,
-        multisig = None,
+        self, key, amount, dest, multisig=None, safety=True
     ) -> ExtrinsicReceipt:
-        """
-        Transfers a specified amount of tokens from the signer's account to the
-        specified account.
-
-        Args:
-            key: The keypair associated with the sender's account.
-            amount: The amount to transfer, in nanotokens.
-            dest: The SS58 address of the recipient.
-
-        Returns:
-            A receipt of the transaction.
-
-        Raises:
-            InsufficientBalanceError: If the sender's account does not have
-              enough balance.
-            ChainTransactionError: If the transaction fails.
-        """
-        return self.transfer(key=key, dest=dest, amount=amount, multisig=multisig)
+        return self.transfer(key=key, amount=amount, dest=dest)
 
     def to_nanos(self, amount):
         return amount * 10**9
-    
 
     def send_my_modules( self,  amount=1, subnet=0, key='module'):
         destinations = self.my_keys(subnet)
@@ -1243,6 +1263,9 @@ class Chain:
 
 
     def wallets(self,  max_age=600, update=0):
+        """
+        an overview of your wallets
+        """
         my_stake = self.my_stake(update=update, max_age=max_age)
         my_balance = self.my_balance(update=update, max_age=max_age)
         key2address = c.key2address()
@@ -1256,13 +1279,12 @@ class Chain:
             wallets.append({'name': k , 'address': address, 'balance': balance, 'stake': stake, 'total': total})
 
         # add total balance to each wallet
-        wallets += [{'name': 'PORTFOLIO', 'address': '--', 'balance': sum([w['balance'] for w in wallets]), 'stake': sum([w['stake'] for w in wallets]), 'total': sum([w['total'] for w in wallets])}]
         wallets = c.df(wallets)
         wallets = wallets.sort_values(by='total', ascending=False)
         wallets = wallets.reset_index(drop=True)
-        return wallets
-
-
+        wallets = wallets.to_dict(orient='records')
+        wallets.append({'name': '--', 'address': 'total', 'balance': sum([w['balance'] for w in wallets]), 'stake': sum([w['stake'] for w in wallets]), 'total': sum([w['total'] for w in wallets])})
+        return  c.df(wallets)
         
     def my_total(self):
         return sum(self.my_tokens().values())
@@ -1290,39 +1312,82 @@ class Chain:
         my_stake =  dict(sorted(my_stake.items(), key=lambda x: x[1], reverse=True))
         return {k:v for k,v in my_stake.items() if v > 0}
 
+
+    def is_float(self, x):
+        """
+        Check if the input is a float or can be converted to a float.
+        """
+        try:
+            float(float(str(x).replace(',', '')))
+            return True
+        except ValueError:
+            return False
+
     def stake(
         self,
         key: Keypair,
-        dest: Ss58Address,
-        amount: int,
+        amount: int = None,
+        dest: Ss58Address=None ,
+        safety: bool = True,
+
+
     ) -> ExtrinsicReceipt:
         """
-        Stakes the specified amount of tokens to a module key address.
-        Args:
-            key: The keypair associated with the staker's account.
-            amount: The amount of tokens to stake, in nanotokens.
-            dest: The SS58 address of the module key to stake to.
-
-        Returns:
-            A receipt of the staking transaction.
+        stakes the specified amount of tokens from a module key address.
         """
-
-        params = {"amount": amount * 10**9, "module_key": dest}
-
-        return self.call(fn="add_stake", params=params, key=key)
+        if self.is_float(dest):
+            dest = amount
+            amount = float(dest)
+        if amount == None:
+            amount = input('Enter amount to unstake: ')
+            amount = float(str(amount).replace(',', ''))
+         
+        if dest == None:
+            staketo = self.staketo(key)
+            # if there is only one module key, use it
+            dest = {i: k for i, (k, v) in enumerate(staketo.items()) if v > amount}
+            if len(dest) == 0:
+                raise ValueError(f'No module key found with enough stake to unstake {amount}')
+            else:
+                c.print(f'Unstake {amount}c from which module key? {dest}')
+                idx = input(f'')
+                dest = dest[int(idx)]
+        params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
+        return self.call(fn="add_stake", params=params, key=key, safety=safety)
+    
 
     def unstake(
         self,
         key: Keypair,
-        dest: Ss58Address ,
-        amount: int,
+        amount: int = None,
+        dest: Ss58Address=None ,
+        safety: bool = True,
+
 
     ) -> ExtrinsicReceipt:
         """
         Unstakes the specified amount of tokens from a module key address.
         """
-        params = {"amount":  amount*(10**9), "module_key": dest}
-        return self.call(fn="remove_stake", params=params, key=key)
+        if self.is_float(dest):
+            dest = amount
+            amount = float(dest)
+        if amount == None:
+            amount = input('Enter amount to unstake: ')
+            amount = float(str(amount).replace(',', ''))
+            
+        if dest == None:
+            staketo = self.staketo(key)
+            idx2key_options = {i: k for i, (k, v) in enumerate(staketo.items()) if v > amount}
+            if len(idx2key_options) == 1:
+                dest = list(idx2key_options.values())[0]
+            elif len(idx2key_options) > 1:
+                c.print(f'Unstake {amount}c from which module key? {idx2key_options}')
+                idx = input(f'')
+                dest = idx2key_options[int(idx)]
+            else:
+                raise ValueError(f'No module key found with enough stake to unstake {amount}')
+        params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
+        return self.call(fn="remove_stake", params=params, key=key, safety=safety)
     
 
     def update_module(
@@ -1406,6 +1471,7 @@ class Chain:
         subnet: str = 2,
         wait_for_finalization = False,
         public = False,
+        stake = 0,
     ) -> ExtrinsicReceipt:
         """
         Registers a new module in the network.
@@ -1418,13 +1484,15 @@ class Chain:
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
-        key =  c.get_key(key)
+        key =  c.get_key(key or name)
         if url == None:
             namespace = c.namespace()
             url = namespace.get(name, url)
             ip = (c.ip() if public else '0.0.0.0')
             port = url.split(':')[-1]
             url = ip +':'+ port
+
+        module_key = c.get_key(module_key or name).ss58_address
         params = {
             "network_name": self.get_subnet_name(subnet),
             "address":  url,
@@ -1432,6 +1500,8 @@ class Chain:
             "module_key": module_key,
             "metadata": metadata,
         }
+
+        print('Registering module', params)
         return  self.call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
 
     def dereg(self, key: Keypair, subnet: int=0):
@@ -1480,6 +1550,7 @@ class Chain:
         Raises:
             ChainTransactionError: If the transaction fails.
         """
+        key = c.get_key(key or name)
 
         params = {
             "name": name,
@@ -1492,9 +1563,9 @@ class Chain:
 
     def vote(
         self,
-        modules: list[int], # uids, keys or names
-        weights: list[int], # any value, relative is takens
         key: Keypair,
+        modules: list[int] = None, # uids, keys or names
+        weights: list[int] = None, # any value, relative is takens
         subnet = 0,
     ) -> ExtrinsicReceipt:
         """
@@ -1517,6 +1588,13 @@ class Chain:
                 do not match.
             ChainTransactionError: If the transaction fails.
         """
+        if modules == None:
+            modules_str = input('Enter modules (space separated): ')
+            modules = [int(m.strip()) for m in modules_str.split(' ')]
+        if weights == None:
+            weights_str = input('Enter weights (space separated): ')
+            weights = [int(w.strip()) for w in weights_str.split(' ')]
+
         subnet = self.get_subnet(subnet)
         assert len(modules) == len(weights)
         key2uid = self.key2uid(subnet)
@@ -1557,8 +1635,9 @@ class Chain:
             AuthorizationError: If the key is not authorized.
             ChainTransactionError: If the transaction fails.
         """
+        original_params = self.subnet_params(subnet)
         subnet = self.get_subnet(subnet)
-        original_params = self.params(subnet=subnet, update=True)
+
         # ensure founder key
         address2key = c.address2key()
         assert original_params['founder'] in address2key, f'No key found for {original_params["founder"]}'
@@ -1573,6 +1652,9 @@ class Chain:
         params["netuid"] = subnet
         params['vote_mode'] = params.pop('governance_configuration')['vote_mode']
         params["metadata"] = params.pop("metadata", None)
+        params["use_weights_encryption"] = params.pop("use_weights_encryption", False)
+        params["copier_margin"] = params.pop("copier_margin", 0)
+        params["max_encryption_period"] = params.pop("max_encryption_period", 360)
         return self.call(fn="update_subnet",params=params,key=key)
 
     def metadata(self, subnet=2) -> str:
@@ -2071,13 +2153,16 @@ class Chain:
         state = c.get(path, max_age=max_age, update=update)
         if state == None:
             c.print(f"subnet_state: {path} not found")
-            futures = [c.submit(self.params, kwargs=dict(subnet=subnet, max_age=max_age, update=update)), 
+            futures = [c.submit(self.subnets, kwargs=dict(subnet=subnet, max_age=max_age, update=update)), 
                         c.submit(self.modules, kwargs=dict(subnet=subnet, max_age=max_age, update=update))]
             params, modules = c.wait(futures)
             state = {'params': params, 'modules': modules}
             c.put(path, state)
         return state
     sync = state
+
+    def subnet_params(self, subnet=0, update=False, max_age=60):
+        return self.subnet(subnet=subnet, update=update, max_age=max_age)['params']
 
     def stake_from(self, key=None, extract_value: bool = False, fmt='j', **kwargs
     ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
@@ -2454,26 +2539,43 @@ class Chain:
         
         return True
 
-    def get_key_address(self, key:str ):
-        if key == None:
-            key = 'module'
-        if self.valid_h160_address(key) or c.valid_ss58_address(key):
-            return key
-        else:
-            key = c.get_key( key )
+    def valid_ss58_address(self, address):
+        from .utils.ss58 import is_valid_ss58_address
+        return is_valid_ss58_address(address)
+
+
+    def get_key_name(self, key:str ) -> str:
+        address2key = c.address2key()
+        if hasattr(key, 'key_address'):
+            key = key.key_address  
+        assert key in address2key, f"Key {key} not found"
+        return address2key.get(key, key)
+
+    def get_key_address(self, key:str ) -> str:
+
+        if isinstance(key, str):
+            if self.valid_h160_address(key) or self.valid_ss58_address(key):
+                return key
+            else:
+                key = c.get_key(key)
+                if key == None:
+                    raise ValueError(f"Key {key} not found")
+                return key.key_address
+        elif hasattr(key, 'key_address'):
             return key.key_address
+        else:
+            raise ValueError(f"Key {key} not found")
 
     def get_key(self, key:str ):
         if isinstance(key, str):
             key = c.get_key( key )
         return key
 
-    def subnets(self, 
+    def subnet_params(self, 
                     subnet : Optional[str] = None,
                     block_hash: Optional[str] = None, 
                     max_age: Optional[int] =None, 
-                    df: Optional[bool] = False,
-                    features=['name', 'emission', 'metadata', 'tempo'] , update=False) -> dict[int, SubnetParamsWithEmission]:
+                    update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """ 
@@ -2557,20 +2659,33 @@ class Chain:
             print(f"UpdatingSubnet({subnet})")
             results =  results[subnet]
 
-        if df:
-            results =  c.df(results.values())[features]
-            results.sort_values('emission', inplace=True, ascending=False)
-            results['emission'] = results['emission'].apply(lambda x: x/10**9 * self.blocks_per_day)
+        return results
+
+
+    def subnets(self, search=None, 
+                        features=['name', 'emission', 'metadata', 'tempo', 'founder'] ,
+                        max_age=60, update=False
+) -> SubnetParamsWithEmission:
+        results =  self.subnet_params( update=update, max_age=max_age)
+        if search:
+            results = {k:v for k,v in results.items() if search in v['name']}
+        results =  c.df(results.values())[features]
+        results.sort_values('emission', inplace=True, ascending=False)
+        results['emission'] = results['emission'].apply(lambda x: x/10**9 * self.blocks_per_day)
         return results
 
     def get_path(self, path:str) -> str:
-        return c.abspath(f'~/.commune/chain/{path}')
+        if not path.startswith(self.folder_path):
+            path = f'{self.folder_path}/{path}'
+        return path
 
     def global_params(self, max_age=60, update=False) -> NetworkParams:
         """
         Returns global parameters of the whole commune ecosystem
         """
+
         path = self.get_path(f'{self.network}/global_params')
+        print(max_age   , 'max_age')
         result = c.get(path, None, max_age=max_age, update=update)
         if result == None:
 
@@ -2642,7 +2757,7 @@ class Chain:
     
     
     def my_subnets(self, update=False):
-        subnet2params = self.params(update=update)
+        subnet2params = self.subnet_params(update=update)
         address2key = c.address2key()
         results = []
         for netuid,params in subnet2params.items():
@@ -3029,8 +3144,6 @@ class Chain:
             
             return transactions
 
-
-
     sudo_multisig_data = {'keys': [
             '5H47pSknyzk4NM5LyE6Z3YiRKb3JjhYbea2pAUdocb95HrQL', # sudo
             '5FZsiAJS5WMzsrisfLWosyzaCEQ141rncjv55VFLHcUER99c', # krishna
@@ -3058,7 +3171,7 @@ class Chain:
         key = self.get_key(key)
         return self.call_multisig(
             key=key,
-            multisig=self.sudo_multisig(),
+            multisig=self.multisig('sudo'),
             dest=dest,
             amount=amount,
             data=data,

@@ -4,7 +4,7 @@
     "version": "1.0.0", 
     "code": "commune-ai/commune.git",
     "app": "communeai.org",
-    "core_modules": ["key", "server", "vali", "chain", "client", "cli", "storage"],
+    "core_modules": ["key", "server", "vali", "chain", "client", "cli", "store"],
     "modules_url": "commune-ai/modules",
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
@@ -18,7 +18,8 @@
         "serv": "server", 
         "tweet": "x",
         "d": "docker",
-        "dock": "docker"
+        "dock": "docker",
+        "openrouter": "model.openrouter"
         },
         
     "routes": {

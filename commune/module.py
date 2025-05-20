@@ -19,11 +19,14 @@ class Module:
     def __init__(self, globals_input = None, **kwargs): 
         self.sync(globals_input=globals_input, **kwargs)
 
+
+    module_cache = {}
     def module(self, 
                 module: str = 'module', 
                 params: dict = None,  
                 cache=True, 
                 verbose=False, 
+                trials = 1,
                 **kwargs) -> str:
 
         # Load the module
@@ -35,10 +38,25 @@ class Module:
         # Normalize path
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
-        tree = self.tree()
-        module = tree.get(module, module)
-        
-        obj = self.obj(module)
+
+        if module in self.module_cache:
+            return self.module_cache[module]
+        else:
+            tree = self.tree()
+            obj_path = tree.get(module, module)
+            try:
+                obj = self.obj(obj_path)
+            except Exception as e:
+                tree_options = [k for k in tree.keys() if module in k ]
+                if len(tree_options) == 1:
+                    obj = self.obj(tree_options[0])
+                else:
+                    tree = self.tree(update=True)
+                    if trials > 0:
+                        return self.module(module, params=params, cache=cache, trials=trials-1, **kwargs)
+                    else:
+                        raise e
+            self.module_cache[module] = obj
         # Apply parameters if provided
         if isinstance(params, dict):
             obj = obj(**params)
@@ -63,10 +81,10 @@ class Module:
     def go(self, module=None, **kwargs):
         module = module or 'module'
         repo2path = self.repo2path(module)
-        if module in repo2path:
-            path = repo2path[module]
-        elif self.module_exists(module):
+        if self.module_exists(module):
             path = self.dirpath(module)
+        elif module in repo2path:
+            path = repo2path[module]
         elif os.path.exists(module):
             path = module
         else:
@@ -74,7 +92,14 @@ class Module:
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
 
-    def gofile(self, module=None, **kwargs):
+    def g(self, module=None, **kwargs):
+        """
+        go the file
+        """
+        return self.go(module=module, **kwargs)
+
+
+    def gof(self, module=None, **kwargs):
         """
         go the file
         """
@@ -86,11 +111,6 @@ class Module:
             path = '/'.join(path.split('/')[:-1])
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
-    def gof(self, module=None, **kwargs):
-        """
-        go to the file
-        """
-        return self.gofile(module=module, **kwargs)
 
     def filepath(self, obj=None) -> str:
         return inspect.getfile(self.resolve_module(obj))
@@ -110,6 +130,8 @@ class Module:
             dirpath = '/'.join(dirpath.split('/')[:-1])
         if dirpath.endswith('src'):
             dirpath = '/'.join(dirpath.split('/')[:-1])
+        if '/src' in dirpath:
+            dirpath = dirpath.split('/src')[0]
         return dirpath
     
     def module_name(self, obj=None):
@@ -255,6 +277,8 @@ class Module:
                     return False
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
     
+    is_file_module = is_module_file
+
     def is_module_folder(self,  module = None) -> bool:
         return not self.is_module_file(module)
     
@@ -697,9 +721,10 @@ class Module:
         '''
         Get function schema of function in self
         '''   
-        if  isinstance(obj, str) and hasattr(self, obj):
-            schema = self.fn_schema(hasattr(self, obj), **kwargs)
         if '/' in str(obj) or callable(obj) :
+            schema = self.fn_schema(obj,  **kwargs)
+        elif isinstance(obj, str) and hasattr(self, obj):
+            obj = getattr(self, obj)
             schema = self.fn_schema(obj, **kwargs)
         else:
             module = self.resolve_module(obj)
@@ -715,12 +740,13 @@ class Module:
  
     def get_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if isinstance(obj, str):
-            if hasattr(self, obj):
-                obj = getattr(self, obj)
-            elif '/' in obj:
+
+            if '/' in obj:
                 obj = self.fn(obj)
             elif self.module_exists(obj):
                 obj = self.module(obj)
+            elif hasattr(self, obj):
+                obj = getattr(self, obj)
             else:
                 util2path = self.util2path()
                 if  obj in util2path:
@@ -729,8 +755,10 @@ class Module:
             obj = self.resolve_module(obj)
         return obj
 
-    def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        return inspect.getsource(self.get_obj(obj))
+    def code(self, obj = None, search=None, full=False,  *args, **kwargs) -> Union[str, Dict[str, str]]:
+        if full:
+            return self.code_map(obj, search=search)
+        return  inspect.getsource(self.get_obj(obj))
     
     def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -846,9 +874,7 @@ class Module:
         return module2schema 
 
     def info(self, module:str='module',  # fam
-            lite: bool =True, 
             max_age : Optional[int]=1000, 
-            lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
             relative=True,
             update: bool =False, 
@@ -858,30 +884,27 @@ class Module:
         path = self.resolve_info_path(module)
         info = self.get(path, None, max_age=max_age, update=update)
         if info == None:
-            code = self.code_map(module)
-            schema = self.schema(module)
-            founder = self.founder().address
-            key = self.get_key(key or module).address
             info =  {
-                    'code': code, 
-                    'schema': schema, 
+                    'schema': self.schema(module), 
                     'name': module, 
-                    'key': key,  
-                    'founder': founder, 
+                    'key': self.get_key(key or module).key_address,  
+                    'founder': self.founder().address, 
                     'cid': self.cid(module),
                     'time': time.time()
                     }
-            info['signature'] = self.sign(module)
+            info['signature'] = self.sign(info)
             self.put(path, info)
-        if lite:
-            info = {k: v for k,v in info.items() if k in lite_features}
+            assert self.verify_info(info), f'Invalid signature {info["signature"]}'
         return  info
 
-
-    def verify_info(self, info:dict) -> bool:
+    def verify_info(self, info=None, **kwargs) -> bool:
+        info = self.copy(info)
+        if isinstance(info, str):
+            info = self.info(info, **kwargs)
         signature = info.pop('signature')
-        verify = self.verify(info, signature)
-
+        verify = self.verify(data=info, signature=signature)  
+        assert verify, f'Invalid signature {signature}'
+        return True
 
     def epoch(self, *args, **kwargs):
         return self.run_epoch(*args, **kwargs)
@@ -908,27 +931,33 @@ class Module:
                 ):
         return self.module('executor')(max_workers=max_workers, mode=mode).submit(fn=self.get_fn(fn), params=params, args=args, kwargs=kwargs, timeout=timeout)
 
-    def get_fn(self, fn:str, params=None, splitter='/', default_fn='forward', default_module = 'module') -> 'Callable':
+    def get_fn(self, fn:Union[callable, str], params:str=None, splitter='/', default_fn='forward', default_module = 'module') -> 'Callable':
         """
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
             if hasattr(self, fn):
-                fn = getattr(self, fn)
+                fn_obj = getattr(self, fn)
             elif fn.startswith('/'):
-                fn = getattr(self.module(default_module), fn)
+                fn_obj = getattr(self.module(default_module)(), fn[1:])
             elif fn.endswith('/'):
-                fn = getattr( self.module(fn[:-1]), default_fn)
+                fn_obj = getattr( self.module(fn[:-1])(), default_fn)
             elif '/' in fn:
                 module, fn = fn.split('/')
-                module = self.module(module)
+                module = self.module(module)()
                 if hasattr(module, fn):
-                    fn = getattr(module, fn)
+                    fn_obj = getattr(module, fn)
                 else:
                     raise Exception(f'Function {fn} not found in {module}')
             elif self.object_exists(fn):
-                fn =  self.obj(fn)
-        return fn(**params) if params else fn
+                fn_obj =  self.obj(fn)
+        elif callable(fn):
+            fn_obj = fn
+        else:
+            raise Exception(f'Invalid function {fn}')
+        if params:
+            return fn_obj(**params)
+        return fn_obj
     
     def fn(self, fn:str,  params=None, splitter='/', default_fn='forward') -> 'Callable':
         return self.get_fn(fn, params=params, splitter=splitter, default_fn=default_fn)
@@ -1095,13 +1124,10 @@ class Module:
             objs = [f for f in objs if search in f]
         return objs
 
-    def obj(self, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
 
-        if not hasattr(Module, 'included_pwd_in_path'):
-            self.included_pwd_in_path = False
-        if  not self.included_pwd_in_path:
-            paths = [self.modules_path, os.getcwd()]
-            for p in paths:
+    def obj(self, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
+        if not hasattr(self, 'included_pwd_in_path'):
+            for p in [self.modules_path, os.getcwd()]:
                 if not p in sys.path:
                     sys.path.append(p)
             self.included_pwd_in_path = True
@@ -1110,8 +1136,6 @@ class Module:
         if key in self.obj_cache:
             return self.obj_cache[key]
         from commune.utils import import_object
-        if (self.repo_name + '.' + self.repo_name) in key:
-            key = key.replace((self.repo_name + '.' + self.repo_name) ,self.repo_name)
         obj =  import_object(key, splitters=splitters, **kwargs)
         self.obj_cache[key] = obj
         return obj
@@ -1141,8 +1165,8 @@ class Module:
         Returns true if the module exists
         '''
         try:
-            tree = self.tree()
-            module_exists =  module in tree
+            module = self.module(module, **kwargs)
+            module_exists = True
         except Exception as e:
             module_exists =  False
         return module_exists
@@ -1203,7 +1227,6 @@ class Module:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
 
-
     def get_tree(self, path='./', depth = 10, max_age=60, update=False, **kwargs):
         """
         Get the tree of the modules in the path
@@ -1220,12 +1243,9 @@ class Module:
             filter_path = lambda p: p.replace('src.', '') if p.startswith('src.' + self.repo_name) else p
             class_paths = [filter_path(p) for p in class_paths]
             simple_paths = [self.objectpath2name(p) for p in class_paths]
-
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
         return tree
-    
-
     
     def clone_specific_branch_commit(self, repo_url=None, target_dir=None, branch='main', commit_hash=None):
         repo_url = repo_url or self.config['module']
@@ -1275,6 +1295,14 @@ class Module:
     def util(self, util:str, prefix='commune.utils'):
         return self.obj(self.util2path().get(util))
 
+    def up(self, image = 'commune'):
+        return self.cmd('make up', cwd=self.lib_path)
+
+    def enter(self, image = 'commune'):
+        import os
+        return os.system('docker exec -it commune bash')
+
+
     def founder(self):
         return self.get_key()
 
@@ -1295,16 +1323,14 @@ class Module:
             args = [self.code(module)] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
 
-    def help(self, query:str, *extra_query, module=None, **kwargs):
-        query = query + ' '.join(extra_query)
-        code = self.code(module)
-        prompt = 'given {code} '
-        return self.module("agent")().ask(prompt)
+    def help(self, fn='help',  query:str = 'what is this', module=None, **kwargs):
+        return self.module("agent")().ask(f'given {self.code(fn)} what is the answer to the question {query}')
     
-    def ask(self, *args, module=None, path='./' , **kwargs):
+    def ask(self, *args, module=None, path='./' , ai=0, **kwargs):
         if module != None:
             args = [self.code(module)] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
+            
 
     def ai(self, *args, **kwargs):
         return self.module("agent")().ask(*args, **kwargs) 
@@ -1329,23 +1355,14 @@ class Module:
             return test_results
         elif self.module_exists(module + '.test'):
             module = module + '.test'
-
         module_obj = self.module(module)()
         fn2result = {}
         for i, fn in enumerate(self.test_fns(module)):
-            fn_path = f'{module}/{fn}'
-            buffer = 5 * '*-' 
-            emoji = '⏳'
-            title = 'TEST'
-            self.print(f'{buffer}{emoji}\{title}({fn_path})\t{emoji}{buffer}', color='yellow')
             try:
                 fn2result[fn] = getattr(module_obj, fn)()
             except Exception as e:
-                e = self.detailed_error(e)
-                return {'fn': fn, 'error': e}
-            title = 'PASS'
-            emoji = '✅'
-            self.print(f'{buffer}{emoji}\{title}({fn_path})\t{emoji}{buffer}', color='green')
+                print(f'TestError({e})')
+                fn2result[fn] = self.detailed_error(e)
         return fn2result
 
     def test_module(self, module='module', timeout=50):
@@ -1521,14 +1538,19 @@ class Module:
                 filtered_modules += [module]
         return filtered_modules
 
-    def push(self, module):
-        modules_path = self.modules_path
-        module_path = modules_path + '/' + module.replace('.', '/')
-        if not os.path.exists(module_path):
-            raise Exception(f'Module {module} does not exist') 
+    def push(self, path = None, comment=None):
+
+        path = path or (self.modules_path + '/' + module.replace('.', '/'))
+        assert os.path.exists(path), f'Path {path} does not exist'
+        if comment == None:
+            comment = input('Enter the comment for the commit: ')
+        cmd = f'cd {self.modules_path}; git add {path} ; git commit -m "{comment}" ; git push'
+
+        self.cmd(cmd, cwd=self.modules_path)
+        
 
     def git_info(self, path:str = None, name:str = None, n=10):
-        return c.fn('git/git_info', {'path': path, 'name': name, 'n': n})
+        return self.fn('git/git_info', {'path': path, 'name': name, 'n': n})
     
     def isrepo(self, module:str = None):
         path = self.dirpath(module)
@@ -1551,9 +1573,35 @@ class Module:
             self.cmd(f'git pull {module} {name}')
         return {'success': True, 'msg': 'pushed module'}
 
+    def build(self, name:str = None, query=None): 
+        return self.fn('build/forward')(name=name, query=query)
+
+    def cp_mod(self, module:str = 'dev', name:str = 'dev2'):
+        """
+        Copy the module to the git repository
+        """
+        from_path = self.dirpath(module)
+        to_path = self.modules_path + '/' + name
+        if not os.path.exists(path):
+            raise Exception(f'Module {from_path} does not exist')
+        if os.path.exists(to_path):
+            if input(f'Path {to_path} already exists. Do you want to remove it? (y/n)'):
+                self.rm(to_path)
+        self.cp(from_path, to_path)
+        assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+        return {'success': True, 'msg': 'copied module', 'to': to_path}
+
     def add_mod(self, module:str = 'dev', name:str = None):
 
-        if 'github.com' in module:
+        repo2path = self.repo2path()
+        if os.path.exists(module):
+            to_path =  self.modules_path + '/' + module.split('/')[-1]
+            from_path = module
+            self.rm(to_path)
+            self.cp(from_path, to_path)
+            assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+
+        elif 'github.com' in module:
             giturl = module
             module = module.split('/')[-1].replace('.git', '')
             
@@ -1562,17 +1610,15 @@ class Module:
             cmd = f'git clone {giturl} {self.modules_path}/{module}'
             self.cmd(cmd, cwd=self.modules_path)
 
-        else:
-            repo2path = self.repo2path()
-            if module not in repo2path:
-                raise Exception(f'Module {module} does not exist')
+        elif module in repo2path:
             from_path = repo2path[module]
-            # add to modules_path 
             to_path =  self.modules_path + '/' + module.replace('.', '/')
             if os.path.exists(to_path):
                 self.rm(to_path)
             self.cp(from_path, to_path)
             assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+        else:
+            raise Exception(f'Module {module} does not exist')
         
         git_path = to_path + '/.git'
         if os.path.exists(git_path):
@@ -1612,14 +1658,14 @@ class Module:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-
     def sync(self,  globals_input=None, max_age=10, update=True, **kwargs):
         """
         Initialize the module by sycing with the config
         """
         # assume the name of this module is the name of .../
-        self.repo_name = os.path.dirname(os.path.abspath(__file__))
-        self.storage_path = os.path.expanduser(f'~/.{self.repo_name}')
+        self.repo_name = os.path.dirname(os.path.abspath(__file__)).split('/')[-1]
+        self.home_path = os.path.expanduser('~')
+        self.storage_path = f'{self.home_path}/.{self.repo_name}'
         self.root_path =os.path.dirname(__file__)
         self.core_path = self.root_path + '/core' # the path to the core
         self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
@@ -1660,6 +1706,7 @@ class Module:
             return self.__dict__[k]
         else:
             raise AttributeError(f'{k} not found in {self.__class__.__name__}')
+
 
 if __name__ == "__main__":
     Module().run()

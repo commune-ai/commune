@@ -11,8 +11,13 @@ import json
 import asyncio
 import commune as c
 from .utils import shortkey, abspath
+
+
 print = c.print
+
 class Server:
+
+    helper_functions  = ['info', 'forward'] # the helper functions
 
     def __init__(
         self, 
@@ -21,38 +26,44 @@ class Server:
         params : Optional[dict] = None, # the kwargs for the module
         
         # FUNCTIONS
-        functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
+        functions:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
         # NETWORK
         port: Optional[int] = None, # the port the server is running on
         tempo:int = 10000, # (in seconds) the maximum age of the history
         name: Optional[str] = None, # the name of the server, 
         network: Optional[str] = 'local', # the network the server is running on
-        timeout:int = 10, # (in seconds) the maximum time to wait for a response
-
         # EXTERNAL MODULES
-        auth = 'server.auth', # the auth for the server,
-        middleware = 'server.middleware', # the middleware for the server
-        store = 'server.store', # the history for the server
-        pm = 'pm2', # the process manager for the server
-        helper_functions  = ['info', 'forward'], # the helper functions
         # MISC
+        store = 'store', # the store for the server
         verbose:bool = True, # whether to print the output
-        info = None, # the info for the server
-        run_api : Optional[bool] = False, # if the server should be run as an api
-        path = '~/.commune/server' # the path to store the server data
+        path = '~/.commune/server', # the path to store the server data
+        timeout = 10, # (in seconds) the maximum time to wait for a response
+        run_api:bool = False, # whether to run the api
+        pm = 'server.pm', # the process manager to use
         ):
-
-        self.path = abspath(path)
-        self.helper_functions = helper_functions
+        self.store = c.module(store)(path)
         self.network = network or 'local'
         self.tempo = tempo
         self.verbose = verbose
-        self.timeout = timeout
-        self.pm = c.module(pm)(proc_prefix= f'server/{network}/')
-        self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
-        self.store = c.module(store)(abspath(path))
-        # set modules 
+        self.pm = pm
         if run_api:
+            self.serve_api(module=module, key=key, params=params, timeout=timeout, functions=functions, port=port)
+
+    
+
+    def serve_api(self,
+            module: Union[str, object] = 'module',
+            key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
+            params : Optional[dict] = None, # the kwargs for the module
+            auth = 'server.auth', # the auth for the server,
+            middleware = 'server.middleware', # the middleware for the server
+            name = None, # the name of the server,
+            functions:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
+            timeout:int = 10, # (in seconds) the maximum time to wait for a response
+            port : Optional[int] = None, # the port the server is running on
+
+    ): 
+            self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
             self.auth = c.module(auth)()
             self.loop = asyncio.get_event_loop() # get the event loop
             app = FastAPI()
@@ -72,8 +83,21 @@ class Server:
                     print(f'Error({fn}) --> {err}', color='red')
                     return err
             app.post("/{fn}")(server_function)
-            print(f'Served({self.module.info})', color='purple')
+
+            self.register_server(self.module.info['name'], self.module.info['url'])
             uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+
+    @property
+    def pm(self):
+        if not hasattr(self, '_pm'):
+            self._pm = c.module('server.pm')()
+        return self._pm
+
+    # set the pm
+    @pm.setter
+    def pm(self, pm='server.pm'):
+        self._pm = c.module(pm)()
+        return self
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:
@@ -108,35 +132,51 @@ class Server:
                 params : dict
                 client : dict (headers)
         """
-        headers = dict(request.headers)
         params = self.get_params(request)
-        data = {'fn': fn, 'params': params}
-        data['client'] = self.auth.verify_headers(headers=headers, data=params) # verify the headers
-        self.rate_limit(data)   # check the rate limit
-        fn_obj = getattr(self.module, fn)
-        args, kwargs = params['args'], params['kwargs']
-        result = fn_obj(*args, **kwargs) if callable(fn_obj) else fn_obj
-        if c.is_generator(result):
-            output = str(result)
-            def generator_wrapper(generator):
-                for item in generator:
-                    print(item, end='')
-                    yield item
-            result = EventSourceResponse(generator_wrapper(result))   
-        data['time'] = data['client']['time']
-        data[f'result'] = 'stream' if isinstance(result, EventSourceResponse) else result
+        headers = self.auth.verify_headers(headers=dict(request.headers), data=params) # verify the headers
+        user = headers['key'] # the user key
+        rate_limit = self.rate_limit(user=user, fn=fn) # the rate limit 
+        rate = self.rate(user) * self.module.fn2cost.get(fn, 1)
+        assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit})'
+        data = {}
+
+
+        with c.timer('SERVER_FN'):
+            fn_obj = getattr(self.module, fn)
+
+            if callable(fn_obj):
+                result = fn_obj(*params['args'], ** params['kwargs'])
+            else:
+                result = fn_obj
+                
+            if c.is_generator(result):
+                output = str(result)
+                def generator_wrapper(generator):
+                    for item in generator:
+                        print(item, end='')
+                        yield item
+                result = EventSourceResponse(generator_wrapper(result))   
+       
+        data['fn'] = fn
+        data['params'] = params
+        data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
+        data['client'] = headers
         data['server'] = self.auth.get_headers(data=data, key=self.module.key)
+        data['time'] = data['client']['time']
         data['duration'] = c.time() - float(data['client']['time'])
         data['schema'] = self.module.schema.get(data['fn'], {})
-        cid = self.hash(data)
-        client_key = data['client']['key']
-        path = f'results/{self.module.name}/{data["client"]["key"]}/{cid}.json'
-        self.store.put(path, data)
+        self.save_result(data)
         print(f'fn({data["fn"]}) --> {data["duration"]} seconds')
-        print('Saved data to -->', path)
         return result
-  
-    def results(self, module:str = 'module', paths: Optional[List] = None, df: bool = True, features: List = ['time', 'fn', 'duration', 'client', 'server']) -> Union[pd.DataFrame, List[Dict]]:
+
+    def save_result(self, data) -> Union[pd.DataFrame, List[Dict]]:
+        path = f'results/{self.module.name}/{data["client"]["key"]}/{self.hash(data)}.json'
+        self.store.put(path, data)
+
+    def results(self,
+                    module:str = 'module', 
+                    df: bool = True, 
+                    features: List = ['time', 'fn', 'duration', 'client', 'server']) -> Union[pd.DataFrame, List[Dict]]:
         """
         Get history data for a specific address
         
@@ -149,9 +189,7 @@ class Server:
         Returns:
             DataFrame or list of history records
         """
-        paths = paths or self.store.paths('results/'+module)
-
-        address2key = c.address2key()
+        paths = self.store.paths('results/'+module)
         history = [self.store.get(p) for p in paths]
         if df and len(history) > 0:
             history = pd.DataFrame(history)
@@ -159,8 +197,8 @@ class Server:
                 return history
             history = history[features]
             def _shorten(x):
-                if x in address2key: 
-                    return address2key.get(x) + ' (' + shortkey(x) + ')'
+                if x in self.address2key: 
+                    return self.address2key.get(x) + ' (' + shortkey(x) + ')'
                 else:
                     return shortkey(x)
                 return x
@@ -174,10 +212,6 @@ class Server:
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
-    def get_path(self, path):
-        if not path.startswith(self.path):
-            path = os.path.join(self.path, path)
-        return abspath(path)
         
     def set_module(self, module:str, functions: List[str], name: str , key:Union[str, 'Key'], params:dict, port:int):
         module = module or 'module'
@@ -202,7 +236,7 @@ class Server:
         self.verify_info(self.module.info) # verify the info
         return {'success':True, 'message':f'Set module to {self.module.name}'}
 
-    def verify_info(self, info:dict) -> dict:
+    def verify_info(self, info:dict) -> bool:
         """
         verifies the info of the server
         params:
@@ -213,8 +247,8 @@ class Server:
         assert all([k in info for k in ['name', 'url', 'key', 'time', 'signature']]), f'Info must have keys name, url, key, time, signature'
         signature= info['signature']
         payload = {k: v for k, v in info.items() if k != 'signature'}
-        assert c.verify(payload, signature=signature, address=info['key']), f'InvalidSignature({info})'
-        return info
+        assert self.module.key.verify(payload, signature=signature, address=info['key']), f'InvalidSignature({info})'
+        return True
     
     def set_functions(self, functions:Optional[List[str]]):
         function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns']  
@@ -236,6 +270,7 @@ class Server:
                 print(f'SEVER_FN_NOT_FOUND({fn}) --> REMOVING FUNCTION FROM FNS', color='red')
                 self.module.fns.remove(fn)
         self.module.schema = schema
+        self.module.free_mode = self.module.free_mode if hasattr(self.module, 'free_mode') else False
         return {'fns': self.module.fns, 'fn2cost': self.module.fn2cost}
         
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
@@ -261,7 +296,6 @@ class Server:
         self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
 
-
     def servers(self, search=None,  **kwargs) -> List[str]:
         return list(self.namespace(search=search, **kwargs).keys())
 
@@ -278,16 +312,15 @@ class Server:
                 features=['name', 'url', 'key'], 
                 timeout=8, 
                 **kwargs):
-
-        modules_path = self.get_path(f'modules')
-        modules = c.get(modules_path, max_age=max_age, update=update)
+        modules_path = 'modules.json'
+        modules = self.store.get(modules_path, max_age=max_age, update=update)
         if modules == None:
             futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
             modules = c.wait(futures, timeout=timeout)
-            c.put(modules_path, modules)
+            self.store.put(modules_path, modules)
         if search != None:
             modules = [m for m in modules if search in m['name']]
-        return [m for m in modules if not c.is_error(m)]
+        return [m for m in modules if not c.is_error(m) and  m != None]
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
@@ -298,95 +331,212 @@ class Server:
         """
         return bool(name in self.servers(**kwargs))
 
-    def rate(self, key:str, # the key to rate
-             network:str = 'chain', # the network to gate on
+    def rate(self, user:str, # the key to rate
              max_age:int = 60, # the maximum age of the rate
              update:bool = False, # whether to update the rate
              module = None, # the module to rate on
              ) -> float:
         if module == None:
-            if '/' in key:
-                module, key = key.split('/')
-            else:
-                module = self.module.name
-        return len( self.store.paths(f'results/{module}/{key}')) 
+            module = self.module.name
+        if '/' in user:
+            module, user = user.split('/')
+        path = f'results/{module}/{user}'
+        return len( self.store.paths(path)) 
 
-    def rate_limit(self, data:dict, # fn, params and client/headers
-                network:str = 'chain', # the network to gate on
-                role2rate:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000}, # the rate limits for each role
-                stake_per_call:int = 1000, # the amount of stake required per call
-            ) -> dict:
-        fn = data['fn']
-        params = data['params']
-        client = data['client'] if 'client' in data else data['headers'] # also known as the headers
-        self.address2key = c.address2key()
-        if not hasattr(self, 'state'):
-            self.state = None
-        address = client['key']
-        if c.is_admin( client['key']):
+    @property
+    def address2key(self):  
+        if not hasattr(self, '_address2key'):
+            self._address2key = c.address2key()
+        return self._address2key
+
+    def role(self, user) -> str:
+        """
+        get the role of the address ( admin, owner, local, public)
+        """
+        assert not self.is_blacklisted(user), f"Address {user} is blacklisted"
+
+        if c.is_admin(user):
+            # can call any function
             role =  'admin'
-        elif address == self.module.key.key_address:
+        elif user == self.module.key.key_address:
+            # can call any function
             role =  'owner'
-        elif address in self.address2key:
-            role =  'local'
         else:
-            role = 'guest'
-        if role != 'admin':
+            # non admin roles (cant call every function)
             assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
-        if role in role2rate:
-            rate_limit = role2rate[role]
-        else:
-            path = self.get_path(f'rate_limiter/{network}_state')
-            self.state = c.get(path, max_age=self.tempo)
-            if self.state == None:
-                self.state = c.module(network)().state()
-            # the amount of stake the user has as a module only
-            stake = self.state['stake'].get(client['key'], 0) 
-            stake_to_me = self.state['stake_from'].get(self.module.key.key_address, {}).get(client['key'], 0) 
-            stake = stake + stake_to_me
-            rate_limit = stake / stake_per_call
-        rate_limit = rate_limit / self.module.fn2cost.get(fn, 1)
-        rate = self.rate(self.module.name+'/'+client['key'])
-        assert rate < rate_limit, f'RateExceeded(rate={rate} limit={rate_limit}, caller={shortkey(client["key"])})' 
-        return rate_limit
+            roles = self.roles(max_age=60, update=False)
+            if user in roles:
+                role = roles[user]
+            elif address in self.address2key:
+                role =  'local'
+            else:
+                # this is a public address that is not in any of the roles
+                role = 'public'
+        
+        return role
 
-    def wait_for_server(self, name:str, trials:int=10, trial_backoff:int=1, network:str='local', max_age:int=4):
+    def rate_limit(self, user:str, fn:str,  role2rate = {'admin': 100000000, 'owner': 10000000, 'local': 1000000}):
+        role = self.role(user)
+        rate = role2rate.get(role, 1000)
+        if role in ['admin', 'owner']:
+            return rate
+        else:
+            assert fn in self.module.fns, f"Function {fn} not in endpoints={self.module.fns}"
+            network_rate = self.network_rate(user=user, network=self.network)
+            rate = min(rate, network_rate)
+
+        return rate
+
+    def roles(self, max_age:int = 60, update:bool = False):
+        """
+        get the roles of the addresses
+        """
+        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        return roles
+
+    def add_role(self, address:str, role:str, max_age:int = 60, update:bool = False):
+        """
+        add a role to the address
+        """
+        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles[address] = role
+        self.store.put(f'roles.json', roles)
+        return {'roles': roles, 'address': address }
+
+    def remove_role(self, address:str, role:str, max_age:int = 60, update:bool = False):
+        """
+        remove a role from the address
+        """
+        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        if address in roles:
+            del roles[address]
+        self.store.put(f'roles.json', roles)
+        return {'roles': roles, 'address': address }
+
+    def get_role(self, address:str, max_age:int = 60, update:bool = False):
+        """
+        get the role of the address
+        """
+        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        if address in roles:
+            return roles[address]
+        else:
+            return 'public'
+
+    def has_role(self, address:str, role:str, max_age:int = 60, update:bool = False):
+        """
+        check if the address has the role
+        """
+        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        if address in roles:
+            return roles[address] == role
+        else:
+            return False
+
+
+    def blacklist_user(self, user:str, max_age:int = 60, update:bool = False):
+        """
+        check if the address is blacklisted
+        """
+        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        blacklist.append(user)
+        blacklist = list(set(blacklist))
+        self.store.put(f'blacklist.json', blacklist)
+        return {'blacklist': blacklist, 'user': user }
+
+    def unblacklist_user(self, user:str, max_age:int = 60, update:bool = False):
+        """
+        check if the address is blacklisted
+        """
+        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        blacklist.remove(user)
+        blacklist = list(set(blacklist))
+        self.store.put(f'blacklist.json', blacklist)
+        return {'blacklist': blacklist, 'user': user }
+
+    def blacklist(self,  max_age:int = 60, update:bool = False):
+        """
+        check if the address is blacklisted
+        """
+        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        return blacklist
+
+    def is_blacklisted(self, user:str, max_age:int = 60, update:bool = False):
+        """
+        check if the address is blacklisted
+        """
+        blacklist = self.blacklist(max_age=max_age, update=update)
+        return user in blacklist
+
+
+    
+    
+    def network_rate(self, user:str, network:str = 'chain', max_age:int = 60, update:bool = False):  
+        state = self.network_state(network=network, max_age=60, update=False)
+        server_address = self.module.key.key_address
+        stake = state['stake'].get(user, 0) + state['stake_to'].get(user, {}).get(server_address, 0) 
+        stake_per_call = state.get('stake_per_call', 1000)
+        rate = stake / stake_per_call
+        return rate
+
+    def network_state(self, network:str = 'chain', max_age:int = 360, update:bool = False):
+        path = self.store.get_path(f'network_state/{network}.json')
+        self.state = self.store.get(path, max_age=self.tempo, update=update)
+        if self.state == None:
+            self.state = c.module(network)().state()
+            self.store.put(path, self.state)
+        return self.state
+
+    def wait_for_server(self, name:str, trials:int=10, trial_backoff:int=0.5, network:str='local', verbose=False, max_age:int=20):
         # wait for the server to start
         for trial in range(trials):
-            namespace = self.namespace(network=network, max_age=max_age)
+            namespace = self.namespace(network=network)
             if name in namespace:
                 try:
                     return  c.call(namespace[name]+'/info')
                 except Exception as e:
-
-                    if trial > 1:
+                    if verbose:
                         print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
+                        if trial > 1:
+                            print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
                     
-                    # print(c.logs(name, tail=10))
+                        # print(c.logs(name, tail=10))
             c.sleep(trial_backoff)
         raise Exception(f'Failed to start {name} after {trials} trials')
 
     def kill(self, name):
-        return self.pm.kill(name)
+        self.pm.kill(name)
+        self.deregister_server(name)
 
     def kill_all(self):
-        return self.pm.kill_all()
-    
+        for server in self.servers():
+            self.kill(server)
+            print(f'Killing -> {server}')
+        return {'servers': self.servers(update=1)}
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
 
-    def namespace(self,  search=None,  max_age=10, update=False, **kwargs) -> dict:
-        path = self.get_path('namespace')
+    def namespace(self,  search=None,  max_age=600, update=False, path='namespace', **kwargs) -> dict:
         t0 = c.time()
-        namespace = c.get(path, max_age=max_age, update=update)
+        namespace = self.store.get(path , max_age=max_age, update=update)
         if namespace == None:
-            names = [p[len(self.pm.process_prefix):] for p in self.pm.procs(search=search, **kwargs) if p.startswith(self.pm.process_prefix)]
+            names = [p[len(self.pm.process_prefix):] for p in self.pm.ps(search=search, **kwargs) if p.startswith(self.pm.process_prefix)]
             urls = [self.get_url(s) for s in names]
             namespace = {s: urls[i] for i, s in enumerate(names)}
-            c.put(path, namespace)
+            self.store.put(path, namespace)
         if search != None:
             namespace = {k:v for k, v in namespace.items() if search in k}
         return namespace
+
+    def register_server(self, name, url, path='namespace'):
+        namespace = self.store.get(path ,{})
+        namespace[name] = url
+        return self.store.put(path, namespace)
+
+    def deregister_server(self, name, path='namespace'):
+        namespace = self.store.get(path ,{})
+        namespace.pop(name, None)
+        return self.store.put(path, namespace)
 
     def get_url(self, name:str,  tail:int=100, **kwargs):
         return f'0.0.0.0:{self.get_port(name, tail=tail, **kwargs)}'
@@ -403,7 +553,6 @@ class Server:
                 return int(line.split(tag)[-1].split(' ')[0].split(':')[-1])
         return port
 
-
     def serve(self, 
               module: Union[str, 'Module', Any] = None, # the module in either a string
               params:Optional[dict] = None,  # kwargs for the module
@@ -415,7 +564,6 @@ class Server:
               cwd = None,
               **extra_params
               ):
-
         module = module or 'module'
         name = name or module
         params = {**(params or {}), **extra_params}

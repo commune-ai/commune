@@ -55,15 +55,16 @@ class Key:
     ss58_format = 42
     crypto_type =  'sr25519'
     language_code = 'en'
+    storage_path = os.path.expanduser('~/.commune/key')
 
     def __init__(self,
                  private_key: Union[bytes, str] = None, 
                  mnemonic : Optional[str] = None,
                  crypto_type: int = crypto_type,
                  path:str = None,
-                 storage_path = '~/.commune/key',
+                 storage_path = None,
                  **kwargs): 
-        self.storage_path = c.abspath(storage_path)
+        
         self.set_private_key(private_key=private_key, crypto_type=crypto_type, mnemonic=mnemonic, **kwargs)
 
     def set_private_key(self, private_key: Union[bytes, str] ,  crypto_type: int , mnemonic:Optional[str] = None, **kwargs):
