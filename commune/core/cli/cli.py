@@ -44,10 +44,8 @@ class Cli:
             fn = argv.pop(0)[1:]
         elif len(argv[0].split('/')) == 2:
             # scenario 6: first argument is a path to a function c module/fn *args **kwargs
-            fn = argv[0].split('/')[1]
-            if not hasattr(module_obj, fn):
-                module = argv[0].split('/')[0]
-            argv.pop(0)
+            module, fn = argv.pop(0).split('/')
+     
         elif len(argv) >= 2 and c.module_exists(argv[0]):
             # scenario 7: first argument is the module name c module fn *args **kwargs
             module = argv.pop(0)
@@ -59,8 +57,15 @@ class Cli:
             fn2module = c.fn2module()
             assert fn in fn2module, f'Function {fn} not found in module {module}'
             module = fn2module[fn]
+
         if module != base_module:
             module_obj = c.module(module)()
+        if not hasattr(module_obj, fn):
+            print(f'Function {fn} not found in module {module}')
+            argv.insert(0, module) # this is a hack to ensure c api/code --> c code api assuming code is not in the api module
+            module = base_module
+
+        module_obj = c.module(module)()
         fn_obj = getattr(module_obj, fn)
         # ---- PARAMS ----
         params = self.get_fn_params(argv)
