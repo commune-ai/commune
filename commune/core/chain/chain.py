@@ -12,15 +12,16 @@ from .storage import StorageKey
 from .key import  Keypair# type: ignore
 from .base import ExtrinsicReceipt, SubstrateInterface
 from .types import (ChainTransactionError,
-                                    NetworkQueryError, 
-                                    SubnetParamsMaps, 
-                                    SubnetParamsWithEmission,
-                                    BurnConfiguration, 
-                                    GovernanceConfiguration,
-                                    Ss58Address,  
-                                    NetworkParams, 
-                                    SubnetParams, 
-                                    Chunk )
+                    NetworkQueryError, 
+                    SubnetParamsMaps, 
+                    SubnetParamsWithEmission,
+                    BurnConfiguration, 
+                    GovernanceConfiguration,
+                    Ss58Address,  
+                    NetworkParams, 
+                    SubnetParams, 
+                    Chunk)
+from typing import Any, Callable, Optional, Union, Mapping
 import commune as c
 
 U16_MAX = 2**16 - 1
@@ -43,7 +44,7 @@ class Chain:
         "test": {'urls':{"lite": ["testnet.api.communeai.net"]}}
     }
     nets = networks = list(net2info.keys())
-    network : str = 'main' # network name [main, test]
+    network : str = 'test' # network name [main, test]
     networks = list(net2info.keys())
     wait_for_finalization: bool
     _num_connections: int
@@ -88,6 +89,7 @@ class Chain:
         c.put_text(path, code)
         self.network = network
         return {'network': network, 'og_network': self.network}
+
                 
     def set_network(self, 
                         network=None,
@@ -115,21 +117,11 @@ class Chain:
         self.ws_options = ws_options
         self.archive = archive
         self.mode = mode
-        if url == None:
-            url = self.get_url()
+        url = url or self.get_url()
         self.url  = url 
         self.num_connections = num_connections                  
         self.wait_for_finalization = wait_for_finalization
-        self.connections_queue = queue.Queue(num_connections)
-        self.network_state = {"network": self.network, "url": self.url,"connections": self.num_connections}
-        c.print(self.network_state)
-        for _ in range(self.num_connections):
-            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-        self.connection_latency = round(c.time() - t0, 2)
-        network_state = {"network": self.network, "url": self.url,"connections": self.num_connections,"latency": self.connection_latency,
-        }
-        c.print(f'Chain(network={self.network} url={self.url} connections={self.num_connections} latency={self.connection_latency}s)', color='blue') 
-
+        return {'network': network, 'url': url, 'mode': mode, 'num_connections': num_connections, 'wait_for_finalization': wait_for_finalization}
         
     def get_url(self,  mode=None, **kwargs):
         mode = mode or self.mode
@@ -160,6 +152,14 @@ class Chain:
             QueueEmptyError: If no connection is available within the timeout
               period.
         """
+
+        if not hasattr(self, 'connections_queue'):
+            t0 = c.time()
+            self.connections_queue = queue.Queue(self.num_connections)
+            for _ in range(self.num_connections):
+                self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+            self.connection_latency = round(c.time() - t0, 2)
+            c.print(f'Chain(network={self.network} url={self.url} connections={self.num_connections} latency={self.connection_latency}s)', color='blue') 
 
         conn = self.connections_queue.get(timeout=timeout)
         if init:
@@ -793,6 +793,32 @@ class Chain:
         result = self.query_batch({module: [(name, params)]})
         return result[name]
 
+    def pallets(self):
+        """
+        Retrieves the list of pallets from the network.
+
+        Returns:
+            A list of pallets available on the network.
+        """
+        with self.get_conn(init=True) as substrate:
+            pallets = substrate.get_metadata_pallets()
+        return pallets
+
+    def pallet2storage(self, pallet: str):
+        """
+        Retrieves the storage functions of a specific pallet.
+
+        Args:
+            pallet: The name of the pallet to query.
+
+        Returns:
+            A list of storage functions available in the specified pallet.
+        """
+        with self.get_conn(init=True) as substrate:
+            storage = substrate.get_metadata_storage_functions(pallet)
+        return storage
+
+
     def query_map(
         self,
         name: str='Emission',
@@ -1105,7 +1131,7 @@ class Chain:
             return True
         return False
 
-    def put_multisig(self, name='multisig',  keys=None, threshold=None):
+    def add_multisig(self, name='multisig',  keys=None, threshold=None):
         assert not self.multisig_exists(name)
         if keys == None:
             keys = input('Enter keys (comma separated): ')
@@ -1123,16 +1149,7 @@ class Chain:
         path = self.get_multisig_path(name)
         return c.put(path, multisig)
 
-    def bro(self):
-        for p in c.ls('~/.commune22/key'):
-            try: 
-                data = c.get(p)
-                if data['ss58_address'] == '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC':
-                    print(data['ss58_address'] ,p)
-            except Exception as e:
-                print(e)
-                pass
-
+    put_multiisg = add_multisig
     def multisig_exists(self, multisig):
         if isinstance(multisig, str):
             multisig = self.get_multisig(multisig)
@@ -1150,7 +1167,7 @@ class Chain:
                 multisigs[p.split('/')[-1].split('.')[-2]] = self.get_multisig_data(multisig)
 
         # add sudo multisig
-        multisigs['sudo'] = self.c 
+        multisigs['sudo'] = self.sudo_multisig_data
 
         for k, v in multisigs.items():
             if isinstance(v, dict):
@@ -1262,7 +1279,7 @@ class Chain:
         return dict(sorted({k:v for k,v in my_tokens.items() if v > min_value}.items(), key=lambda x: x[1], reverse=True))
 
 
-    def wallets(self,  max_age=600, update=0):
+    def wallets(self,  max_age=None, update=False, mode='df'):
         """
         an overview of your wallets
         """
@@ -1272,6 +1289,8 @@ class Chain:
         wallets = []
         wallet_names = set(list(my_stake) + list(my_balance))
         for k in wallet_names:
+            if not k in key2address:
+                continue
             address = key2address[k]
             balance = my_balance.get(k, 0)
             stake = my_stake.get(k, 0)
@@ -1284,7 +1303,14 @@ class Chain:
         wallets = wallets.reset_index(drop=True)
         wallets = wallets.to_dict(orient='records')
         wallets.append({'name': '--', 'address': 'total', 'balance': sum([w['balance'] for w in wallets]), 'stake': sum([w['stake'] for w in wallets]), 'total': sum([w['total'] for w in wallets])})
-        return  c.df(wallets)
+        if mode == 'df':
+            wallets = c.df(wallets)
+        elif mode == 'list':
+            wallets = wallets
+        else:
+            raise ValueError(f'Invalid mode {mode}. Use "df" or "list".')
+        return wallets
+        
         
     def my_total(self):
         return sum(self.my_tokens().values())
@@ -1458,20 +1484,23 @@ class Chain:
 
     updatemod = upmod = update_module
 
-    def reg(self, name='compare', metadata=None, url='0.0.0.0:8888', module_key=None, key=None, subnet=2):
-        return self.register(name=name, metadata=metadata, url=url, module_key=module_key, key=key, subnet=subnet)
+    def reg(self, name='compare', metadata=None, url='0.0.0.0:8888', module_key=None, key=None, subnet=2, net=None):
+        return self.register(name=name, metadata=metadata, url=url, module_key=module_key, key=key, subnet=subnet, net=net)
 
     def register(
         self,
         name: str,
-        url: str = '0.0.0.0:8000',
-        module_key : str = None , 
-        key: Keypair = None,
-        metadata: str = 'NA',
-        subnet: str = 2,
+        url: str = 'NA',
+        key: Optional[Union[str, Keypair]] = None,
+        module_key : Optional[str] = None , 
+        metadata: Optional[str] = None, code : Optional[str] = None, # either code or metadata
+        subnet: Optional[str] = 2,
+        net = None,
         wait_for_finalization = False,
         public = False,
         stake = 0,
+        safety = False,
+        **kwargs
     ) -> ExtrinsicReceipt:
         """
         Registers a new module in the network.
@@ -1484,6 +1513,7 @@ class Chain:
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
+        name = name or key
         key =  c.get_key(key or name)
         if url == None:
             namespace = c.namespace()
@@ -1493,16 +1523,19 @@ class Chain:
             url = ip +':'+ port
 
         module_key = c.get_key(module_key or name).ss58_address
+
+    
+        subnet_name = self.get_subnet_name(net or subnet)
+        metadata = metadata or code or 'NA'
         params = {
-            "network_name": self.get_subnet_name(subnet),
+            "network_name": subnet_name,
             "address":  url,
             "name": name,
             "module_key": module_key,
             "metadata": metadata,
         }
 
-        print('Registering module', params)
-        return  self.call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
+        return  self.call("register", params=params, key=key, wait_for_finalization=wait_for_finalization, safety=safety)
 
     def dereg(self, key: Keypair, subnet: int=0):
         return self.deregister(key=key, subnet=subnet)
@@ -2108,7 +2141,7 @@ class Chain:
     def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]]:
         subnet = self.get_subnet(subnet)
         weights_dict = self.query_map("Weights",[subnet],extract_value=extract_value, module='SubnetEmissionModule')
-        return weights_dict
+        return {int(k): v for k,v in weights_dict.items()}
 
     def root_weights(self, key: str=None, extract_value: bool = False):
         key_address = self.get_key_address(key)
@@ -2389,6 +2422,15 @@ class Chain:
         """
 
         return self.query("UnitEmission", module="SubnetEmissionModule")
+
+    def wallets_with_min_balance(self, min_balance: int = 0) -> list[Ss58Address]:
+        wallets = self.wallets(mode='list')
+        new_wallets = []
+        for w in wallets:
+            if w['name'] != '--' and w['balance'] > min_balance:
+                new_wallets.append(w)
+        return [w['name'] for w in new_wallets]
+
 
     def tx_rate_limit(self) -> int:
         """
@@ -2779,7 +2821,7 @@ class Chain:
     def my_modules(self, subnet=None, 
                    max_age=60, 
                    keys=None, 
-                   features=['name', 'key', 'url', 'emission', 'weights', 'stake'],
+                   features=['name', 'key', 'url',  'stake'],
                    df = False, 
                    update=False):
         if subnet == None:
@@ -2797,36 +2839,14 @@ class Chain:
             subnet = self.get_subnet(subnet)
             path = self.get_path(f'my_modules/{self.network}/{subnet}')
             modules = c.get(path, None, max_age=max_age, update=update)
-            namespace = c.namespace()
             if modules == None:
-                address2key = c.address2key()
-                keys = keys or self.keys(subnet)
-                my_keys = []
-                for k in keys:
-                    if k in address2key:
-                        my_keys += [k]
-                modules = self.modules(my_keys, subnet=subnet)
-                for i,m in enumerate(modules):
-                    if not 'name' in m:
-                        continue
-                    serving = m['name'] in namespace
-                    m['serving'] = serving
-                    m['key'] = my_keys[i]
-
-                    modules[i] = m
-            features += ['serving']
-            modules = [{f:m.get(f, None) for f in features} for m in modules]
-
-            if df:
-                modules =  c.df(modules)
-                # group on key
-                modules = modules.groupb('key').agg(list).reset_index()
-                modules['stake'] = modules['stake'].apply(sum)
-    
+                keys = c.address2key().keys()
+                modules = self.modules(keys=keys, subnet=subnet, features=features)
+            
         return modules
     
-    def my_valis(self, subnet=0, min_stake=0):
-        return [m for m in self.my_modules(subnet) if m['stake'] > min_stake]
+    def my_valis(self, subnet=0, min_stake=0, features=['name', 'key','weights', 'stake']):
+        return c.df(self.my_modules(subnet, features=features ))
 
     def my_keys(self, subnet=0):
         return [m['key'] for m in self.my_modules(subnet)]
@@ -2901,13 +2921,18 @@ class Chain:
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 
-                    features = ['key', 'url', 'name'],
+                    features = ['key', 'url', 'name', 'weights'],
                     lite = True,
                     num_connections = 1,
                     search=None,
                     df = False,
+                    keys = None,
                     **kwargs):
         subnet = self.get_subnet(subnet)
+        og_features = features.copy()
+        if 'stake' in og_features:
+            features += ['stake_from']
+            features.remove('stake')
         subnet_path = self.get_path(f'{self.network}/modules/{subnet}')
         feature2path = {f:subnet_path + '/' + f for f in features}
         future2feature = {}
@@ -2945,6 +2970,13 @@ class Chain:
                         m[f] = results[f][m['key']]
                 elif isinstance(results[f], list):
                     m[f] = results[f][uid] 
+
+                if f == 'weights':
+                    if m[f] == None:
+                        m[f] = []
+            if 'stake' in og_features:
+                m['stake'] = sum([v / 10**9 for k,v in m['stake_from'].items() ])
+
                      
             modules.append(m)  
         if search:
@@ -2953,6 +2985,8 @@ class Chain:
             modules = c.df(modules)
         for i,m in enumerate(modules):
             modules[i] = {k:m[k] for k in features}
+        if keys != None:
+            modules = [m for m in modules if m['key'] in keys]
         return modules
 
     mods = modules
@@ -3072,6 +3106,21 @@ class Chain:
         with self.get_conn() as substrate:
             metadata = substrate.get_metadata().get_metadata_pallet(pallet)
         return metadata
+
+    def pallet2metadata(self):
+        """
+        Get metadata for a specific pallet.
+        """
+        pallet2metadata = {}
+        for pallet in self.pallets:
+            metadata = self.get_metadata_pallet(pallet)
+            if metadata:
+                print(f"Metadata for pallet {pallet}:")
+                print(metadata)
+            else:
+                print(f"No metadata found for pallet {pallet}")
+            pallet2metadata[pallet] = metadata
+        return pallet2metadata
                         
     # get all of the storage names for a module
     pallets = ["SubnetEmissionModule", "SubspaceModule", "GovernanceModule", "SubspaceModule"]

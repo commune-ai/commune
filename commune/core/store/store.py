@@ -7,22 +7,48 @@ from typing import Optional, Union
 import commune as c
 
 class Store:
-    def __init__(self, folder_path='~/.commune/test', mode='json'):
-        self.folder_path = self.abspath(folder_path)
-        self.mode = mode
+
+    def __init__(self, 
+                folder='~/.commune/store', 
+                suffix='json'
+                ):
+
+        """
+        Store class to manage the storage of data in files
+
+        folder: str: the path of the folder where the data is stored
+        suffix: str: the suffix of the files (json, txt, etc)
+        """
+        self.folder = self.abspath(folder)
+        self.suffix = suffix
 
     def put(self, path, data):
-        path = self.get_path(path, mode=self.mode)
-        folder_path = '/'.join(path.split('/')[:-1])
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path, exist_ok=True)
+        path = self.get_path(path, suffix=self.suffix)
+        self.ensure_directory(path)
         with open(path, 'w') as f:
             json.dump(data, f)
         return path
 
+    def ensure_directory(self, path):
+        """
+        Ensure that the directory exists
+        """
+        folder = os.path.dirname(path)
+        if not os.path.exists(folder):
+            os.makedirs(folder, exist_ok=True)
+        return {'path': path, 'folder': folder}
+
     def get(self, path, default=None, max_age=None, update=False):
-        path = self.get_path(path, mode=self.mode)
-        folder_path = os.path.dirname(path)
+        """
+        Get the data from the file
+        params
+            path: str: the path of the file (relative to the self.folder)
+            default: any: the default value to return if the file does not exist
+            max_age: int: the maximum age of the file in seconds (update if too old)
+            update: bool: if True, update the file if it is too old
+
+        """
+        path = self.get_path(path, suffix=self.suffix)
         if not os.path.exists(path):
             return default
         try:
@@ -31,33 +57,63 @@ class Store:
         except Exception as e:
             print(f'Failed to load {path} error={e}')
             data = default
+        if isinstance(data, dict) and 'data' in data and ('time' in data or 'timestamp' in data):
+            data = data['data']
+
+            
+        if not update:
+            update =  bool(max_age != None and self.get_age(path) > max_age)
         if update:
-            max_age = 0
-        if max_age != None:
-            if time.time() - os.path.getmtime(path) > max_age:
-                data = default
+            data = default
         return data
 
-    def get_path(self, path:str, mode:Optional[str]=None):
+    def get_time(self, path, default=None):
+        """
+        Get the time of the file
+        params
+        """
+        path = self.get_path(path, suffix=self.suffix)
+        return os.path.getmtime(path)
+
+    def get_age(self, path, default=None):
+        """
+        Get the age of the file
+        params
+        """
+        path = self.get_path(path, suffix=self.suffix)
+        if not os.path.exists(path):
+            return default
+        return time.time() - os.path.getmtime(path)
+
+    
+
+    def get_path(self, path:str, suffix:Optional[str]=None):
         """
         Get the path of the file
         params
             path: str: the path of the file
-            mode: str: the mode of the file (json, txt, etc)
+            suffix: str: the suffix of the file (json, txt, etc)
         return: str: the path of the file
         """
-        if not path.startswith(self.folder_path):
-            path = f'{self.folder_path}/{path}'
-        if mode != None:
-            suffix = f'.{mode}'
+        if not path.startswith(self.folder):
+            path = f'{self.folder}/{path}'
+        if suffix != None:
+            suffix = f'.{suffix}'
             if not path.endswith(suffix):
                 path += suffix
         return path
 
+    def in_folder(self, path):
+        return path.startswith(self.folder)
+
     def rm(self, path):
-        path = self.get_path(path, mode=self.mode)
+        path = self.get_path(path, suffix=self.suffix)
         assert os.path.exists(path), f'Failed to find path {path}'
-        os.remove(path)
+        assert self.in_folder(path), f'Path {path} is not in folder {self.folder}'
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
         return path
 
     def rmdir(self, path):
@@ -78,7 +134,7 @@ class Store:
             data = pd.DataFrame(data)
         return data
 
-    def ls(self, path=None, search=None, avoid=None):
+    def ls(self, path='./', search=None, avoid=None):
         path = self.get_path(path)
         if not os.path.exists(path):
             return []
@@ -87,9 +143,13 @@ class Store:
         paths = [f'{path}/{p}' for p in paths]
         return paths
 
+    def lsdir(self, path='./', search=None, avoid=None):
+        path = self.get_path(path)
+        return os.listdir(path)
+
     def paths(self, search=None, avoid=None, max_age=None):
         import glob
-        paths = glob.glob(f'{self.folder_path}/**/*', recursive=True)
+        paths = glob.glob(f'{self.folder}/**/*', recursive=True)
         paths = [self.abspath(p) for p in paths if os.path.isfile(p)]
         if search != None:
             paths = [p for p in paths if search in p]
@@ -98,12 +158,16 @@ class Store:
         if max_age != None:
             paths = [p for p in paths if time.time() - os.path.getmtime(p) < max_age]
         return paths
+
+    def files(self, path=None, search=None, avoid=None):
+        return self.paths(search=search, avoid=avoid)
+
         
     def exists(self, path):
         path = self.get_path(path)
         exists =  os.path.exists(path)
         if not exists:
-            item_path = self.get_path(path, mode=self.mode)
+            item_path = self.get_path(path, suffix=self.suffix)
             exists =  os.path.exists(item_path)
         return exists
     def item2age(self):
@@ -129,20 +193,6 @@ class Store:
             os.remove(p)
         return paths
 
-    def test(self, path='test.json', data={'test': 'test', 'fam': {'test': 'test'}}):
-        t0 = time.time()
-        if self.exists(path):
-            self.rm(path)
-        assert not self.exists(path), f'Failed to delete'
-        self.put(path, {'test': 'test'})
-        assert self.exists(path), f'Failed to find {path}'
-        data = self.get(path)
-        self.rm(path)
-        assert not self.exists(path), f'Failed to delete {path}'
-        assert data == {'test': 'test'}, f'Failed test data={data}'
-        t1 = time.time()
-        print(f'Passed all tests in {t1 - t0} seconds')
-        return {'success': True, 'msg': 'Passed all tests'}
 
     def abspath(self, path):
         return os.path.abspath(os.path.expanduser(path))
@@ -179,28 +229,18 @@ class Store:
         print(f'cid={cid} path={path}')
         return cid
 
-
-    def get_age(self, path):
-        """
-        Get the age of the file in seconds
-        """
-        path = self.abspath(path)
-        if os.path.exists(path):
-            return time.time() - os.path.getmtime(path)
-        else:
-            raise Exception(f'Failed to find path {path}')
     def get_text(self, path) -> str:
         with open(path, 'r') as f:
             result =  f.read()
         return result
     
-    def hash(self, content: str, mode='sha256') -> str:
+    def hash(self, content: str, hash_type='sha256') -> str:
         import hashlib
-        if mode == 'md5':
+        if hash_type == 'md5':
             hash_obj = hashlib.md5()
-        elif mode == 'sha1':
+        elif hash_type == 'sha1':
             hash_obj = hashlib.sha1()
-        elif mode == 'sha256':
+        elif hash_type == 'sha256':
             hash_obj = hashlib.sha256()
         else:
             raise ValueError(f'Unsupported hash mode: {mode}')
@@ -208,32 +248,41 @@ class Store:
         return hash_obj.hexdigest()
 
 
-    def encrypt(self, path: str= 'test/a', key: str=None) -> str:
+    def encrypt(self, path: str= 'test/a', key: str=None, password=None) -> str:
         """
         Encrypt a file using the given key
         """
-        import commune as c
         key = c.key(key)
         obj = self.get(path)
-        result =  {'encrypted_data': key.encrypt(obj)}
+        assert self.exists(path), f'Failed to find {path}'
+        assert not self.is_encrypted(path), f'already encrypted {path}'
+        result =  {'encrypted_data': key.encrypt(obj, password=password)}
         self.put(path, result)
         assert self.is_encrypted(path), f'Failed to encrypt {path}'
-        return
+        return {'path': path, 'encrypted_data': result['encrypted_data']}
 
-    def decrypt(self, path: str= 'test/a', key: str=None) -> str:
+    def isdir(self, path: str= 'test') -> bool:
+        """
+        Check if the path is a directory
+        """
+        path = self.get_path(path)
+        return os.path.isdir(path)
+
+    def decrypt(self, path: str= 'test/a', key: str=None, password=None) -> str:
         """
         Decrypt a file using the given key
         """
-        import commune as c
+        
         key = c.key(key)
         obj = self.get(path)
         if isinstance(obj, dict) and 'encrypted_data' in obj:
-            result = key.decrypt(obj['encrypted_data'])
+            result = key.decrypt(obj['encrypted_data'], password=password)
             self.put(path, result)
             assert not self.is_encrypted(path), f'Failed to decrypt {path}'
             return result
         else:
             raise Exception(f'Failed to decrypt {path}')
+
 
     def is_encrypted(self, path: str= 'test/a') -> bool:
         """
@@ -244,38 +293,51 @@ class Store:
             return True
         return False
 
-    def encrypted_paths(self, path: str= 'test/a', key: str=None) -> list:
+    def encrypted_paths(self, key: str=None) -> list:
         """
         Get the paths of the encrypted files
         """
-        
         key = c.key(key)
-        paths = self.paths(search=path)
+        paths = self.paths()
         encrypted_paths = []
         for p in paths:
-            if self.is_encrypted(p, key):
+            if self.is_encrypted(p):
                 encrypted_paths.append(p)
         return encrypted_paths
 
-    def test_encrypt(self, path: str= 'test/a',  key: str=None) -> str:
+    def encrypt_all(self, key: str=None) -> list:
         """
-        Test the encryption and decryption of a file
+        Encrypt all files in the given path
         """
-
-        if self.exists(path):
-            self.rm(path)
-        assert not self.exists(path), f'Failed to delete {path}'
-        
-        value = {'test': 'test', 'fam': {'test': 'test'}}
-        self.put(path, value)
-        obj = self.get(path)
-        assert self.exists(path), f'Failed to find {path}'
         key = c.key(key)
-        self.encrypt(path, key)
-        assert self.is_encrypted(path), f'Failed to encrypt {path}'
-        self.decrypt(path, key)
-        assert not self.is_encrypted(path), f'Failed to decrypt {path}'
-        # delete the file
-        self.rm(path)
-        assert not self.exists(path), f'Failed to delete {path}'
-        return {'success': True, 'msg': 'Passed all tests'}
+        paths = self.paths()
+        encrypted_paths = []
+        for p in paths:
+            if not self.is_encrypted(p):
+                encrypted_paths.append(self.encrypt(p, key))
+        return encrypted_paths
+
+
+    def decrypt_all(self, key: str=None) -> list:
+        """
+        Decrypt all files in the given path
+        """
+        key = c.key(key)
+        paths = self.paths()
+        decrypted_paths = []
+        for p in paths:
+            if self.is_encrypted(p):
+                decrypted_paths.append(self.decrypt(p, key))
+        return decrypted_paths
+
+
+    def stats(self)-> 'df':
+        """
+        Get the overview of the storage
+        """
+        paths = self.paths()
+        data = []
+        print('folder -->', self.folder)
+        for p in paths:
+            data.append({'path': p.replace(self.folder+'/', '')[:-len('.json')], 'age': self.get_age(p), 'size': os.path.getsize(p), 'encrypted': self.is_encrypted(p)})
+        return c.df(data)

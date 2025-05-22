@@ -32,10 +32,6 @@ class Cli:
         elif len(argv) > 0 and hasattr(module_obj, argv[0]):
             # scenario 2: first argument is the function name c 
             fn = argv.pop(0)
-        elif c.module_exists(argv[0]):
-            # scenario 3: the fn name is of another module so we will look it up in the fn2module
-            # and then get the function from the module
-            module = argv.pop(0)
         elif argv[0].endswith('/'):
             # scenario 4: the fn name is of another module so we will look it up in the fn2module
             module = argv.pop(0)[:-1]
@@ -45,7 +41,6 @@ class Cli:
         elif len(argv[0].split('/')) == 2:
             # scenario 6: first argument is a path to a function c module/fn *args **kwargs
             module, fn = argv.pop(0).split('/')
-     
         elif len(argv) >= 2 and c.module_exists(argv[0]):
             # scenario 7: first argument is the module name c module fn *args **kwargs
             module = argv.pop(0)
@@ -60,12 +55,12 @@ class Cli:
 
         if module != base_module:
             module_obj = c.module(module)()
+            
         if not hasattr(module_obj, fn):
             print(f'Function {fn} not found in module {module}')
             argv.insert(0, module) # this is a hack to ensure c api/code --> c code api assuming code is not in the api module
             module = base_module
-
-        module_obj = c.module(module)()
+            module_obj = c.module(base_module)()
         fn_obj = getattr(module_obj, fn)
         # ---- PARAMS ----
         params = self.get_fn_params(argv)
@@ -103,7 +98,7 @@ class Cli:
             try:
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
-                x =  [str2python(item.strip()) for item in list_items]
+                x =  [self.str2python(item.strip()) for item in list_items]
                 if len(x) == 1 and x[0] == '':
                     x = []
                 return x
@@ -117,7 +112,7 @@ class Cli:
             try:
                 dict_items = x[1:-1].split(',')
                 # try to convert each item to a key-value pair
-                return {key.strip(): str2python(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+                return {key.strip(): self.str2python(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
             except:
                 # if conversion fails, return as string
                 return x

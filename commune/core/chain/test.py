@@ -38,7 +38,12 @@ class Test:
         return {'msg': 'transfer test passed', 'success': True}
 
     def test_register_module(self, key='test', subnet=0):
+        # generate random_key = 
+        import random
+        name = key + str(random.randint(0, 100000))
+        key = c.get_key(name)
         self.chain.register(key, subnet=subnet)
+        rm_key = c.get_key(key)
         return self.chain.module(key)
         
 

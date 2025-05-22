@@ -75,7 +75,7 @@ class Api:
                         timeout=60, 
                         page_size=10, 
                         threads=1,
-                        mode = 'n',
+                        mode = 'default',
                         verbose=False):
 
         if threads > 1:
@@ -128,7 +128,7 @@ class Api:
         result_filter = lambda x: bool(isinstance(x, dict) and 'name' in x and 'schema' in x and 'key' in x)
         results =  list(filter(result_filter, results))
         if mode == 'n':
-            results = sorted(results, key=lambda x: x['name'])
+            results = len(results)
         return results
 
     def check_info(self, info, features=['name', 'schema', 'key']):

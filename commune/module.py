@@ -16,11 +16,10 @@ nest_asyncio.apply()
 
 class Module:
 
+
     def __init__(self, globals_input = None, **kwargs): 
         self.sync(globals_input=globals_input, **kwargs)
 
-
-    module_cache = {}
     def module(self, 
                 module: str = 'module', 
                 params: dict = None,  
@@ -28,44 +27,31 @@ class Module:
                 verbose=False, 
                 trials = 1,
                 **kwargs) -> str:
-
         # Load the module
         module = module or 'module'
         # Try to load the module
         if module in ['module']:
             return Module
-        t0 = time.time()
         # Normalize path
+        if not isinstance(module, str):
+            return module
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
-
+        if not hasattr(self, 'module_cache'):
+            self.module_cache = {}
         if module in self.module_cache:
             return self.module_cache[module]
         else:
             tree = self.tree()
             obj_path = tree.get(module, module)
-            try:
-                obj = self.obj(obj_path)
-            except Exception as e:
-                tree_options = [k for k in tree.keys() if module in k ]
-                if len(tree_options) == 1:
-                    obj = self.obj(tree_options[0])
-                else:
-                    tree = self.tree(update=True)
-                    if trials > 0:
-                        return self.module(module, params=params, cache=cache, trials=trials-1, **kwargs)
-                    else:
-                        raise e
+            obj = self.obj(obj_path)
             self.module_cache[module] = obj
         # Apply parameters if provided
-        if isinstance(params, dict):
-            obj = obj(**params)
-        elif isinstance(params, list):
-            obj = obj(*params)
-        else: 
-            # no params set
-            pass
-        latency = time.time() - t0
+        if params != None:
+            if isinstance(params, dict):
+                obj = obj(**params)
+            elif isinstance(params, list):
+                obj = obj(*params)
         return obj
 
     mod = get_module = module
@@ -168,7 +154,7 @@ class Module:
             return json_path
         elif os.path.exists(yaml_path):
             return yaml_path
-    
+
     def storage_dir(self, module=None):
         module = self.resolve_module(module)
         return os.path.abspath(os.path.expanduser(f'~/.commune/{self.module_name(module)}'))
@@ -191,9 +177,7 @@ class Module:
         return obj
 
     def pwd(self):
-        """
-        working directory
-        """
+
         return os.getcwd()
 
     def token(self, data, key=None, module='auth.jwt',  **kwargs) -> str:
@@ -326,6 +310,7 @@ class Module:
         encrypted = self.encrypt(data, key=key, password=password, **kwargs)
         decrypted = self.decrypt(encrypted, key=key, password=password, **kwargs)
         return data == decrypted
+        
     def sign(self, data:dict  = None, key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
         return self.get_key(key, crypto_type=crypto_type).sign(data, mode=mode, **kwargs)
 
@@ -340,14 +325,14 @@ class Module:
         key = self.get_key(key, crypto_type=crypto_type)
         return key.verify(data=data, signature=signature, address=address, **kwargs)
 
-    def utils(self, search=None):
+    def get_utils(self, search=None):
         utils = self.path2fns(self.root_path + '/utils.py', tolist=True)
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
         
     def util2path(self, search=None):
-        utils_paths = self.utils(search=search)
+        utils_paths = self.get_utils(search=search)
         util2path = {}
         for f in utils_paths:
             util2path[f.split('.')[-1]] = f
@@ -355,12 +340,15 @@ class Module:
 
     def routes(self):
         routes = self.config['routes']
-        for util in  self.utils():
+        for util in  self.get_utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
             routes[k] = routes.get(k , [])
             routes[k].append(v)
         return routes
+
+    # def servers(self, *args, **kwargs) ->  Dict[str, str]:
+    #     return self.fn('server/servers')(*args, **kwargs)
 
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
@@ -758,7 +746,7 @@ class Module:
     def code(self, obj = None, search=None, full=False,  *args, **kwargs) -> Union[str, Dict[str, str]]:
         if full:
             return self.code_map(obj, search=search)
-        return  inspect.getsource(self.get_obj(obj))
+        return  inspect.getsource(self.obj(obj))
     
     def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -804,7 +792,7 @@ class Module:
         return params
 
     def dir(self, obj=None, search=None, *args, **kwargs):
-        obj = self.get_obj(obj)
+        obj = self.obj(obj)
         if search != None:
             return [f for f in dir(obj) if search in f]
         return dir(obj)
@@ -976,6 +964,12 @@ class Module:
             args = []
         return args
 
+    def how(self, module, query, *extra_query) : 
+        code = self.code(module)
+        query = ' '.join([query, *extra_query])
+        return self.fn('model.openrouter/')(f'query={query} code={code}')
+
+
     def client(self, *args, **kwargs) -> 'Client':
         return self.module('client')().client(*args, **kwargs)
     
@@ -1125,7 +1119,7 @@ class Module:
         return objs
 
 
-    def obj(self, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
+    def obj(self, key:str, **kwargs)-> Any:
         if not hasattr(self, 'included_pwd_in_path'):
             for p in [self.modules_path, os.getcwd()]:
                 if not p in sys.path:
@@ -1135,10 +1129,13 @@ class Module:
             self.obj_cache = {}
         if key in self.obj_cache:
             return self.obj_cache[key]
-        from commune.utils import import_object
-        obj =  import_object(key, splitters=splitters, **kwargs)
-        self.obj_cache[key] = obj
+        else:
+            from commune.utils import import_object
+            obj =  import_object(key, **kwargs)
+            self.obj_cache[key] = obj
         return obj
+
+    get_obj = obj
     
     def obj_exists(self, path:str, verbose=False)-> Any:
 
@@ -1246,14 +1243,7 @@ class Module:
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
         return tree
-    
-    def clone_specific_branch_commit(self, repo_url=None, target_dir=None, branch='main', commit_hash=None):
-        repo_url = repo_url or self.config['module']
-        import subprocess
-        cmd = f"git clone --branch {branch} --single-branch {repo_url} {target_dir}"
-        if commit_hash:
-            cmd += f" && cd {target_dir} && git checkout {commit_hash}"
-        return subprocess.run(cmd, shell=True)
+
 
     def get_modules(self, search=None, **kwargs):
         return list(self.tree(search=search, **kwargs).keys())
@@ -1326,7 +1316,8 @@ class Module:
     def help(self, fn='help',  query:str = 'what is this', module=None, **kwargs):
         return self.module("agent")().ask(f'given {self.code(fn)} what is the answer to the question {query}')
     
-    def ask(self, *args, module=None, path='./' , ai=0, **kwargs):
+    def ask(self, *args, module=None, mod=None, path='./' , ai=0, **kwargs):
+        module = module or mod
         if module != None:
             args = [self.code(module)] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
@@ -1353,11 +1344,13 @@ class Module:
             for m in modules:
                 test_results[m] = self.test(m, timeout=timeout)
             return test_results
-        elif self.module_exists(module + '.test'):
-            module = module + '.test'
+
         module_obj = self.module(module)()
+        if not hasattr(module, 'test') and self.module_exists(module + '.test'):
+            module = module + '.test'
+            module_obj = self.module(module)()
         fn2result = {}
-        for i, fn in enumerate(self.test_fns(module)):
+        for i, fn in enumerate(self.test_fns(module_obj)):
             try:
                 fn2result[fn] = getattr(module_obj, fn)()
             except Exception as e:
@@ -1440,16 +1433,9 @@ class Module:
             
             def fn_wrapper(*args, **kwargs):
                 try:
-                    fn_obj = self.obj(route)
+                    fn_obj = self.fn(route)
                 except Exception as e:
-                    if '/' in route:
-                        module = '/'.join(route.split('/')[:-1])
-                        fn = route.split('/')[-1]
-                    module = self.module(module)
-                    fn_obj = getattr(module, fn)
-                    fn_args = self.get_args(fn_obj)
-                    if 'self' in fn_args:
-                        fn_obj = getattr(module(), fn)
+                    fn_obj = self.obj(route)
                 if callable(fn_obj):
                     return fn_obj(*args, **kwargs)
                 else:
@@ -1479,6 +1465,7 @@ class Module:
     def giturl(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
         gitsuffix = '.git'
+
         if not url.startswith(gitprefix):
             url = gitprefix + url
         if not url.endswith(gitsuffix):
@@ -1582,7 +1569,7 @@ class Module:
         """
         from_path = self.dirpath(module)
         to_path = self.modules_path + '/' + name
-        if not os.path.exists(path):
+        if not os.path.exists(to_path):
             raise Exception(f'Module {from_path} does not exist')
         if os.path.exists(to_path):
             if input(f'Path {to_path} already exists. Do you want to remove it? (y/n)'):
@@ -1699,7 +1686,6 @@ class Module:
     def hash(self, obj, *args, **kwargs):
         from commune.utils import get_hash
         return get_hash(obj, *args, **kwargs)
-
 
     def __getattr__(self, k):
         if k in self.__dict__:

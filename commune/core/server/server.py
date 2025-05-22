@@ -39,7 +39,7 @@ class Server:
         path = '~/.commune/server', # the path to store the server data
         timeout = 10, # (in seconds) the maximum time to wait for a response
         run_api:bool = False, # whether to run the api
-        pm = 'server.pm', # the process manager to use
+        pm = 'pm.pm2', # the process manager to use
         ):
         self.store = c.module(store)(path)
         self.network = network or 'local'
