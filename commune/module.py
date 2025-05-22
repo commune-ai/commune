@@ -66,7 +66,11 @@ class Module:
 
     def go(self, module=None, **kwargs):
         module = module or 'module'
-        repo2path = self.repo2path(module)
+
+        path = f"{self.modules_path}/{module}"
+        repo2path = self.repo2path()
+        if os.path.exists(path):
+            path = self.abspath(path)
         if self.module_exists(module):
             path = self.dirpath(module)
         elif module in repo2path:

@@ -44,7 +44,7 @@ class Chain:
         "test": {'urls':{"lite": ["testnet.api.communeai.net"]}}
     }
     nets = networks = list(net2info.keys())
-    network : str = 'test' # network name [main, test]
+    network : str = 'main' # network name [main, test]
     networks = list(net2info.keys())
     wait_for_finalization: bool
     _num_connections: int

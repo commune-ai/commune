@@ -25,7 +25,7 @@ class Auth:
         if isinstance(data, str):
             data = data.encode('utf-8')
         elif isinstance(data, dict):
-            data = json.dumps(data, separators=(',', ':')).encode('utf-8')
+            data = json.dumps(data)
         return c.hash(data)
 
     def verify_headers(self, headers: str, data:Optional[Any]=None) -> Dict:

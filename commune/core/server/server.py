@@ -32,37 +32,27 @@ class Server:
         tempo:int = 10000, # (in seconds) the maximum age of the history
         name: Optional[str] = None, # the name of the server, 
         network: Optional[str] = 'local', # the network the server is running on
-        # EXTERNAL MODULES
-        # MISC
+        # STORAGE
         store = 'store', # the store for the server
-        verbose:bool = True, # whether to print the output
         path = '~/.commune/server', # the path to store the server data
+
+        # AUTH
+        auth = 'server.auth', # the auth for the server,
+        middleware = 'server.middleware', # the middleware for the server
+        # PROCESS MANAGER
+        pm = 'server.pm.pm2', # the process manager to use
+
+        # MISC
+        verbose:bool = True, # whether to print the output
         timeout = 10, # (in seconds) the maximum time to wait for a response
         run_api:bool = False, # whether to run the api
-        pm = 'pm.pm2', # the process manager to use
         ):
         self.store = c.module(store)(path)
         self.network = network or 'local'
         self.tempo = tempo
         self.verbose = verbose
-        self.pm = pm
+        self.pm = pm # sets the module to the pm
         if run_api:
-            self.serve_api(module=module, key=key, params=params, timeout=timeout, functions=functions, port=port)
-
-    
-
-    def serve_api(self,
-            module: Union[str, object] = 'module',
-            key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
-            params : Optional[dict] = None, # the kwargs for the module
-            auth = 'server.auth', # the auth for the server,
-            middleware = 'server.middleware', # the middleware for the server
-            name = None, # the name of the server,
-            functions:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
-            timeout:int = 10, # (in seconds) the maximum time to wait for a response
-            port : Optional[int] = None, # the port the server is running on
-
-    ): 
             self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
             self.auth = c.module(auth)()
             self.loop = asyncio.get_event_loop() # get the event loop
@@ -83,7 +73,6 @@ class Server:
                     print(f'Error({fn}) --> {err}', color='red')
                     return err
             app.post("/{fn}")(server_function)
-
             self.register_server(self.module.info['name'], self.module.info['url'])
             uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
@@ -171,7 +160,8 @@ class Server:
 
     def save_result(self, data) -> Union[pd.DataFrame, List[Dict]]:
         path = f'results/{self.module.name}/{data["client"]["key"]}/{self.hash(data)}.json'
-        self.store.put(path, data)
+        c.print('RESULT({}): {}'.format(path, data), color='green')
+        self.store.put(path, [data])
 
     def results(self,
                     module:str = 'module', 

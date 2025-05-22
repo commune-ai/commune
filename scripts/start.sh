@@ -68,6 +68,7 @@ if [ $# -gt 0 ]; then
   done
 fi
 
+echo $BUILD
 
 if [ "$BUILD" == true ]; then
   echo "BUILDING(name=$NAME repo=$IMAGE)"
