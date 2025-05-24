@@ -29,15 +29,16 @@ class Server:
         functions:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
         # NETWORK
         port: Optional[int] = None, # the port the server is running on
-        tempo:int = 10000, # (in seconds) the maximum age of the history
+        tempo:int = 10000, # (in seconds) the maximum age of the txs
         name: Optional[str] = None, # the name of the server, 
         network: Optional[str] = 'local', # the network the server is running on
+        serializer = 'serializer',
         # STORAGE
         store = 'store', # the store for the server
         path = '~/.commune/server', # the path to store the server data
 
         # AUTH
-        auth = 'server.auth', # the auth for the server,
+        auth = 'auth', # the auth for the server,
         middleware = 'server.middleware', # the middleware for the server
         # PROCESS MANAGER
         pm = 'server.pm.pm2', # the process manager to use
@@ -53,11 +54,12 @@ class Server:
         self.verbose = verbose
         self.pm = pm # sets the module to the pm
         if run_api:
+            self.serializer = c.module(serializer)()
             self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
             self.auth = c.module(auth)()
             self.loop = asyncio.get_event_loop() # get the event loop
             app = FastAPI()
-            app.add_middleware(c.module(middleware))
+            # app.add_middleware(c.module(middleware), auth=)
             app.add_middleware(
                 CORSMiddleware,
                 allow_origins=["*"],  # or your specific origins
@@ -122,82 +124,81 @@ class Server:
                 client : dict (headers)
         """
         params = self.get_params(request)
-        headers = self.auth.verify_headers(headers=dict(request.headers), data=params) # verify the headers
-        user = headers['key'] # the user key
-        rate_limit = self.rate_limit(user=user, fn=fn) # the rate limit 
-        rate = self.rate(user) * self.module.fn2cost.get(fn, 1)
+        client_auth = self.auth.verify_headers(headers=dict(request.headers), data=params) # verify the headers
+        rate_limit = self.rate_limit(user=client_auth['key'], fn=fn) # the rate limit 
+        rate = self.rate(client_auth['key']) * self.module.fn2cost.get(fn, 1)
         assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit})'
         data = {}
 
-
         with c.timer('SERVER_FN'):
             fn_obj = getattr(self.module, fn)
+            result = fn_obj(*params['args'], ** params['kwargs']) if callable(fn_obj) else fn_obj
 
-            if callable(fn_obj):
-                result = fn_obj(*params['args'], ** params['kwargs'])
-            else:
-                result = fn_obj
-                
             if c.is_generator(result):
                 output = str(result)
                 def generator_wrapper(generator):
                     for item in generator:
                         print(item, end='')
                         yield item
-                result = EventSourceResponse(generator_wrapper(result))   
-       
-        data['fn'] = fn
-        data['params'] = params
-        data['result'] = 'stream' if isinstance(result, EventSourceResponse) else result
-        data['client'] = headers
-        data['server'] = self.auth.get_headers(data=data, key=self.module.key)
-        data['time'] = data['client']['time']
-        data['duration'] = c.time() - float(data['client']['time'])
-        data['schema'] = self.module.schema.get(data['fn'], {})
-        self.save_result(data)
-        print(f'fn({data["fn"]}) --> {data["duration"]} seconds')
-        return result
+                result = EventSourceResponse(generator_wrapper(result))  
 
-    def save_result(self, data) -> Union[pd.DataFrame, List[Dict]]:
-        path = f'results/{self.module.name}/{data["client"]["key"]}/{self.hash(data)}.json'
-        c.print('RESULT({}): {}'.format(path, data), color='green')
+        output = result
+        result = self.serializer.forward(result)
+        server_auth =  self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.module.key)
+        
+        tx = {
+            'module': self.module.name,
+            'fn': fn,
+            'params': params,
+            'result': result,
+            'client': client_auth,
+            'server': server_auth,
+            'schema': self.module.schema.get(fn, {}), # optional
+
+        }
+        self.save_tx(tx)
+        return output
+
+    def save_tx(self, data) -> Union[pd.DataFrame, List[Dict]]:
+        path = f'results/{data["module"]}/{data["client"]["key"]}/{self.hash(data)}.json'
+        c.print('RESULT({}): {}'.format(path, c.hash(data)), color='green')
         self.store.put(path, [data])
 
-    def results(self,
-                    module:str = 'module', 
-                    df: bool = True, 
-                    features: List = ['time', 'fn', 'duration', 'client', 'server']) -> Union[pd.DataFrame, List[Dict]]:
+    def txs(self,
+                module:str = 'module', 
+                df: bool = True, 
+                features: List = ['time', 'fn', 'client', 'server']
+                ) -> Union[pd.DataFrame, List[Dict]]:
         """
-        Get history data for a specific address
+        Get txs data for a specific address
         
         Args:
-            address: The address to get history for
+            address: The address to get txs for
             paths: Optional list of paths to load from
             as_df: Whether to return as pandas DataFrame
             features: Features to include
             
         Returns:
-            DataFrame or list of history records
+            DataFrame or list of txs records
         """
         paths = self.store.paths('results/'+module)
-        history = [self.store.get(p) for p in paths]
-        if df and len(history) > 0:
-            history = pd.DataFrame(history)
-            if len(history) == 0:
-                return history
-            history = history[features]
+        txs = [self.store.get(p) for p in paths]
+        if df and len(txs) > 0:
+            txs = pd.DataFrame(txs)
+            if len(txs) == 0:
+                return txs
+            txs = txs[features]
             def _shorten(x):
                 if x in self.address2key: 
                     return self.address2key.get(x) + ' (' + shortkey(x) + ')'
                 else:
                     return shortkey(x)
                 return x
-            history['server'] = history['server'].apply(lambda x: _shorten(x['key']))
-
-            history['client'] = history['client'].apply(lambda x: _shorten(x['key']))
-            history['age'] = history['time'].apply(lambda x:c.time() - float(x))
-            del history['time']
-        return history
+            txs['time'] = txs['client'].apply(lambda x: x.get('time', 0))
+            txs['server'] = txs['server'].apply(lambda x: _shorten(x['key']))
+            txs['client'] = txs['client'].apply(lambda x: _shorten(x['key']))
+            txs['age'] = txs['time'].apply(lambda x:c.time() - float(x))
+        return txs
 
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
@@ -316,9 +317,7 @@ class Server:
         return bool(name in self.servers(**kwargs))
 
     def exists(self, name:str, **kwargs) -> bool:
-        """
-        check if the server exists
-        """
+        """check if the server exists"""
         return bool(name in self.servers(**kwargs))
 
     def rate(self, user:str, # the key to rate
@@ -348,16 +347,15 @@ class Server:
         if c.is_admin(user):
             # can call any function
             role =  'admin'
-        elif user == self.module.key.key_address:
+        elif hasattr(self, 'module') and user == self.module.key.key_address:
             # can call any function
             role =  'owner'
         else:
             # non admin roles (cant call every function)
-            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
             roles = self.roles(max_age=60, update=False)
             if user in roles:
                 role = roles[user]
-            elif address in self.address2key:
+            elif user in self.address2key:
                 role =  'local'
             else:
                 # this is a public address that is not in any of the roles
@@ -373,7 +371,7 @@ class Server:
         else:
             assert fn in self.module.fns, f"Function {fn} not in endpoints={self.module.fns}"
             network_rate = self.network_rate(user=user, network=self.network)
-            rate = min(rate, network_rate)
+            rate = max(rate , network_rate)
 
         return rate
 
@@ -464,18 +462,22 @@ class Server:
     def network_rate(self, user:str, network:str = 'chain', max_age:int = 60, update:bool = False):  
         state = self.network_state(network=network, max_age=60, update=False)
         server_address = self.module.key.key_address
-        stake = state['stake'].get(user, 0) + state['stake_to'].get(user, {}).get(server_address, 0) 
+        stake = state.get('stake', {}).get(user, 0) + state.get('stake_to', {}).get(user, {}).get(server_address, 0) 
         stake_per_call = state.get('stake_per_call', 1000)
         rate = stake / stake_per_call
         return rate
 
+
     def network_state(self, network:str = 'chain', max_age:int = 360, update:bool = False):
         path = self.store.get_path(f'network_state/{network}.json')
         self.state = self.store.get(path, max_age=self.tempo, update=update)
-        if self.state == None:
-            self.state = c.module(network)().state()
-            self.store.put(path, self.state)
-        return self.state
+        if network in ['local', 'local_chain']:
+            return {}
+        else:
+            if self.state == None:
+                self.state = c.module(network)().state()
+                self.store.put(path, self.state)
+            return self.state
 
     def wait_for_server(self, name:str, trials:int=10, trial_backoff:int=0.5, network:str='local', verbose=False, max_age:int=20):
         # wait for the server to start
@@ -503,6 +505,7 @@ class Server:
             self.kill(server)
             print(f'Killing -> {server}')
         return {'servers': self.servers(update=1)}
+    killall = kill_all
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
 

@@ -6,7 +6,7 @@ import os
 
 class ProcessManager:
 
-    def __init__(self, process_prefix='proc/', **kwargs):
+    def __init__(self, process_prefix='server.pm.pm2/', **kwargs):
         self.process_prefix = process_prefix
         self.process_manager_path = c.abspath('~/.pm2')
         self.sync_env()
@@ -86,7 +86,7 @@ class ProcessManager:
         try:
             c.cmd(f"pm2 delete {proc_name}", verbose=False)
             for m in ['out', 'error']:
-                os.remove(self.get_logs_path(name, m))
+                os.remove(self.logs_path(name, m))
             result =  {'message':f'Killed {proc_name}', 'success':True}
         except Exception as e:
             result =  {'message':f'Error killing {proc_name}', 'success':False, 'error':e}
@@ -101,7 +101,7 @@ class ProcessManager:
     def killall(self, **kwargs):
         return self.kill_all(**kwargs)
 
-    def get_logs_path(self, name:str, mode='out')->str:
+    def logs_path(self, name:str, mode='out')->str:
         assert mode in ['out', 'error'], f'Invalid mode {mode}'
         name = self.get_procname(name)
         return f'{self.process_manager_path}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
@@ -116,7 +116,7 @@ class ProcessManager:
             text = ''
             for m in ['out', 'error']:
                 # I know, this is fucked 
-                path = self.get_logs_path(module, m)
+                path = self.logs_path(module, m)
                 try:
                     text +=  c.get_text(path)
                 except Exception as e:

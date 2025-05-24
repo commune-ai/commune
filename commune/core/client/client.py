@@ -12,7 +12,7 @@ class Client:
                  url : str = 'module',  
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
-                 auth = 'auth.jwt',
+                 auth = 'auth',
                  mode='http',
                  **kwargs):
         self.auth = c.module(auth)()
@@ -46,11 +46,11 @@ class Client:
         t0 = c.time()
 
         headers = self.auth.get_headers(params, key=key) # step 4: get the headers
-
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
 
   
+
         ## handle the response
         if response.status_code != 200:
             raise Exception(response.text)

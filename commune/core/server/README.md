@@ -96,7 +96,7 @@ result = module.function(arg1=value1, arg2=value2)
 import commune as c
 
 # Create auth instance
-auth = c.module('server.auth')()
+auth = c.module('auth')()
 
 # Generate token
 token = auth.get_token(data={'user_id': 123})

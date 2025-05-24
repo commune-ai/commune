@@ -10,7 +10,9 @@ class Store:
 
     def __init__(self, 
                 folder='~/.commune/store', 
-                suffix='json'
+                suffix='json',
+                key = None,
+                encrypted=False,
                 ):
 
         """
@@ -20,7 +22,11 @@ class Store:
         suffix: str: the suffix of the files (json, txt, etc)
         """
         self.folder = self.abspath(folder)
+        self.key = self.get_key(key)
         self.suffix = suffix
+        self.encrypted = encrypted
+        if self.encrypted:
+            self.encrypt_all()
 
     def put(self, path, data):
         path = self.get_path(path, suffix=self.suffix)
@@ -133,6 +139,7 @@ class Store:
             import pandas as pd
             data = pd.DataFrame(data)
         return data
+        
 
     def ls(self, path='./', search=None, avoid=None):
         path = self.get_path(path)
@@ -201,11 +208,20 @@ class Store:
         """
         returns the age of the item in seconds
         """
+        path2time = self.path2time()
+        path2age = {}
+        for p,t in path2time.items():
+            path2age[p] = time.time() - t
+        return path2age
+    def path2time(self):
+        """
+        returns the time of the item in seconds
+        """
         paths = self.paths()
-        ages = {}
+        times = {}
         for p in paths:
-            ages[p] = time.time() - os.path.getmtime(p)
-        return ages
+            times[p] = os.path.getmtime(p)
+        return times
 
     def cid(self, path, ignore_names=['__pycache__', '.DS_Store','.git', '.gitignore']):
         """
@@ -252,7 +268,8 @@ class Store:
         """
         Encrypt a file using the given key
         """
-        key = c.key(key)
+        key = self.get_key(key)
+
         obj = self.get(path)
         assert self.exists(path), f'Failed to find {path}'
         assert not self.is_encrypted(path), f'already encrypted {path}'
@@ -273,7 +290,7 @@ class Store:
         Decrypt a file using the given key
         """
         
-        key = c.key(key)
+        key = self.get_key(key)
         obj = self.get(path)
         if isinstance(obj, dict) and 'encrypted_data' in obj:
             result = key.decrypt(obj['encrypted_data'], password=password)
@@ -297,22 +314,43 @@ class Store:
         """
         Get the paths of the encrypted files
         """
-        key = c.key(key)
+        key = self.get_key(key)
         paths = self.paths()
         encrypted_paths = []
         for p in paths:
             if self.is_encrypted(p):
                 encrypted_paths.append(p)
         return encrypted_paths
+    def path2name(self, path: str) -> str:
+        if path.startswith(self.folder):
+            path = path[len(self.folder)+1:]
+        if path.endswith('.json'):
+            path = path[:-len('.json')]
+        return path
+
+
+    def encrypted(self, key: str=None) -> list:
+        encrypted_paths = self.encrypted_paths(key=key)
+        results = []
+        for p in encrypted_paths:
+            n = self.path2name(p)
+            results.append(n)
+        return results
+
+
+        # reverse 
+    def get_key(self, key: str=None) -> str:
+        if key == None and hasattr(self, 'key'):
+            key = self.key
+        return c.fn('key/get_key')(key)
 
     def encrypt_all(self, key: str=None) -> list:
         """
         Encrypt all files in the given path
         """
-        key = c.key(key)
-        paths = self.paths()
+        key = self.get_key(key)
         encrypted_paths = []
-        for p in paths:
+        for p in self.paths():
             if not self.is_encrypted(p):
                 encrypted_paths.append(self.encrypt(p, key))
         return encrypted_paths
@@ -322,7 +360,7 @@ class Store:
         """
         Decrypt all files in the given path
         """
-        key = c.key(key)
+        key = self.get_key(key)
         paths = self.paths()
         decrypted_paths = []
         for p in paths:

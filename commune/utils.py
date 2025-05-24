@@ -224,8 +224,8 @@ def echo(x):
 # for lost functions that dont know where to go
 
 def copy( data: Any) -> Any:
-    import copy
-    return copy.deepcopy(data)
+    from copy import deepcopy
+    return deepcopy(data)
 
 def tqdm(*args, **kwargs):
     from tqdm import tqdm
@@ -468,7 +468,7 @@ def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
     else:
         raise ValueError(f'unknown mode {mode}')
     
-    return mode + ':' + y
+    return  y
 
 def num_words( text):
     return len(text.split(' '))
@@ -683,6 +683,37 @@ def timestamp(t=None) -> float:
 def time2date(self, x:float=None):
     import datetime
     return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
+
+
+import sys
+import time
+import threading
+from contextlib import contextmanager
+
+@contextmanager
+def spinner(message="Working"):
+    """A context manager for displaying a spinner while waiting."""
+    spinner_chars = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷']
+    stop_spinner = False
+    
+    def spin():
+        i = 0
+        while not stop_spinner:
+            sys.stdout.write(f'\r{message} {spinner_chars[i % len(spinner_chars)]}')
+            sys.stdout.flush()
+            time.sleep(0.1)
+            i += 1
+    
+    spinner_thread = threading.Thread(target=spin)
+    spinner_thread.daemon = True
+    spinner_thread.start()
+    
+    try:
+        yield
+    finally:
+        stop_spinner = True
+        sys.stdout.write('\r' + ' ' * (len(message) + 10) + '\r')
+        sys.stdout.flush()
 
 def datetime2time( x:str):
     import datetime
@@ -1754,11 +1785,13 @@ def search_files(path:str='./', search:str='__pycache__') -> List[str]:
     files = c.glob(path)
     return list(filter(lambda x: search in x, files))
 
-
-def lsdir( path:str) -> List[str]:
+def lsdir( path:str='./') -> List[str]:
     path = os.path.abspath(path)
     return os.listdir(path)
 
+def lsd(path:str='./') -> List[str]:
+    path = os.path.abspath(path)
+    return os.listdir(path)
 
 def tilde_path():
     return os.path.expanduser('~')
@@ -2260,6 +2293,7 @@ def cmd(
         if verbose:
             print(f"Error executing command: {str(e)}")
         raise
+
 
     
 def loadenv():

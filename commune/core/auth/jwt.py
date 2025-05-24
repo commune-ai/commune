@@ -5,7 +5,7 @@ import time
 from typing import Dict, Optional, Any
 import commune as c
 
-class Auth:
+class AuthJWT:
     description = 'auth'
 
     def __init__(self, key=None):
@@ -36,7 +36,7 @@ class Auth:
         assert verified, 'Invalid signature'
         if data != None:
             assert verified['data'] == c.hash(data), 'Invalid data {} != {}'.format(verified['data'], c.hash(data))
-        return verified
+        return headers
 
     def check_crypto_type(self, crypto_type):
         assert crypto_type in ['ecdsa', 'sr25519'], f'Invalid crypto_type {crypto_type}'
@@ -74,14 +74,13 @@ class Auth:
         # Create message to sign
         message = f"{self._base64url_encode(header)}.{self._base64url_encode(token_data)}"
         # For asymmetric algorithms, use the key's sign method
-        signature = key.sign(message, mode='bytes')
-        signature_encoded = self._base64url_encode(signature)
+        signature = self._base64url_encode(key.sign(message, mode='bytes'))
         # Combine to create the token
-        token = f"{message}.{signature_encoded}"
+        token = f"{message}.{signature}"
         if mode == 'dict':
             return self.verify_token(token)
         elif mode == 'bytes':
-            return f"{message}.{signature_encoded}"
+            return f"{message}.{signature}"
         else:
             raise ValueError(f"Invalid mode: {mode}. Use 'bytes' or 'dict'.")
             
@@ -105,7 +104,6 @@ class Auth:
         assert self.key.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
         # data['data'] = message
         data['time'] = data['iat'] # set time field for semanitcally easy people
-        data['signature'] = '0x'+signature.hex()
         data['alg'] = headers['alg']
         data['typ'] = headers['typ']
         data['token'] = token

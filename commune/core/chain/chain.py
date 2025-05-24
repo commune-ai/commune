@@ -32,9 +32,7 @@ T2 = TypeVar("T2")
 
 class Chain:
 
-    folder_path = os.path.expanduser(f'~/.commune/chain') 
-    name2storage_exceptions = {'key': 'Keys'}
-    storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
+    folder = os.path.expanduser(f'~/.commune/chain') 
     min_stake = 50000
     tempo = 60
     blocktime = block_time = 8
@@ -44,7 +42,7 @@ class Chain:
         "test": {'urls':{"lite": ["testnet.api.communeai.net"]}}
     }
     nets = networks = list(net2info.keys())
-    network : str = 'main' # network name [main, test]
+    default_network : str = 'main' # network name [main, test]
     networks = list(net2info.keys())
     wait_for_finalization: bool
     _num_connections: int
@@ -64,7 +62,7 @@ class Chain:
         timeout: int  = None,
         net = None,
     ):
-        self.set_network(network=net or network, # add a little shortcut,
+        self.set_network(network=net or network or self.default_network, # add a little shortcut,
                          mode=mode,
                          url=url,  
                          test = test,
@@ -75,7 +73,7 @@ class Chain:
                          timeout=timeout)
         
     def switch(self, network=None):
-        print(self.network)
+        og_network = self.network
         if network == None:
             if self.network == 'main':
                 network = 'test'
@@ -88,7 +86,7 @@ class Chain:
         code =  code.replace(replace_str, new_str)
         c.put_text(path, code)
         self.network = network
-        return {'network': network, 'og_network': self.network}
+        return {'network': self.network, 'og_network': og_network}
 
                 
     def set_network(self, 
@@ -958,7 +956,7 @@ class Chain:
         c.print(f"Call(\nmodule={info_call['module']} \nfn={info_call['fn']} \nkey={key.ss58_address} ({key_name}) \nparams={info_call['params']}) \n)", color='cyan')
 
         if safety:
-            if input('Are you sure you want to send this transaction? (y/n)') != 'y':
+            if input('Are you sure you want to send this transaction? (y/n) --> ') != 'y':
                 raise Exception('Transaction cancelled by user')
 
         with self.get_conn() as substrate:
@@ -1367,7 +1365,7 @@ class Chain:
         if amount == None:
             amount = input('Enter amount to unstake: ')
             amount = float(str(amount).replace(',', ''))
-         
+        
         if dest == None:
             staketo = self.staketo(key)
             # if there is only one module key, use it
@@ -1378,9 +1376,24 @@ class Chain:
                 c.print(f'Unstake {amount}c from which module key? {dest}')
                 idx = input(f'')
                 dest = dest[int(idx)]
+        else:
+            name2key = self.name2key()
+            dest = name2key.get(dest, dest)
         params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
         return self.call(fn="add_stake", params=params, key=key, safety=safety)
     
+
+    def get_module_name(self, key: str, subnet=2):
+        """
+        Get the name of a module key
+        """
+        if isinstance(key, str):
+            key = self.get_key(key)
+        if isinstance(key, Keypair):
+            key = key.ss58_address
+        if subnet == None:
+            subnet = self.get_subnet(subnet)
+        return self.query(name='ModuleName', module='SubspaceModule', params=[key, subnet])
 
     def unstake(
         self,
@@ -1487,6 +1500,18 @@ class Chain:
     def reg(self, name='compare', metadata=None, url='0.0.0.0:8888', module_key=None, key=None, subnet=2, net=None):
         return self.register(name=name, metadata=metadata, url=url, module_key=module_key, key=key, subnet=subnet, net=net)
 
+
+    def get_module_url(self, name: str,public = False):
+        """
+        Get the url of a module key
+        """
+        namespace = c.namespace()
+        url = namespace.get(name, url)
+        ip = (c.ip() if public else '0.0.0.0')
+        port = url.split(':')[-1]
+        url = ip +':'+ port
+        return url
+
     def register(
         self,
         name: str,
@@ -1516,15 +1541,8 @@ class Chain:
         name = name or key
         key =  c.get_key(key or name)
         if url == None:
-            namespace = c.namespace()
-            url = namespace.get(name, url)
-            ip = (c.ip() if public else '0.0.0.0')
-            port = url.split(':')[-1]
-            url = ip +':'+ port
-
+            self.get_module_url(name, public=public)
         module_key = c.get_key(module_key or name).ss58_address
-
-    
         subnet_name = self.get_subnet_name(net or subnet)
         metadata = metadata or code or 'NA'
         params = {
@@ -1537,15 +1555,6 @@ class Chain:
 
         return  self.call("register", params=params, key=key, wait_for_finalization=wait_for_finalization, safety=safety)
 
-    def dereg(self, key: Keypair, subnet: int=0):
-        return self.deregister(key=key, subnet=subnet)
-    
-    def dereg_many(self, *key: Keypair, subnet: int = 0):
-        futures = [c.submit(self.deregister, dict(key=k, subnet=subnet)) for k in key ]
-        results = []
-        for f in c.as_completed(futures):
-            results += [f.result()]
-        return results
     def deregister(self, key: Keypair, subnet: int=0) -> ExtrinsicReceipt:
         """
         Deregisters a module from the network.
@@ -1568,6 +1577,17 @@ class Chain:
 
         return response
     
+    def dereg(self, key: Keypair, subnet: int=0):
+        return self.deregister(key=key, subnet=subnet)
+
+
+    def dereg_many(self, *key: Keypair, subnet: int = 0):
+        futures = [c.submit(self.deregister, dict(key=k, subnet=subnet)) for k in key ]
+        results = []
+        for f in c.as_completed(futures):
+            results += [f.result()]
+        return results
+
     def register_subnet(self, name: str, metadata: str = None,  key: Keypair=None) -> ExtrinsicReceipt:
         """
         Registers a new subnet in the network.
@@ -1693,14 +1713,6 @@ class Chain:
     def metadata(self, subnet=2) -> str:
         metadata = self.query_map('Metadata', [subnet])
         return metadata
-    
-    def subnet2metadata(self) -> str:
-        netuids = self.netuids()
-        metadata = self.query_map('SubnetMetadata')
-        metadata =  {i : metadata.get(i, None) for i in netuids}
-        metadata = sorted(metadata.items(), key=lambda x: x[0])
-        netuid2subnet = self.netuid2subnet()
-        return {netuid2subnet.get(k): v for k, v in metadata}
     
     # def topup_miners(self, subnet):
     
@@ -2344,6 +2356,7 @@ class Chain:
     
     def balances(self, *args, **kwargs):  
         return self.my_balance(*args, **kwargs)
+    
     def names(
         self, subnet: int = 0, extract_value: bool = False, max_age=60, update=False
     ) -> dict[int, str]:
@@ -2504,7 +2517,7 @@ class Chain:
         addr = self.get_key_address(addr)
         result = self.query("Account", module="System", params=[addr])
         return self.format_amount(result["data"]["free"], fmt=fmt)
-
+    bal = balance
     def block(self) -> dict[Any, Any]:
         """
         Retrieves information about a specific block in the network.
@@ -2717,8 +2730,8 @@ class Chain:
         return results
 
     def get_path(self, path:str) -> str:
-        if not path.startswith(self.folder_path):
-            path = f'{self.folder_path}/{path}'
+        if not path.startswith(self.folder):
+            path = f'{self.folder}/{path}'
         return path
 
     def global_params(self, max_age=60, update=False) -> NetworkParams:
@@ -2850,6 +2863,15 @@ class Chain:
 
     def my_keys(self, subnet=0):
         return [m['key'] for m in self.my_modules(subnet)]
+
+    def name2key(self, subnet=0, **kwargs) -> dict[str, str]:
+        """
+        Returns a mapping of names to keys for the specified subnet.
+        """
+        modules = self.modules(subnet=subnet, features=['name', 'key'], **kwargs)
+        return {m['name']: m['key'] for m in modules}
+
+
     
     def valis(self, 
               subnet=0, 
@@ -2885,6 +2907,8 @@ class Chain:
 
         return valis
 
+    name2storage_exceptions = {'key': 'Keys'}
+    storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
     def storage2name(self, name):
         new_name = ''
         if name in self.storage2name_exceptions:
@@ -3139,11 +3163,6 @@ class Chain:
                 pallet2storage[pallet] = storage
 
         return pallet2storage
-
-    @classmethod
-    def test(cls):
-        from .test import Test
-        return Test().test()
 
     def fam(self):
         return 1

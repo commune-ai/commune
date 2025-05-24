@@ -134,9 +134,9 @@ class Docker:
         if daemon:
             dcmd.append('-d')
 
-
         if cmd:
             dcmd.extend(['--entrypoint', f'bash -c "{cmd}"'])
+        
         
 
 

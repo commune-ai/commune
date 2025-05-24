@@ -28,15 +28,11 @@ class Api:
 
     modules_path = os.path.expanduser('~/.commune/api/modules')
 
-
     def __init__(self, background:bool = False, path='~/.commune/api', **kwargs):
 
         self.store = c.module('store')(path)
         if background:
             print(c.serve('api::background'))
-
-        
-
 
     def __delete__(self):
         c.kill('api::background')
@@ -57,15 +53,12 @@ class Api:
     def paths(self):
         return self.ls(self.modules_path)
 
-
     def n(self):
         return len(c.get_modules())
-
 
     def module_names(self):
         return  c.get_modules()
 
-    
     def modules(self, 
                         max_age=None, 
                         update=False, 
@@ -181,15 +174,6 @@ class Api:
         module_path = self.get_module_path(module["name"])
         save_json(module_path, module)
         return {"message": f"Module {module['key']} updated successfully"}
-
-    def clear_modules(self):
-        for module_path in self.ls(self.modules_path):
-            print('Removing:', module_path)
-            os.remove(module_path)
-        return {"message": "All modules removed"}
-    
-    def resolve_path(self, path):
-        return os.path.expanduser('~/.hub/api/') + path
 
     def info(self, module:str, **kwargs):
         return c.info(module,  **kwargs)

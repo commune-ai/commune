@@ -4,10 +4,10 @@ import os
 import pandas as pd
 from typing import *
 import inspect
+from copy import deepcopy
 class Vali:
     endpoints = ['score', 'scoreboard']
     def __init__(self,
-
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
                     batch_size : int = 128, # the batch size of the most parallel tasks
@@ -98,8 +98,6 @@ class Vali:
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
 
-
-
     def get_module(self, module:Union[str, dict]):
         if isinstance(module, str):
             if module in self.key2module:
@@ -140,7 +138,7 @@ class Vali:
         return c.get_json(path)
 
     def verify_proof(self, module:dict):
-        module = c.copy(module)
+        module = deepcopy(module)
         proof = module.pop('proof', None)
         assert c.verify(proof), f'Invalid Proof {proof}'
 
@@ -251,35 +249,3 @@ class Vali:
 
     def tasks(self):
         return c.modules(search='task.')
-
-    @classmethod
-    def test(cls ,  n=2, 
-                tag = 'vali_test_net',  
-                miner='module', 
-                trials = 5,
-                tempo = 4,
-                update=True,
-                path = '/tmp/commune/vali_test',
-                network='local'
-                ):
-            Vali  = c.module('vali')
-            test_miners = [f'{miner}::{tag}{i}' for i in range(n)]
-            modules = test_miners
-            search = tag
-            assert len(modules) == n, f'Number of miners not equal to n {len(modules)} != {n}'
-            for m in modules:
-                c.serve(m)
-            namespace = c.namespace()
-            for m in modules:
-                assert m in namespace, f'Miner not in namespace {m}'
-            vali = Vali(network=network, search=search, path=path, update=update, tempo=tempo, run_loop=False)
-            scoreboard = []
-            while len(scoreboard) < n:
-                c.sleep(1)
-                scoreboard = vali.epoch()
-                trials -= 1
-                assert trials > 0, f'Trials exhausted {trials}'
-            for miner in modules:
-                c.print(c.kill(miner))
-            assert c.server_exists(miner) == False, f'Miner still exists {miner}'
-            return {'success': True, 'msg': 'subnet test passed'}

@@ -300,6 +300,17 @@ class Key:
         else:
             return self.resolve_path(key)
 
+    def key_name(self, key, crypto_type=None):
+        crypto_type = self.get_crypto_type(crypto_type)
+        address2key = self.address2key(crypto_type=crypto_type)
+        if key in address2key:
+            return address2key[key]
+        elif key in address2key.values():
+            return key
+        else:
+            raise ValueError(f'key {key} not found, available keys: {list(address2key.keys())}')
+        
+
     def get_key_data(self, key, crypto_type=None):
         crypto_type = self.get_crypto_type(crypto_type)
         key_path =  self.get_key_path(key, crypto_type=crypto_type)
@@ -308,6 +319,8 @@ class Key:
         if isinstance(output, str):
             output = output.replace("'", '"')
         return json.loads(output) if isinstance(output, str) else output
+
+    key_info = key_data = get_key_data
 
     def rm_key(self, key=None, crypto_type=None, **kwargs):
         key2path = self.key2path(crypto_type=crypto_type)

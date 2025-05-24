@@ -14,7 +14,7 @@ class Test(Server):
         r = module.info()
         r2 = c.call(name+'/info')
         c.print(r, r2)
-        assert c.hash(r['key']) == c.hash(r2['key'])
+        assert c.hash(r['key']) == c.hash(r2['key']), f"Failed to get key {r['key']} != {r2['key']}"
         deployer_key = c.get_key(deployer)
         assert r['key'] == deployer_key.ss58_address
         print(r)
@@ -25,9 +25,9 @@ class Test(Server):
     def test_executor(self):
         return c.module('executor')().test()
 
-    def test_auth(self, auths=['jwt', 'base']):
-        auths = c.get_modules(search='server.auth.')
+    def test_auth(self, auths=['auth.jwt', 'auth']):
         for auth in auths:
+            print(f'testing {auth}')
             c.module(auth)().test()
         return {'success': True, 'msg': 'server test passed', 'auths': auths}
 
