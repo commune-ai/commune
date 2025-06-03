@@ -2,6 +2,7 @@
 from .store import Store
 import commune as c
 import time
+import json
 
 class TestStore:
     def __init__(self, module='~/.commune/store/test', **kwargs):
@@ -56,4 +57,23 @@ class TestStore:
         assert all([not self.store.is_encrypted(path) for path in path2data.keys()]), f'Failed to decrypt all {path2data.keys()}'
         for path in path2data.keys():
             self.store.rm(path)
-        
+
+
+    def test_private(self, data={'test': "test", 'fam': 1, "bro": [1,'fam'] }, key='test_key'):
+        """
+        Test the private store
+        """
+        store = Store(folder='~/.commune/store/test_private', private=True, key=key)
+        store.rm_all()
+        key = c.key(key)
+        assert key.key_address == store.key.key_address, f'Key address mismatch: {key.key_address} != {store.key_address}'
+
+        for path, value in data.items():
+            print(f'Putting {path} with value {value}')
+            store.put(path, value)
+        # assert all([store.is_encrypted(path) for path in data.keys()]), f'Failed to encrypt all {data.keys()}'
+        for path, value in data.items():
+            print(store.get(path))
+            assert  store.get(path) == value, f'Failed to get {path}, {store.get(path)} != {value}'
+        store.rm_all()
+        return {'success': True, 'msg': 'Passed all tests in private store'}        

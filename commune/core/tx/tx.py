@@ -6,31 +6,43 @@ import inspect
 import commune as c
 import json
 from copy import deepcopy
+import time
 
+def transform_params(params):
+    if len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) == 0:
+        return params['args']
+    elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) > 0:
+        return params['kwargs']
+    elif len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) > 0:
+        return params
+    elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) == 0:
+        return {}
+    else:
+        return params
 class Tx:
 
     def __init__(self, 
-                key:str = None, 
-                path = '~/.commune/tx' , 
+                tx_path = '~/.commune/cli/tx' , 
                 serializer='serializer',
                 auth = 'auth',
+                private = True,
                 roles = ['client', 'server'],
                 tx_schema = {
                     'module': str,
                     'fn': str,
                     'params': dict,
                     'result': dict,
-                    'time': int,
-                    'time_delta': float,
                     'schema': dict,
-                    'signature': str,
+                    'client': dict,  # client auth
+                    'server': dict,  # server auth
                     'hash': str
                 },
+                key:str = None, 
                  version='v0'):
 
         self.key = c.key(key)
         self.version = version
-        self.store = c.module('store')(f'{path}/{self.version}')
+        self.store = c.module('store')(f'{tx_path}/{self.version}', private=private, key=self.key)
         self.tx_schema = tx_schema
         self.tx_features = list(self.tx_schema.keys())
         self.serializer = c.module(serializer)()
@@ -44,15 +56,28 @@ class Tx:
                  params:dict = {}, 
                  result:Any = {}, 
                  schema:dict = {},
-                 auths = {}
+                 auths = {},
+                 client= None,
+                 server= None
                  ):
 
         """ 
         create a transaction
         """
 
+        # if client is not None:
+        #     auths['client'] = client
+        # if server is not None:
+        #     auths['server'] = server
+
+
         result = self.serializer.forward(result)
+        if client is not None:
+            auths['client'] = client
+        if server is not None:
+            auths['server'] = server
         auths = auths or self.get_auths(module, fn, params, result)
+
         tx = {
             'module': module, # the module name (str)
             'fn': fn, # the function name (str)
@@ -64,7 +89,9 @@ class Tx:
         }
         tx['hash'] = c.hash(tx) # the hash of the transaction (str)
         assert self.verify(tx)
-        self.store.put(self.tx_path(tx), tx)
+        tx_path = f'{tx["module"]}/{tx["fn"]}/{tx["hash"]}'
+        self.store.put(tx_path, tx)
+
         return tx
 
     forward = create = tx = create_tx
@@ -80,11 +107,15 @@ class Tx:
 
     vtx = verify = verify_tx
 
-    def paths(self):
-        return self.store.paths()
+    def paths(self, path=None):
+        return self.store.paths(path=path)
 
-    def tx_path(self, tx):
-        return f'{tx["module"]}/{tx["fn"]}/{tx["hash"]}'
+    def encrypted_paths(self, path=None):
+        """
+        Get the encrypted paths of the transactions
+        """
+        return self.store.encrypted_paths(path=path)
+
    
     def _rm_all(self):
         """
@@ -109,27 +140,39 @@ class Tx:
         if not all([key in tx for key in self.tx_features]):
             return False
         return True
-
-
-
-    def txs(self, module=None, fn=None, features = ['module', 'fn', 'time', 'params']):
-        items =  self.store.items('tx')
-        items = [x for x in items if self.is_tx(x)]
-        df = c.df(items)
+    def txs(self, 
+            search=None,
+            max_age:float = None, 
+            features:list = ['module', 'fn', 'params', 'client', 'cost', 'time', 'duration',]):
+        txs = [x for x in self.store.values() if self.is_tx(x)] 
+        if search is not None:
+            txs = [x for x in txs if search in x['module'] or search in x['fn'] or search in json.dumps(x['params'])]
+        txs = c.df(txs)
         current_time = time.time()
-        if len(df) == 0:
-            return df    
-        df['age'] = df['time'].apply(lambda x: current_time - x)
-        df['time'] = df['time'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(x)))
-        df = df.sort_values(by='time', ascending=False)
+        if len(txs) == 0:
+            return txs    
+        df = txs
+    
+        df['time_start_utc'] = df['client'].apply(lambda x: float(x['time']))
+        df['age'] = df['time_start_utc'] - time.time()
+        df = df[df['age'] > (current_time - max_age)] if max_age is not None else df
+        df['time_end_utc'] = df['server'].apply(lambda x: float(x['time']))
+        df['duration'] = df['time_end_utc'] - df['time_start_utc']
 
+        df['time'] = df['time_end_utc'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(x)))
+
+        addres2key = c.address2key()
+        df['params'] = df['params'].apply(transform_params)
+        df['cost'] = df['schema'].apply(lambda x: x['cost'] if 'cost' in x else 0)
+        df['client'] = df['client'].apply(lambda x: addres2key.get(x['key'], x['key']))
+        df = df.sort_values(by='time', ascending=False)
         return df[features]
 
     def n(self):
         """
         Get the number of transactions
         """
-        return len(self.store.items('tx'))
+        return len(self.store.items())
 
     def tx2age(self):
         return self.store.path2age()
@@ -169,7 +212,7 @@ class Tx:
         Get the auths for the transaction
         """
         auth_data = self.get_role_auth_data_map(module, fn, params, result)
-        return {role : self.get_auth(auth_data[role]) for role in self.roles}
+        return {role : self.auth.headers(auth_data[role]) for role in self.roles}
 
     def get_role_auth_data_map(self, module:str, fn:str, params:dict, result:Any, **_ignore_params):
         """
@@ -181,3 +224,7 @@ class Tx:
                 'client': {'fn': fn, 'params': params},
                 'server': {'fn': fn, 'params': params, 'result': result}
                 }
+
+
+
+

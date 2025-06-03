@@ -15,7 +15,6 @@ class Api:
     tempo = 600
     app_name =  __file__.split('/')[-3] + '_app' 
     model='anthropic/claude-3.5-sonnet'
-    free = True
     endpoints = [
                 'modules', 
                 'add_module', 
@@ -56,83 +55,96 @@ class Api:
     def n(self):
         return len(c.get_modules())
 
-    def module_names(self):
-        return  c.get_modules()
+    def names(self, search=None):
+        return  c.get_modules(search=search)
 
     def modules(self, 
+                    names:Optional[list]=None,
                         max_age=None, 
                         update=False, 
                         lite=False, 
                         search=None,
                         page=1, 
                         timeout=60, 
-                        page_size=10, 
+                        page_size=100, 
+                        df = False,
                         threads=1,
+                        features = ['name', 'schema', 'key'],
                         mode = 'default',
                         verbose=False):
 
+
+        names = names or self.names()
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        names = names[start_idx:end_idx]
+
+        if search != None:
+            names = [n for n in names if search in n]
         if threads > 1:
-            n = self.n()
-            page_size = n // threads
-            og_params = {'max_age': max_age, 'update': update, 'lite': lite, 'search': search, 'page': page, 'timeout': timeout, 'page_size': page_size, 'threads': 1}
-            params_list = [ {**og_params , **{'page': i, 'page_size': page_size}} for i in range(1, threads+1)]
+            params = locals()
+            params.pop('self')
+            params['threads'] = 1
+            n = len(names) 
+            params_list = []
+            params['page_size']  = n // threads
+            for i in range(1, threads+1):
+                if i == threads:
+                    page_size = n - (threads-1) * page_size
+                else:
+                    page_size = n // threads
+                params['page'] = i
+                params_list.append(params)
+
             futures = []
             results = []
             for params in params_list:
+                c.print(params)
                 future = c.submit(self.modules, params, timeout=timeout)
                 futures.append(future)
             results = []
             try:
                 for future in c.as_completed(futures, timeout=timeout):
                     result = future.result()
-                    if result is not None:
-                        results.extend(result)
+                    print(result)
+                    results.extend(result)
             except TimeoutError as e:
                 print(f"TimeoutError: {e}")
             return results
+        elif threads == 1:
+            results = []
+            futures = []
+            future2module = {}
+            progress_bar = c.tqdm(names, desc=f"Loading modules thread={page}", total=len(names))
+            fails = 0
+            for module_name in names:
+                path = self.store.get_path(f'modules/{module_name}.json')
+                result = c.get(path, None,  max_age=max_age, update=update)
+                if result == None:
+                    try:
+                        result = c.info(module_name, max_age=max_age, update=update)
+                        c.put(path, result)
+                    except Exception as e:
+                        result = c.detailed_error(e)
+                        fails += 1
+                progress_bar.update(1)
+                results.append(result)
+        else:
+            raise Exception(f'thread number not supported thread>=1 vs {thread}')
 
-        module_names = self.module_names()
-        if search != None:
-            module_names = [n for n in module_names if search in n]
-
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        module_names = module_names[start_idx:end_idx]
-
-        results = []
-        futures = []
-        future2module = {}
-
-        progress_bar = c.tqdm(module_names, desc=f"Loading modules thread={page}", total=len(module_names))
-        fails = 0
-        for module_name in module_names:
-            path = self.store.get_path(f'modules/{module_name}.json')
-            result = c.get(path, None,  max_age=max_age, update=update)
-            if result == None:
-                try:
-                    result = c.info(module_name, max_age=max_age, update=update)
-                except Exception as e:
-                    result = c.detailed_error(e)
-                    fails += 1
-                finally:
-                    c.put(path, result)
-                    progress_bar.update(1)
-            results.append(result)
-        result_filter = lambda x: bool(isinstance(x, dict) and 'name' in x and 'schema' in x and 'key' in x)
-        results =  list(filter(result_filter, results))
+        # results =  list(filter(result_filter, results))
         if mode == 'n':
             results = len(results)
+        if df:
+            results = c.df(results)
         return results
 
-    def check_info(self, info, features=['name', 'schema', 'key']):
-        return isinstance(info, dict) and all([f in info for f in features])
-
-    def names(self):
-        return [m['name'] for m in self.modules()]
-
     def get_module(self, module:str, **kwargs):
-        info =  c.info(module, lite=False, **kwargs)
-        prefix = info['name'].split('.')[0]
+        if not self.module_exists(module):
+            raise HTTPException(status_code=404, detail="Module not found")
+        module_path = self.get_module_path(module)
+        info = load_json(module_path)["data"]
+        
         return info
 
     def get_module_path(self, module):
@@ -192,10 +204,6 @@ class Api:
         print('RESULT',result)
         return result
 
-    def root():
-        return {"message": "Module Management API"}
-
-
     def remove(self, module: str):
         assert self.module_exists(module), "Module not found"
         os.remove(self.get_module_path(module))
@@ -208,26 +216,4 @@ class Api:
         if not self.module_exists(module):
             raise HTTPException(status_code=404, detail="Module not found")
         module = self.get_module(module)
-        
         self.save_module(module)
-
-    def test(self):
-        
-        # Test module data
-        test_module = {
-            "name": "test_module",
-            "url": "http://test.com",
-            "key": "test_key",
-            "key_type": "string",
-            "description": "Test module description"
-        }
-        # Add module
-        self.add_module(test_module)
-        assert self.module_exists(test_module['name']), "Module not added"
-        self.remove_module(test_module['name'])
-        assert not self.module_exists(test_module['name']), "Module not removed"
-        return {"message": "All tests passed"}
-    
-
-    def get_key(self, password, **kwargs):
-        return c.str2key(password, **kwargs)

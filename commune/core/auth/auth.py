@@ -9,7 +9,8 @@ class Auth:
 
     def __init__(self, key=None, 
                 crypto_type='sr25519', 
-                hash_type='sha256',     
+                hash_type='sha256',    
+                max_staleness=60, 
                 signature_keys = ['data', 'time']):
         
         """
@@ -25,6 +26,7 @@ class Auth:
         self.hash_type = hash_type
         self.crypto_type = crypto_type
         self.signature_keys = signature_keys
+        self.max_staleness = max_staleness
 
     def headers(self,  data: Any,  key=None, crypto_type=None, signature_keys=None) -> dict:
         """
@@ -42,7 +44,7 @@ class Auth:
 
     get_headers = headers
 
-    def verify(self, headers: str, data:Optional[Any]=None, staleness = 4) -> Dict:
+    def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
         Verify and decode a JWT token
         provide the data if you want to verify the data hash
@@ -54,7 +56,8 @@ class Auth:
         crypto_type = headers.get('crypto_type', self.crypto_type)
         signature_keys = headers.get('signature_keys', self.signature_keys)
 
-        assert abs(time_now - float(headers['time'])) < staleness, f'Token is stale {time_now} - {headers["time"]} > {staleness}'
+        staleness = abs(time_now - float(headers['time']))
+        assert staleness < self.max_staleness, f'Token is stale {staleness} > {self.max_staleness}'
         assert 'signature' in headers, 'Missing signature'
         sig_data = {k: headers[k] for k in signature_keys}
         verified = self.key.verify(sig_data, signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)

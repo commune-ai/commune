@@ -20,6 +20,7 @@ class Docker:
     """
     default_shm_size = '100g'
     default_network = 'host'
+    image = 'commune:latest'
 
     def __init__(self):
         pass
@@ -52,52 +53,35 @@ class Docker:
             cmd += ' --no-cache'
         return c.cmd(cmd,  cwd=path)
 
+    def forward(self, module, image=None, auth)
+
     def run(self,
-            image  = 'commune',
-            cmd: Optional[str] = None,
-            *extra_cmd,
-
+            module: Optional[str] = None,
             name: Optional[str] = 'commune',
-
-            vol: Dict[str, str] = None,
+            image  = None,
+            volumes: Dict[str, str] = None,
             gpus: Union[List[int], str, bool] = False,
             shm_size: str = '100g',
-            entrypoint = 'tail -f /dev/null',
+            entrypoint = "c serve api --port",
             sudo: bool = False,
             build: bool = True,
-            ports: Optional[Dict[str, int]] = None,
-            net: str = 'host',
+            net: Optional[str] = None, # 'host', 'bridge', etc.
+            port = None,
+            ports: Union[List[int], Dict[int, int]] = None,
             daemon: bool = False,
             cwd: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+            env: Optional[Dict[str, str]] = None
+            
+            ) -> Dict[str, Any]:
         """
         Run a Docker container with advanced configuration options.
-
-        Args:
-            path (str): Path to Dockerfile or image name.
-            cmd (Optional[str]): Command to run in container.
-            vol (Optional[Union[List[str], Dict[str, str], str]]): Volume mappings.
-            name (Optional[str]): Container name.
-            gpus (Union[List[int], str, bool]): GPU configuration.
-            shm_size (str): Shared memory size.
-            sudo (bool): Use sudo.
-            build (bool): Build image before running.
-            ports (Optional[Dict[str, int]]): Port mappings.
-            net (str): Network mode.
-            daemon (bool): Run in daemon mode.
-            cwd (Optional[str]): Working directory.
-            env (Optional[Dict[str, str]]): Environment variables.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the command and working directory.
         """
-        name = name or image
+        name = name or self.image.split(':')[0]
         self.kill(name)
-        cmd = cmd 
-        if len(extra_cmd) > 0:
-            cmd = ' '.join([cmd] + list(extra_cmd))
         dcmd = ['docker', 'run']
-        dcmd.extend(['--net', net])
+        
+        if net:
+            dcmd.extend(['--net', net])
         # Handle GPU configuration
         if isinstance(gpus, list):
             dcmd.append(f'--gpus "device={",".join(map(str, gpus))}"')
@@ -109,6 +93,9 @@ class Docker:
         if shm_size:
             dcmd.extend(['--shm-size', shm_size])
         # Handle port mappings
+        if port:
+            assert not c.used_port(port), f'Port {port} is already in use'
+            ports = {port: port}
         if ports:
             if isinstance(ports, list):
                 ports = {port: port for port in ports}
@@ -116,11 +103,12 @@ class Docker:
                 dcmd.extend(['-p', f'{host_port}:{container_port}'])
             
         # Handle volume mappings
-        if vol:
-            assert isinstance(vol, dict)
-            vol = [f'{k}:{v}' for k, v in vol.items()]
-            for volume in vol:
+        if volumes:
+            assert isinstance(volumes, dict)
+            volumes = [f'{k}:{v}' for k, v in volumes.items()]
+            for volume in volumes:
                 dcmd.extend(['-v', volume])
+
         # Handle environment variables
         if env:
             for key, value in env.items():
@@ -134,12 +122,10 @@ class Docker:
         if daemon:
             dcmd.append('-d')
 
-        if cmd:
-            dcmd.extend(['--entrypoint', f'bash -c "{cmd}"'])
+        # Set working directory
+        if entrypoint:
+            dcmd.extend(['--entrypoint', f'bash -c "{entrypoint}"'])
         
-        
-
-
         # Add image name
         dcmd.append(image)
 
@@ -672,108 +658,3 @@ class Docker:
             }
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
-
-    def load(self, config_name: str = 'default') -> Dict[str, Any]:
-        """
-        Load and apply a saved container configuration (PM2-like interface).
-
-        Args:
-            config_name (str): Name of the configuration to load.
-
-        Returns:
-            Dict[str, Any]: Result of the operation.
-        """
-        try:
-            config_path = self.get_path(f'configs/{config_name}.json')
-            if not os.path.exists(config_path):
-                return {'status': 'error', 'message': f'Configuration {config_name} not found'}
-            
-            with open(config_path, 'r') as f:
-                container_configs = json.load(f)
-            
-            results = []
-            for config in container_configs:
-                name = config.get('name')
-                image = config.get('image')
-                
-                if not name or not image:
-                    results.append({'status': 'error', 'message': 'Missing name or image in config'})
-                    continue
-                
-                # Convert ports format
-                ports = {}
-                for container_port, host_bindings in config.get('ports', {}).items():
-                    if host_bindings and len(host_bindings) > 0:
-                        host_port = host_bindings[0].get('HostPort')
-                        if host_port:
-                            ports[host_port] = container_port.split('/')[0]
-                
-                # Convert vol format
-                vol = {}
-                for volume in config.get('vol', []):
-                    if ':' in volume:
-                        host_path, container_path = volume.split(':', 1)
-                        vol[host_path] = container_path
-                
-                # Convert environment variables
-                env = {}
-                for env in config.get('env', []):
-                    if '=' in env:
-                        key, value = env.split('=', 1)
-                        env[key] = value
-                
-                # Start the container
-                try:
-                    result = self.run(
-                        image=image,
-                        name=name,
-                        cmd=' '.join(config.get('command', [])) if config.get('command') else None,
-                        entrypoint=' '.join(config.get('entrypoint', [])) if config.get('entrypoint') else None,
-                        vol=vol,
-                        ports=ports,
-                        env=env,
-                        net=config.get('network_mode', 'bridge')
-                    )
-                    results.append({'name': name, 'status': 'started', 'result': result})
-                except Exception as e:
-                    results.append({'name': name, 'status': 'error', 'error': str(e)})
-            
-            return {
-                'status': 'success',
-                'message': f'Loaded {len(results)} containers from {config_name} configuration',
-                'results': results
-            }
-        except Exception as e:
-            return {'status': 'error', 'error': str(e)}
-
-    def file(self, path: str) -> str:
-        """
-        Get the content of a Dockerfile.
-
-        Args:
-            path (str): Path to the directory containing the Dockerfile.
-
-        Returns:
-            str: Content of the Dockerfile.
-        """
-        dockerfile_path = os.path.join(path, 'Dockerfile')
-        if os.path.exists(dockerfile_path):
-            with open(dockerfile_path, 'r') as f:
-                return f.read()
-        return f"Dockerfile not found at {dockerfile_path}"
-
-    def files(self, path: str = '.') -> List[str]:
-        """
-        Find all Dockerfiles in a directory and its subdirectories.
-
-        Args:
-            path (str): Root directory to search.
-
-        Returns:
-            List[str]: List of paths to Dockerfiles.
-        """
-        dockerfiles = []
-        for root, _, files in os.walk(path):
-            if 'Dockerfile' in files:
-                dockerfiles.append(os.path.join(root, 'Dockerfile'))
-        return dockerfiles

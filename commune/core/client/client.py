@@ -45,11 +45,9 @@ class Client:
         
         t0 = c.time()
 
-        headers = self.auth.get_headers(params, key=key) # step 4: get the headers
+        headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
-
-  
 
         ## handle the response
         if response.status_code != 200:
@@ -93,6 +91,9 @@ class Client:
 
 
     def get_url(self, url, mode='http'):
+        """
+        gets the url and makes sure its legit
+        """
         if c.is_url(url):
             url = url
         elif c.is_int(url):

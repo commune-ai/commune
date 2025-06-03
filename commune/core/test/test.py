@@ -1,8 +1,6 @@
     
 import commune as c
-
 class Test(c.Module):
-
     def forward(self, module=None, timeout=50, modules=[ 'server', 'vali','key', 'chain']):
         """
         Test the module 
@@ -51,7 +49,6 @@ class Test(c.Module):
         return results
 
     testmod = test_module
-
 
     def test_fns(self, module=None):
         return [f for f in dir(self.module(module)) if f.startswith('test_') or f == 'test']

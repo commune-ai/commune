@@ -36,22 +36,23 @@ class Chain:
 
     min_stake = 50000
     tempo = 60
-    blocktime = block_time = 8
+    block_time = 8
     blocks_per_day = 24*60*60/block_time
     urls = {
-        "main":  {"lite": ["api.communeai.net"],  "archive": ["archive-node-0.communeai.net", "archive-node-1.communeai.net"]},
-        "test": {"lite": ["testnet.api.communeai.net"]}
+        "main":  {
+                "lite": ["api.communeai.net"], 
+                "archive": [
+                            "archive-node-0.communeai.net", 
+                            "archive-node-1.communeai.net"
+                            ]
+                },
+        "test": {
+                "lite": ["testnet.api.communeai.net"]
+                }
     }
     networks = list(urls.keys())
     default_network : str = 'main' # network name [main, test]
-    wait_for_finalization: bool
-    _num_connections: int
     connections_queue: queue.Queue[SubstrateInterface]
-    url: str
-
-    def set_connections(self, num_connections: int):
-        self.num_connections = num_connections
-        return {'num_connections': self.num_connections}
 
     def __init__(
         self,
@@ -69,7 +70,6 @@ class Chain:
 
     ):
 
-    
         self.folder = folder
         self.set_network(network=net or network or self.default_network, # add a little shortcut,
                          mode=mode,
@@ -80,16 +80,6 @@ class Chain:
                          archive=archive,
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
-
-    def set_archive(self, archive: bool = True):
-        """
-        Sets the archive mode for the chain.
-
-        Args:
-            archive: Whether to enable archive mode or not.
-        """
-        self.archive = archive
-        return {'archive': self.archive}
         
     def switch(self, network=None):
         og_network = self.network
@@ -107,21 +97,6 @@ class Chain:
         self.network = network
         return {'network': self.network, 'og_network': og_network}
 
-    def set_url(self, url: str = None, mode: str = 'wss'):
-        """
-        Sets the URL for the chain.
-
-        Args:
-            url: The URL to set for the chain.
-        """
-        self.mode = mode or 'wss'
-        if url is None:
-            url = self.get_url()
-        mode_prefix = mode + '://'
-        if not url.startswith(mode_prefix):
-            url = mode_prefix + url
-        self.url = url
-        return {'url': self.url}
     def set_network(self, 
                         network=None,
                         mode = 'wss',
@@ -132,25 +107,26 @@ class Chain:
                         ws_options: dict[str, int] = {},
                         wait_for_finalization: bool = False,
                         timeout: int  = None ):
-        t0 = c.time()
         if network == None:
             network = self.network
+
         if network in ['chain']:
             network = 'main'
+
+        t0 = c.time()
         if test:
             network = 'test'
-        self.network = self.net = network or self.network
-
+        network = network or self.network
         if timeout != None:
             ws_options["timeout"] = timeout
+        self.network = network
         self.ws_options = ws_options
-
-        self.set_archive(archive)
-        self.set_url(url, mode=mode)
-        self.set_connections(num_connections)   
-                    
+        self.archive = archive
+        self.mode = mode
+        self.url  = url or self.get_url() 
+        self.num_connections = num_connections                  
         self.wait_for_finalization = wait_for_finalization
-
+        
         return {
                 'network': self.network, 
                 'url': self.url, 
@@ -782,9 +758,9 @@ class Chain:
             c.put(path, results)
         return results
             
-    def block_hash(self, block: Optional[int] = None) -> str:
+    def block_hash(self):
         with self.get_conn(init=True) as substrate:
-            block_hash = substrate.get_block_hash(block)
+            block_hash = substrate.get_block_hash()
         return block_hash
     
     def block(self):
@@ -1037,14 +1013,13 @@ class Chain:
 
     stakefrom = stake_from 
 
-    def stake_to( self, key=None, extract_value: bool = False, fmt='j', update=False, **kwargs ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
+    def stake_to( self, key=None, extract_value: bool = False, fmt='j', **kwargs ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes to destinations for keys on the network.
         """
         if key:
-            result =  self.query_map("StakeTo", [self.get_key_address(key)], extract_value=False, update=update)
-            return self.format_amount(result, fmt=fmt)
-        stakefrom = self.stakefrom(extract_value=extract_value, fmt=fmt, update=update, **kwargs)
+            return self.get_staketo(key, fmt=fmt)
+        stakefrom = self.stakefrom(extract_value=extract_value, fmt=fmt, **kwargs)
         staketo = {}
         for k,v in stakefrom.items():
             for kk,vv in v.items():
@@ -1122,7 +1097,7 @@ class Chain:
             balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
         return balances
     
-    def my_balance(self, batch_size=8, timeout=120, max_age=None, update=False, num_connections=10):
+    def my_balance(self, batch_size=128, timeout=120, max_age=None, update=False, num_connections=10):
         path = self.get_path(f'{self.network}/my_balance')
         balances = c.get(path, None, update=update, max_age=max_age)
         if balances == None:
@@ -1175,10 +1150,7 @@ class Chain:
     def proposals(
         self, extract_value: bool = False,update: bool = False
     ) -> dict[int, dict[str, Any]]:
-        proposals =  self.query_map( "Proposals", extract_value=extract_value, module="GovernanceModule", update=update)
-        return proposals
-
-    props = proposals
+        return self.query_map( "Proposals", extract_value=extract_value, module="GovernanceModule", update=update)
 
     def dao_treasury_address(self) -> Ss58Address:
         return self.query("DaoTreasuryAddress", module="GovernanceModule")
@@ -1276,7 +1248,6 @@ class Chain:
         return self.query(
             "MaxProposals",
         )
-        
     def get_stakefrom(
         self,
         key: Ss58Address,
@@ -1289,8 +1260,19 @@ class Chain:
         result = self.query_map("StakeFrom", [key], extract_value=False)
         return self.format_amount(result, fmt=fmt)
     get_stake_from = get_stakefrom
+    def get_staketo(
+        self,
+        key: Ss58Address = None,
+        fmt = 'j'
+    ) -> dict[str, int]:
+        """
+        Retrieves the stake amounts provided by a specific staker to all staked addresses.
+        """
+        key = self.get_key_address(key)
+        result =  self.query_map("StakeTo", [key], extract_value=False)
+        return self.format_amount(result, fmt=fmt)
 
-
+    get_stake_to = get_staketo
     def balance(
         self,
         addr: Ss58Address=None,
@@ -1979,7 +1961,6 @@ class Chain:
         """
         an overview of your wallets
         """
-        self.set_connections(8)
         my_stake = self.my_stake(update=update, max_age=max_age)
         my_balance = self.my_balance(update=update, max_age=max_age)
         key2address = c.key2address()
@@ -2094,7 +2075,6 @@ class Chain:
         metadata: Optional[str] = None, code : Optional[str] = None, # either code or metadata
         subnet: Optional[str] = 2,
         net = None,
-        wait_for_finalization = False,
         public = False,
         stake = 0,
         safety = False,
@@ -3241,7 +3221,6 @@ class Chain:
         if dest == None:
             staketo = self.staketo(key)
             idx2key_options = {i: k for i, (k, v) in enumerate(staketo.items()) if v > amount}
-
             if len(idx2key_options) == 1:
                 dest = list(idx2key_options.values())[0]
             elif len(idx2key_options) > 1:
@@ -3259,7 +3238,6 @@ class Chain:
         amount: int = None,
         dest: Ss58Address=None ,
         safety: bool = True,
-        existential_amount = 10
 
     ) -> ExtrinsicReceipt:
         """
@@ -3271,8 +3249,7 @@ class Chain:
         if amount == None:
             amount = input('Enter amount to unstake: ')
             amount = float(str(amount).replace(',', ''))
-        if amount == 'all':
-            amount = self.balance(key) - existential_amount      
+        
         if dest == None:
             staketo = self.staketo(key)
             # if there is only one module key, use it
@@ -3288,14 +3265,4 @@ class Chain:
             dest = name2key.get(dest, dest)
         params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
         return self.call(fn="add_stake", params=params, key=key, safety=safety)
-
-    def events(self, block=None):
-        """
-        Get events from a specific block or the latest block
-        """
-        block_hash = self.block_hash(block)
-        with self.get_conn(init=True) as substrate:
-            # Get events from the block
-            events = substrate.get_events(block_hash)
-        events = [e.value for e in events]
-        return events
+    

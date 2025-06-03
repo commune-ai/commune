@@ -8,14 +8,14 @@ from typing import List
 from copy import deepcopy
 import json
 
+
 class Cli:
-    def __init__(self, key=None, path = '~/.commune/tx' , version='v0', tx='tx', auth='auth', serializer='serializer'):
+    def __init__(self, 
+                key=None, 
+                default_fn='go',
+                ):
 
-        self.key = c.get_key(key)
-        self.tx = c.module(tx)(key=self.key, path=path, version=version)
-        self.auth = c.module(auth)()
-        self.serializer = c.module(serializer)()
-
+        self.default_fn = default_fn
 
     def forward(self, module='module', fn='forward', argv=None, **kwargs):
         """
@@ -24,21 +24,24 @@ class Cli:
         """
 
         time_start = time.time()
-    
+
         # ---- MODULE/FN ----
         argv = self.get_argv(argv)
         argv, module, fn = self.get_module_fn(module, fn, argv)
         argv, init_params = self.get_init_params(argv)
         argv, params = self.get_fn_params(argv)
         fn_obj = getattr(c.module(module)(**init_params), fn)
-        # ---- RESULT ----
-        buffer ='>'* 20 + '' 
         schema = self.get_schema(module, fn)
-        c.print(f'Calling({module}/{fn} key={self.key.key_address})')
+        c.print(f'Calling({module}/{fn})')
+        result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj
+        duration = round(time.time() - time_start, 3)
+        c.print(f'Result(duration={duration}s)\n')
+        self.print_result(result)
+        
 
-    
-        with c.spinner(f'Calling({module}/{fn})'):
-            result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj
+
+
+    def print_result(self, result:Any):
         is_generator = self.is_generator(result)
         if is_generator:
             
@@ -49,24 +52,6 @@ class Cli:
                     c.print(item, end='')
         else:
             c.print(result)
-
-
-        result = self.serializer.forward(result)
-
-        auths = {
-                'client': self.auth.headers({'fn': fn, 'params': params}, key=self.key),
-                'server': self.auth.headers({'fn': fn, "params": params, "result": result}, key=self.key)
-                }
-        tx = self.tx.forward(module=module, 
-                             fn=fn, 
-                             params=params, 
-                             result=result, 
-                             schema=schema, 
-                             auths=auths)
-
-        c.print(f'Result(tx={tx["hash"]} duration={round(time.time() - time_start, 3)})\n')
-        
-
 
     def get_schema(self, module, fn, verbose=False):
         try:
@@ -156,7 +141,7 @@ class Cli:
         module_obj = c.module(module)()
         if len(argv) == 0:
             # scenario 1: no arguments, use the default function
-            fn = 'vs'
+            fn = self.default_fn
         elif len(argv) > 0 and hasattr(module_obj, argv[0]):
             fn = argv.pop(0)
         elif argv[0].endswith('/'):

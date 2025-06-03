@@ -9,16 +9,16 @@
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
-        "docker": "server.pm.docker",
+        "docker": "pm.docker",
         "or" : "model.openrouter",
+        "wallet": "chain.wallet",
         "r" :  "remote",
         "ch" :  "chain",
         "chain": "chain", 
         "local": "server",
         "serv": "server", 
         "tweet": "x",
-        "d": "docker",
-        "dock": "docker",
+        "d": "pm.docker",
         "openrouter": "model.openrouter"
         },
          

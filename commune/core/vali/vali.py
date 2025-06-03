@@ -15,8 +15,8 @@ class Vali:
                     key : str = None, # the key for the module
                     tempo : int = 60, # the time between epochs
                     timeout : int = 3, # timeout per evaluation of the module
-                    update : bool =True, # update during the first epoch
-                    run_loop : bool = True, # This is the key that we need to change to false
+                    update : bool =False, # update during the first epoch
+                    run_loop : bool = False, # This is the key that we need to change to false
                     verbose: bool = True, # print verbose output
                     path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                  **kwargs): 
@@ -39,7 +39,7 @@ class Vali:
                     tempo:int= 10, 
                     search:str=None, 
                     path:str=None, 
-                    update = False):
+                    update = True):
         if not hasattr(self, 'network'):
             self.network = 'local'
         self.network = network or self.network
@@ -113,7 +113,6 @@ class Vali:
         module = self.get_module(module)
         module['time'] = c.time()
         client = c.client(module['url'], key=self.key)
-        c.print(f'Sample(task={self.task.info["name"]} module={module["name"]} url={module["url"]})')
         result = self.task.forward(client, **params)
         # prepare the module for the result
         assert 'score' in result, f'Module {module["name"]} does not have a score {result}'

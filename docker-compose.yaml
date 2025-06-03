@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  commune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: commune
+    container_name: commune
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    # ports:
+    #   - "8000:8000"
+    shm_size: 4g
+    volumes:
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.commune:/root/.commune
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    entrypoint: c serve api port=8000 remote=0
+

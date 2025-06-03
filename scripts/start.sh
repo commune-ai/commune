@@ -84,32 +84,34 @@ if [ $CONTAINER_EXISTS ]; then
   docker rm $NAME
 fi
 
-# run the container with the name of the current directory
-docker run -d --name $NAME \
-  $NETWORK_PART \
-  $VOLUME_PART \
-  --restart unless-stopped  --privileged --shm-size $SHM_SIZE \
-  $IMAGE
+# # run the container with the name of the current directory
+# docker run -d --name $NAME \
+#   $NETWORK_PART \
+#   $VOLUME_PART \
+#   --restart unless-stopped  --privileged --shm-size $SHM_SIZE \
+#   $IMAGE
 
-CONTAINER_ID=$(docker ps -q -f name=$NAME)
-echo_msg="name=$NAME id=$CONTAINER_ID image=$IMAGE"
-if PORT="${PORT:-}" ; then
-  echo_msg="$echo_msg port=$PORT"
-fi
-echo "CONTAINER($echo_msg)"
-# check if the container started successfully
+# CONTAINER_ID=$(docker ps -q -f name=$NAME)
+# echo_msg="name=$NAME id=$CONTAINER_ID image=$IMAGE"
+# if PORT="${PORT:-}" ; then
+#   echo_msg="$echo_msg port=$PORT"
+# fi
+# echo "CONTAINER($echo_msg)"
+# # check if the container started successfully
 
-# 
-if [ "$TEST" == true ]; then
-  echo "Running tests..."
-  # run the tests in the container
-  docker exec -it $CONTAINER_ID /bin/bash -c "c test"
-else 
-  echo "Container started successfully."
-  if [ -n "$PORT" ]; then
-    echo "You can access the service at http://localhost:$PORT"
-  else
-    echo "No port mapping specified. Access the service using the container's internal network."
-  fi
-  echo "To enter the container, run: docker exec -it $NAME /bin/bash"
-fi
+# # 
+# if [ "$TEST" == true ]; then
+#   echo "Running tests..."
+#   # run the tests in the container
+#   docker exec -it $CONTAINER_ID /bin/bash -c "c test"
+# else 
+#   echo "Container started successfully."
+#   if [ -n "$PORT" ]; then
+#     echo "You can access the service at http://localhost:$PORT"
+#   else
+#     echo "No port mapping specified. Access the service using the container's internal network."
+#   fi
+#   echo "To enter the container, run: docker exec -it $NAME /bin/bash"
+# fi
+
+docker compose up -d

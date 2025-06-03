@@ -27,7 +27,7 @@ class Test:
             key = c.new_key(crypto_type=crypto_type)
             enc = key.encrypt(value)
             dec = key.decrypt(enc)
-            assert dec == value, f'encryption failed, {dec} != {value}'
+            assert str(dec) == value, f'encryption failed, {dec} != {value}'
         return {'encrypted':enc, 'decrypted': dec, 'crypto_type':key.crypto_type}
 
     def test_encryption_with_password(self, value = 10, password = 'fam', crypto_type=[0,1,2]):
@@ -39,7 +39,7 @@ class Test:
         key = key.new_key(crypto_type=crypto_type)
         enc = key.encrypt(value, password=password)
         dec = key.decrypt(enc, password=password)
-        assert dec == value, f'encryption failed, {dec} != {value}'
+        assert str(dec) == value, f'encryption failed, {dec} != {value}'
         return {'encrypted':enc, 'decrypted': dec, 'crypto_type': crypto_type}
 
     def test_key_encryption(self, test_key='test.key', crypto_type=[0,1,2]):

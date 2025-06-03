@@ -12,7 +12,7 @@ class Store:
                 folder='~/.commune/store', 
                 suffix='json',
                 key = None,
-                encrypted=False,
+                private=False,
                 ):
 
         """
@@ -24,18 +24,45 @@ class Store:
         self.folder = self.abspath(folder)
         self.key = self.get_key(key)
         self.suffix = suffix
-        self.encrypted = encrypted
-        if self.encrypted:
-            self.encrypt_all()
+        self.set_private(private) 
 
-    def put(self, path, data):
+    def set_private(self, private: bool):
+        if private:
+            self.private = True
+            self.encrypt_all()
+        else:
+            self.private = False
+        
+        return self.private
+    
+        
+    def put(self, path, data, key=None):
+        if self.private:
+            key = self.key
         path = self.get_path(path, suffix=self.suffix)
-        self.ensure_directory(path)
+        self.ensure_folder(path)
         with open(path, 'w') as f:
             json.dump(data, f)
-        return path
+        if key != None:
+            key = self.get_key(key)
+            self.encrypt(path, key=key)
+        return {'path': path, 'encrypted': self.is_encrypted(path)}
+    
+    def shorten_item_path(self, path):
+        return path.replace(self.folder+'/', '').replace(f'.{self.suffix}', '')
 
-    def ensure_directory(self, path):
+    def short2path(self):
+        """
+        Convert the short path to the full path
+        """
+        paths = self.paths()
+        short2full = {}
+        for p in paths:
+            short = self.shorten_item_path(p)
+            short2full[short] = p
+        return short2full
+
+    def ensure_folder(self, path):
         """
         Ensure that the directory exists
         """
@@ -44,7 +71,7 @@ class Store:
             os.makedirs(folder, exist_ok=True)
         return {'path': path, 'folder': folder}
 
-    def get(self, path, default=None, max_age=None, update=False):
+    def get(self, path, default=None, max_age=None, update=False, key=None):
         """
         Get the data from the file
         params
@@ -57,21 +84,32 @@ class Store:
         path = self.get_path(path, suffix=self.suffix)
         if not os.path.exists(path):
             return default
-        try:
-            with open(path, 'r') as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f'Failed to load {path} error={e}')
-            data = default
-        if isinstance(data, dict) and 'data' in data and ('time' in data or 'timestamp' in data):
-            data = data['data']
+        data = self.get_text(path)
+        data = json.loads(data.strip())
+        data = self.process_data_options(data)
 
-            
         if not update:
             update =  bool(max_age != None and self.get_age(path) > max_age)
         if update:
-            data = default
+            return default
+
+        if key != None or self.private:
+            key = self.get_key(key)
+            try:
+                data = key.decrypt(data["encrypted_data"])
+            except Exception as e:
+                print(f'Failed to decrypt {path} with key {key}. Error: {e}')
+                return default
+            return data
+
         return data
+
+    def process_data_options(self, data):
+    
+        if isinstance(data, dict) and 'data' in data and ('time' in data or 'timestamp' in data):
+            data = data['data']
+        else: 
+            return data
 
     def get_time(self, path, default=None):
         """
@@ -101,7 +139,9 @@ class Store:
             suffix: str: the suffix of the file (json, txt, etc)
         return: str: the path of the file
         """
-        if not path.startswith(self.folder):
+        if  path.startswith('~') or path.startswith('/') or path.startswith('./'):
+            path = self.abspath(path)
+        elif not path.startswith(self.folder):
             path = f'{self.folder}/{path}'
         if suffix != None:
             suffix = f'.{suffix}'
@@ -122,23 +162,39 @@ class Store:
             os.remove(path)
         return path
 
-    def rmdir(self, path):
-        path = self.get_path(path)
-        assert os.path.exists(path), f'Failed to find path {path}'
-        return shutil.rmtree(path)
-
-    def items(self, search=None, df=False, features=None):
-        paths = self.paths(search=search)
-        data = []
+    def rm_all(self):
+        """
+        Remove all items in the storage
+        """
+        paths = self.paths()
         for p in paths:
+            self.rm(p)
+        return paths
+
+    def values(self, search=None, avoid=None, max_age=None):
+        return [self.get(p) for p in self.paths(search=search, avoid=avoid, max_age=max_age)]
+    
+    def keys(self, search=None, avoid=None, max_age=None):
+        """
+        Get the keys in the storage
+        """
+        paths = self.paths(search=search, avoid=avoid, max_age=max_age)
+        keys = [self.shorten_item_path(p) for p in paths]
+        return keys
+
+    def items(self, search=None,  key=None):
+        """
+        Get the items in the storage
+        """
+        keys = self.keys(search=search)
+        data = []
+        path2data = {}
+        for p in keys:
             try:
-                data.append(self.get(p))
+                path2data[p] = self.get(p,key=key)
             except Exception as e:
                 print(f'Failed to get {p} error={e}')
-        if df:
-            import pandas as pd
-            data = pd.DataFrame(data)
-        return data
+        return path2data
         
 
     def ls(self, path='./', search=None, avoid=None):
@@ -154,9 +210,10 @@ class Store:
         path = self.get_path(path)
         return os.listdir(path)
 
-    def paths(self, search=None, avoid=None, max_age=None):
+    def paths(self, path=None, search=None, avoid=None, max_age=None):
         import glob
-        paths = glob.glob(f'{self.folder}/**/*', recursive=True)
+        path = path or self.folder
+        paths = glob.glob(f'{path}/**/*', recursive=True)
         paths = [self.abspath(p) for p in paths if os.path.isfile(p)]
         if search != None:
             paths = [p for p in paths if search in p]
@@ -167,7 +224,7 @@ class Store:
         return paths
 
     def files(self, path=None, search=None, avoid=None):
-        return self.paths(search=search, avoid=avoid)
+        return self.paths(path=path,search=search, avoid=avoid)
 
         
     def exists(self, path):
@@ -263,18 +320,31 @@ class Store:
         hash_obj.update(content.encode('utf-8'))
         return hash_obj.hexdigest()
 
+    def get_json(self, path: str= 'test/a')-> Union[dict, list]:
+        path = self.get_path(path, suffix=self.suffix)
+        data = self.get_text(path)
+        data = json.loads(data)
+        return data 
+
+    def put_json(self, path: str= 'test/a', data: Union[dict, list]=None) -> str:
+        json_data = json.dumps(data, indent=4)
+        path = self.get_path(path, suffix=self.suffix)
+        self.ensure_folder(path)
+        with open(path, 'w') as f:
+            f.write(json_data)
+        return path
 
     def encrypt(self, path: str= 'test/a', key: str=None, password=None) -> str:
         """
         Encrypt a file using the given key
         """
         key = self.get_key(key)
-
-        obj = self.get(path)
+        obj = self.get_json(path)
         assert self.exists(path), f'Failed to find {path}'
-        assert not self.is_encrypted(path), f'already encrypted {path}'
-        result =  {'encrypted_data': key.encrypt(obj, password=password)}
-        self.put(path, result)
+        if self.is_encrypted(path): 
+            return {'msg': 'aready encrytped'}
+        result = {'encrypted_data': key.encrypt(obj, password=password)}
+        self.put(path,result)
         assert self.is_encrypted(path), f'Failed to encrypt {path}'
         return {'path': path, 'encrypted_data': result['encrypted_data']}
 
@@ -291,7 +361,10 @@ class Store:
         """
         
         key = self.get_key(key)
-        obj = self.get(path)
+
+        if isinstance(path, dict):
+            return key.decrypt(path['encrypted_data'], password=password)    
+        obj = self.get_json(path)
         if isinstance(obj, dict) and 'encrypted_data' in obj:
             result = key.decrypt(obj['encrypted_data'], password=password)
             self.put(path, result)
@@ -305,22 +378,47 @@ class Store:
         """
         Check if the file is encrypted using the given key
         """
-        obj = self.get(path)
-        if isinstance(obj, dict) and 'encrypted_data' in obj:
-            return True
-        return False
+        obj = self.get_json(path) if isinstance(path, str) else path
+        return bool(isinstance(obj, dict) and 'encrypted_data' in obj)
 
-    def encrypted_paths(self, key: str=None) -> list:
+    def is_private(self, path=None) -> bool:
+        """
+        Check if the file is private
+        """
+        return all([self.is_encrypted(p) for p in  self.paths(path=path)])
+
+    def encrypted_paths(self, path=None) -> list:
         """
         Get the paths of the encrypted files
         """
-        key = self.get_key(key)
-        paths = self.paths()
+        paths = self.paths(path=path)
         encrypted_paths = []
         for p in paths:
             if self.is_encrypted(p):
                 encrypted_paths.append(p)
         return encrypted_paths
+    
+    def unencrypted_paths(self, path=None) -> list: 
+        """
+        Get the paths of the unencrypted files
+        """
+        paths = self.paths(path=path)
+        unencrypted_paths = []
+        for p in paths:
+            if not self.is_encrypted(p):
+                unencrypted_paths.append(p)
+        return unencrypted_paths
+
+    def encrypted(self) -> bool:
+        encrypted_paths = self.encrypted_paths()
+        # remove the folder from the path
+        encrypted = [path.replace(self.folder+'/', '')for path in encrypted_paths]
+        # remove the suffix from the path
+        suffix = f'.{self.suffix}' 
+        encrypted = [path[:-len(suffix)] if path.endswith(suffix) else path for path in encrypted]
+        return encrypted
+
+        return bool(isinstance(obj, dict) and 'encrypted_data' in obj and key.decryptable(obj['encrypted_data']))
     def path2name(self, path: str) -> str:
         if path.startswith(self.folder):
             path = path[len(self.folder)+1:]
@@ -328,21 +426,10 @@ class Store:
             path = path[:-len('.json')]
         return path
 
-
-    def encrypted(self, key: str=None) -> list:
-        encrypted_paths = self.encrypted_paths(key=key)
-        results = []
-        for p in encrypted_paths:
-            n = self.path2name(p)
-            results.append(n)
-        return results
-
-
-        # reverse 
     def get_key(self, key: str=None) -> str:
         if key == None and hasattr(self, 'key'):
             key = self.key
-        return c.fn('key/get_key')(key)
+        return c.key(key)
 
     def encrypt_all(self, key: str=None) -> list:
         """
@@ -353,7 +440,8 @@ class Store:
         for p in self.paths():
             if not self.is_encrypted(p):
                 encrypted_paths.append(self.encrypt(p, key))
-        return encrypted_paths
+        assert all([self.is_encrypted(p) for p in encrypted_paths]), f'Failed to encrypt all paths {encrypted_paths}'
+        return self.stats()
 
 
     def decrypt_all(self, key: str=None) -> list:
@@ -366,16 +454,16 @@ class Store:
         for p in paths:
             if self.is_encrypted(p):
                 decrypted_paths.append(self.decrypt(p, key))
-        return decrypted_paths
+        return self.stats()
 
 
-    def stats(self)-> 'df':
+    def stats(self, path = None)-> 'df':
         """
         Get the overview of the storage
         """
-        paths = self.paths()
+        path = self.get_path(path) if path else self.folder
+        paths = self.paths(path)
         data = []
-        print('folder -->', self.folder)
         for p in paths:
-            data.append({'path': p.replace(self.folder+'/', '')[:-len('.json')], 'age': self.get_age(p), 'size': os.path.getsize(p), 'encrypted': self.is_encrypted(p)})
+            data.append({'path': p.replace(path+'/', '')[:-len('.json')], 'age': self.get_age(p), 'size': os.path.getsize(p), 'encrypted': self.is_encrypted(p)})
         return c.df(data)

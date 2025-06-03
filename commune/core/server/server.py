@@ -10,8 +10,6 @@ import pandas as pd
 import json
 import asyncio
 import commune as c
-from .utils import shortkey, abspath
-
 
 print = c.print
 
@@ -36,30 +34,34 @@ class Server:
         # STORAGE
         store = 'store', # the store for the server
         path = '~/.commune/server', # the path to store the server data
-
-        # AUTH
+        tx = 'tx', # the tx for the server
+        tx_path = '~/.commune/server/tx',
         auth = 'auth', # the auth for the server,
+        private = True, # whether the store is private or not
         middleware = 'server.middleware', # the middleware for the server
         # PROCESS MANAGER
-        pm = 'server.pm.pm2', # the process manager to use
+        pm = 'pm.pm2', # the process manager to use
+        free_mode:bool = False, # whether the server is in free mode or not
 
         # MISC
         verbose:bool = True, # whether to print the output
         timeout = 10, # (in seconds) the maximum time to wait for a response
         run_api:bool = False, # whether to run the api
         ):
-        self.store = c.module(store)(path)
+        self.store = c.mod(store)(path)
         self.network = network or 'local'
         self.tempo = tempo
         self.verbose = verbose
-        self.pm = pm # sets the module to the pm
+        self.tx = c.mod(tx)(tx_path=tx_path)
+
+        self.pm = c.mod(pm)() # sets the module to the pm
         if run_api:
-            self.serializer = c.module(serializer)()
-            self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port)
-            self.auth = c.module(auth)()
+            self.serializer = c.mod(serializer)()
+            self.set_module(module=module, name=name, key=key, params=params, functions=functions, port=port, free_mode=free_mode)
+            self.auth = c.mod(auth)()
             self.loop = asyncio.get_event_loop() # get the event loop
             app = FastAPI()
-            # app.add_middleware(c.module(middleware), auth=)
+            # app.add_middleware(c.mod(middleware), auth=)
             app.add_middleware(
                 CORSMiddleware,
                 allow_origins=["*"],  # or your specific origins
@@ -67,28 +69,11 @@ class Server:
                 allow_methods=["*"],
                 allow_headers=["*"],
             )
-            def server_function(fn: str, request: Request):
-                try:
-                    return self.forward(fn, request)
-                except Exception as e:
-                    err = c.detailed_error(e)
-                    print(f'Error({fn}) --> {err}', color='red')
-                    return err
+            def server_function(fn: str, request: Request, catch_exception=True):
+                return self.forward(fn, request, catch_exception)
             app.post("/{fn}")(server_function)
-            self.register_server(self.module.info['name'], self.module.info['url'])
+            self.register(self.module)
             uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-
-    @property
-    def pm(self):
-        if not hasattr(self, '_pm'):
-            self._pm = c.module('server.pm')()
-        return self._pm
-
-    # set the pm
-    @pm.setter
-    def pm(self, pm='server.pm'):
-        self._pm = c.module(pm)()
-        return self
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:
@@ -105,10 +90,9 @@ class Server:
         else:
             args = []
             kwargs = dict(params)
-        params = {"args": args, "kwargs": kwargs}
-        return params
+        return  {"args": args, "kwargs": kwargs}
 
-    def forward(self, fn:str, request: Request):
+    def forward(self, fn:str, request: Request, catch_exception=True):
 
         """
         gets and verifies the request
@@ -123,104 +107,98 @@ class Server:
                 params : dict
                 client : dict (headers)
         """
+        print('FREE MODE', self.free_mode, color='yellow')
+        if catch_exception:
+            try:
+                result =  self.forward(fn, request, False)
+            except Exception as e:
+                result =  c.detailed_error(e)
+                c.print(f'Error in {fn} --> {result}', color='red')
+            return result
+
+
         params = self.get_params(request)
-        client_auth = self.auth.verify_headers(headers=dict(request.headers), data=params) # verify the headers
-        rate_limit = self.rate_limit(user=client_auth['key'], fn=fn) # the rate limit 
-        rate = self.rate(client_auth['key']) * self.module.fn2cost.get(fn, 1)
-        assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit})'
-        data = {}
 
-        with c.timer('SERVER_FN'):
-            fn_obj = getattr(self.module, fn)
-            result = fn_obj(*params['args'], ** params['kwargs']) if callable(fn_obj) else fn_obj
+        # VERIFY THE CLIENT
+        client = dict(request.headers)
 
-            if c.is_generator(result):
-                output = str(result)
-                def generator_wrapper(generator):
-                    for item in generator:
-                        print(item, end='')
-                        yield item
-                result = EventSourceResponse(generator_wrapper(result))  
-
-        output = result
-        result = self.serializer.forward(result)
-        server_auth =  self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.module.key)
+        c.print('--params--',params)
         
-        tx = {
-            'module': self.module.name,
-            'fn': fn,
-            'params': params,
-            'result': result,
-            'client': client_auth,
-            'server': server_auth,
-            'schema': self.module.schema.get(fn, {}), # optional
+        c.print('--headers--',client)
+        if self.free_mode:
+            print(f'Free mode is enabled for {self.module.name}', color='green')
+        else:
+            client = self.auth.verify_headers(headers=client, data={'fn': fn , 'params': params}) # verify the headers
+            rate_limit = self.rate_limit(user=client['key'], fn=fn) # the rate limit 
+            rate = self.rate(client['key']) * self.module.fn2cost.get(fn, 1)
+            assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit})'
 
-        }
-        self.save_tx(tx)
-        return output
+        # get the function object
+        fn_obj = getattr(self.module, fn)
 
-    def save_tx(self, data) -> Union[pd.DataFrame, List[Dict]]:
-        path = f'results/{data["module"]}/{data["client"]["key"]}/{self.hash(data)}.json'
-        c.print('RESULT({}): {}'.format(path, c.hash(data)), color='green')
-        self.store.put(path, [data])
+        # get the result
+        if callable(fn_obj):
+            result = fn_obj(*params['args'], **params['kwargs']) # call the function
+        else:
+            result = fn_obj # if not callable, just return the object
 
-    def txs(self,
-                module:str = 'module', 
-                df: bool = True, 
-                features: List = ['time', 'fn', 'client', 'server']
-                ) -> Union[pd.DataFrame, List[Dict]]:
-        """
-        Get txs data for a specific address
-        
-        Args:
-            address: The address to get txs for
-            paths: Optional list of paths to load from
-            as_df: Whether to return as pandas DataFrame
-            features: Features to include
-            
-        Returns:
-            DataFrame or list of txs records
-        """
-        paths = self.store.paths('results/'+module)
-        txs = [self.store.get(p) for p in paths]
-        if df and len(txs) > 0:
-            txs = pd.DataFrame(txs)
-            if len(txs) == 0:
-                return txs
-            txs = txs[features]
-            def _shorten(x):
-                if x in self.address2key: 
-                    return self.address2key.get(x) + ' (' + shortkey(x) + ')'
-                else:
-                    return shortkey(x)
-                return x
-            txs['time'] = txs['client'].apply(lambda x: x.get('time', 0))
-            txs['server'] = txs['server'].apply(lambda x: _shorten(x['key']))
-            txs['client'] = txs['client'].apply(lambda x: _shorten(x['key']))
-            txs['age'] = txs['time'].apply(lambda x:c.time() - float(x))
-        return txs
+        # if the result is a generator, wrap it in an EventSourceResponse (SSE) for streaming
+        if c.is_generator(result):
+            output = str(result)
+            def generator_wrapper(generator):
+                for item in generator:
+                    print(item, end='')
+                    yield item
+            result = EventSourceRdesponse(generator_wrapper(result))  
+
+        # save the transaction between the client and server for future auditing
+        if not self.free_mode:
+            self.tx.forward(
+                module=self.module.name,
+                fn=fn, # 
+                params=params, # params of the inputes
+                result=self.serializer.forward(result),
+                schema=self.module.schema.get(fn, {}), # schema of the function
+                client=client,
+                server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.module.key),
+            )
+        return result
+
+
+    def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
+        return  self.tx.txs( *args, **kwargs)
 
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
         
-    def set_module(self, module:str, functions: List[str], name: str , key:Union[str, 'Key'], params:dict, port:int):
+    def set_module(self, 
+                    module:str, 
+                    functions: List[str], 
+                    name: str , 
+                    key:Union[str, 'Key'], 
+                    free_mode:bool ,
+                    params:dict, 
+                    port:int
+                    ):
         module = module or 'module'
         if isinstance(module, str):
-            if '::' in str(module):
+            if '::' in module:
                 name = module
-                tag = name.split('::')[-1]
                 module = '::'.join(name.split('::')[:-1])
-        self.module = c.module(module)(**(params or {}))
+        self.module = c.mod(module)(**(params or {}))
         self.module.name = name = name or module 
         self.module.key = c.get_key(key or self.module.name)
         self.set_functions(functions) 
         self.set_port(port)
+        self.free_mode = bool(free_mode)
+
         self.module.info = {   
             "name": self.module.name,
             "url": self.module.url,
             "key": self.module.key.ss58_address,
             "time": c.time(),
+            'free_mode': self.free_mode,
             "schema": self.module.schema,
         }
         self.module.info['signature'] = c.sign(self.module.info, key=self.module.key, mode='str')
@@ -296,22 +274,28 @@ class Server:
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo}
 
+    modules_path = 'modules.json'
     def modules(self, 
                 search=None, 
-                max_age=60, 
+                max_age=None, 
                 update=False, 
                 features=['name', 'url', 'key'], 
                 timeout=8, 
                 **kwargs):
-        modules_path = 'modules.json'
-        modules = self.store.get(modules_path, max_age=max_age, update=update)
-        if modules == None:
-            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
-            modules = c.wait(futures, timeout=timeout)
-            self.store.put(modules_path, modules)
+    
+        modules = self.store.get(self.modules_path, [])
+        module_filter = lambda m: isinstance(m, dict) and all([f in m for f in features])
+        if len(modules)>0 and update:
+            print(f'Updating modules from {self.modules_path}', color='yellow')
+            futures  = [c.submit(c.call, [m['url'] + '/info'], timeout=timeout) for m in modules]
+            modules =  c.wait(futures, timeout=timeout)
+            modules = list(filter(module_filter, modules))
+            self.store.put(self.modules_path, modules)
+        else:
+            modules = list(filter(module_filter, modules))
         if search != None:
             modules = [m for m in modules if search in m['name']]
-        return [m for m in modules if not c.is_error(m) and  m != None]
+        return modules
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
@@ -421,7 +405,6 @@ class Server:
         else:
             return False
 
-
     def blacklist_user(self, user:str, max_age:int = 60, update:bool = False):
         """
         check if the address is blacklisted
@@ -475,7 +458,7 @@ class Server:
             return {}
         else:
             if self.state == None:
-                self.state = c.module(network)().state()
+                self.state = c.mod(network)().state()
                 self.store.put(path, self.state)
             return self.state
 
@@ -498,7 +481,7 @@ class Server:
 
     def kill(self, name):
         self.pm.kill(name)
-        self.deregister_server(name)
+        self.deregister(name)
 
     def kill_all(self):
         for server in self.servers():
@@ -509,27 +492,39 @@ class Server:
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
 
-    def namespace(self,  search=None,  max_age=600, update=False, path='namespace', **kwargs) -> dict:
-        t0 = c.time()
-        namespace = self.store.get(path , max_age=max_age, update=update)
-        if namespace == None:
-            names = [p[len(self.pm.process_prefix):] for p in self.pm.ps(search=search, **kwargs) if p.startswith(self.pm.process_prefix)]
-            urls = [self.get_url(s) for s in names]
-            namespace = {s: urls[i] for i, s in enumerate(names)}
-            self.store.put(path, namespace)
-        if search != None:
-            namespace = {k:v for k, v in namespace.items() if search in k}
+    def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
+        modules = self.modules(search=search, max_age=max_age, update=update, **kwargs)
+        namespace = {m['name']: m['url'] for m in modules if 'name' in m and 'url' in m}
         return namespace
 
-    def register_server(self, name, url, path='namespace'):
-        namespace = self.store.get(path ,{})
-        namespace[name] = url
-        return self.store.put(path, namespace)
+    def register(self, module=None):
+        module = module or self.module
+        module_info = module.info
+        module_info = self.module.info
+        modules = self.store.get('modules.json', [])
+        modules = [m for m in modules if m['name'] != module_info['name']]
+        modules.append(module_info)
+        self.store.put('modules.json', modules)
 
-    def deregister_server(self, name, path='namespace'):
+    def deregister(self, name, path='namespace'):
+        """
+        deregister the server from the namespace
+        """
         namespace = self.store.get(path ,{})
-        namespace.pop(name, None)
-        return self.store.put(path, namespace)
+        if name in namespace:
+            namespace.pop(name, None)
+            self.store.put(path, namespace)
+            return True
+        return False
+
+
+
+
+    def deregister(self, module:str, path='namespace'):
+        modules = self.store.get('modules.json', [])
+        modules = [m for m in modules if m['name'] != module]
+        self.store.put('modules.json', modules)
+        return {'message': f'Deregistered {module} from {path}', 'success': True}
 
     def get_url(self, name:str,  tail:int=100, **kwargs):
         return f'0.0.0.0:{self.get_port(name, tail=tail, **kwargs)}'
@@ -554,6 +549,7 @@ class Server:
               remote:bool = True, # runs the server remotely (pm2, ray)
               functions = None, # list of functions to serve, if none, it will be the endpoints of the module
               key = None, # the key for the server
+              free_mode:bool = False, # whether the server is in free mode or not
               cwd = None,
               **extra_params
               ):
@@ -564,6 +560,7 @@ class Server:
             params = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
             self.pm.run("server/serve", name=name, params=params, cwd=cwd)
             return self.wait_for_server(name)
-        return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
+        print(f'Serving {name} on port {port} free_mode : {free_mode}', color='green')
+        return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=True, free_mode=free_mode)
    
 

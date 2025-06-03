@@ -204,14 +204,14 @@ class Key:
                 key = self.add_key(path, **kwargs) # create key
             else:
                 raise ValueError(f'key does not exist at --> {path}')
-        key_json = self.get_key_data(path)
+        key_json = self.get_data(path)
         if self.is_encrypted(key_json):
             if prompt_password and password == None:
                 password = input(f'enter password to decrypt {path} ')
             key_json = self.decrypt(data=key_json, password=password)
-        key_json = json.loads(key_json) if isinstance(key_json, str) else key_json
-        key =  self.from_json(key_json, crypto_type=crypto_type)
-        return key
+        if isinstance(key_json, str):
+            key_json = json.loads(key_json)
+        return self.from_json(key_json, crypto_type=crypto_type)
 
     def get_keys(self, search=None, clean_failed_keys=False):
         keys = {}
@@ -309,18 +309,21 @@ class Key:
             return key
         else:
             raise ValueError(f'key {key} not found, available keys: {list(address2key.keys())}')
-        
+    keyname = key_name
 
-    def get_key_data(self, key, crypto_type=None):
+    def get_data(self, key:str, crypto_type=None):
+        """
+        get the data for a given key, if the data is a string, it will be converted to json
+        """
         crypto_type = self.get_crypto_type(crypto_type)
-        key_path =  self.get_key_path(key, crypto_type=crypto_type)
-        output =  c.get(key_path)
-        # if single quoted json, convert to double quoted json string and load
-        if isinstance(output, str):
-            output = output.replace("'", '"')
-        return json.loads(output) if isinstance(output, str) else output
+        key_path = self.get_key_path(key, crypto_type=crypto_type)
+        data = c.get(key_path)       
+        if isinstance(data, str):
+            data = data.replace("'", '"')
+            data = json.loads(data)
+        return data
 
-    key_info = key_data = get_key_data
+    key_info = key_data = get_data
 
     def rm_key(self, key=None, crypto_type=None, **kwargs):
         key2path = self.key2path(crypto_type=crypto_type)
@@ -490,8 +493,6 @@ class Key:
         else:
             raise ValueError(f"Invalid crypto type: {crypto_type}")
 
-        
-
     def sign(self, data: Union[ScaleBytes, bytes, str], mode='bytes') -> bytes:
         """
         Creates a signature for given data
@@ -569,11 +570,23 @@ class Key:
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
 
+    def data2str(self, data: Union[ScaleBytes, bytes, str]) -> str:
+        if not isinstance(data, str):
+            data = json.dumps(data)
+        return data
+
+    def str2data(self, data: Union[ScaleBytes, bytes, str]) -> Union[ScaleBytes, bytes, str]:
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                pass
+        return data
+
     def encrypt(self, data, password=None, key=None):
         password = self.get_password(password=password, key=key)  
-        data = copy.deepcopy(data)
-        if not isinstance(data, str):
-            data = str(data)
+        data = self.data2str(data)
+        assert isinstance(data, str), f'data should be a string, got {type(data)}'
         data = data + (AES.block_size - len(data) % AES.block_size) * chr(AES.block_size - len(data) % AES.block_size)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(password, AES.MODE_CBC, iv)
@@ -587,6 +600,7 @@ class Key:
         cipher = AES.new(password, AES.MODE_CBC, iv)
         data =  cipher.decrypt(data[AES.block_size:])
         data = data[:-ord(data[len(data)-1:])].decode('utf-8')
+        data = self.str2data(data)
         return data
 
     def get_password(self,  password:str=None, key:Optional[str]=None,):
@@ -604,25 +618,22 @@ class Key:
         data = c.get(path)
         key = self.get_key(key)
         enc_data = key.encrypt(deepcopy(data), password=password)
-        enc_text = {'data': enc_data, 
-                    "key_address": data['key_address'],
-                    "crypto_type": data['crypto_type'],
-                    'encrypted': True}
+        enc_text = {'data': enc_data,  "key_address": data['key_address'], "crypto_type": data['crypto_type'], 'encrypted': True}
         c.put(path, enc_text)
         return {'number_of_characters_encrypted':len(enc_text), 'path':path }
     
     def is_key_encrypted(self, key, data=None, crypto_type=None):
-        return self.is_encrypted(self.get_key_data(key, crypto_type=crypto_type) )
+        return self.is_encrypted(self.get_data(key, crypto_type=crypto_type) )
     
     def decrypt_key(self, path = 'test.enc', crypto_type=None , password=None, key=None):
         crypto_type = self.get_crypto_type(crypto_type)
         assert self.key_exists(path, crypto_type=crypto_type), f'file {path} does not exist'
         assert self.is_key_encrypted(path, crypto_type=crypto_type), f'{path} not encrypted'
         path = self.get_key_path(path, crypto_type=crypto_type)
-        data = self.get_key_data(path, crypto_type=crypto_type)
+        data = self.get_data(path, crypto_type=crypto_type)
         assert self.is_encrypted(data), f'{path} not encrypted'
         key = self.get_key(key, crypto_type=crypto_type)
-        dec_text =  key.decrypt(data['data'], password=password)
+        dec_text =  key.decrypt(data['data'], password=password, key=key)
         c.put(path, dec_text)
         assert not self.is_key_encrypted(path, crypto_type=crypto_type ), f'failed to decrypt {path}'
         loaded_key = self.get_key(path, crypto_type=crypto_type)
@@ -640,7 +651,7 @@ class Key:
                 except:
                     pass
             if data in self.keys():
-                data = self.get_key_data(data)
+                data = self.get_data(data)
         return isinstance(data, dict) and bool(data.get('encrypted', False))
 
     def from_uri(
