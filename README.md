@@ -1,7 +1,19 @@
-# Commune
 
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <picture>
+    <img alt="commune" src="https://raw.githubusercontent.com/commune-ai/commune/refs/heads/main/.github/assets/banner.svg" style="max-width: 100%;padding:0px 0px 20px 0px;">
+  </picture>
+</p>
+
+<p align="center">
+    <a href="https://github.com/commune-ai/commune/blob/main/LICENCE.md"><img alt="GitHub" src="https://img.shields.io/badge/licence-MIT Licence-blue"></a>
+    <!-- Uncomment when release to pypi -->
+    <!-- <a href="https://pypi.org/project/safelz4/"><img alt="PyPI" src="https://img.shields.io/pypi/v/commai"></a> -->
+    <img alt="Python Version" src="https://img.shields.io/pypi/pyversions/commai?logo=python">
+</p>
+
+
+
 
 Commune is a comprehensive, modular framework for building distributed applications and services. It provides a seamless way to create, manage, serve, and interact with Python modules across networks.
 
