@@ -60,10 +60,10 @@ The API can run in the background to periodically update module information:
 
 ```python
 # Start the background process
-c.serve('api::background')
+c.serve('api:background')
 
 # Kill the background process when done
-c.kill('api::background')
+c.kill('api:background')
 ```
 
 ## API Endpoints

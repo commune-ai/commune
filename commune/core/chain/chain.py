@@ -44,14 +44,6 @@ class Chain:
     }
     networks = list(urls.keys())
     default_network : str = 'main' # network name [main, test]
-    wait_for_finalization: bool
-    _num_connections: int
-    connections_queue: queue.Queue[SubstrateInterface]
-    url: str
-
-    def set_connections(self, num_connections: int):
-        self.num_connections = num_connections
-        return {'num_connections': self.num_connections}
 
     def __init__(
         self,
@@ -68,10 +60,8 @@ class Chain:
         folder = os.path.expanduser(f'~/.commune/chain') 
 
     ):
-
-    
         self.folder = folder
-        self.set_network(network=net or network or self.default_network, # add a little shortcut,
+        self.set_network(network=network or net or self.default_network, # add a little shortcut,
                          mode=mode,
                          url=url,  
                          test = test,
@@ -80,6 +70,11 @@ class Chain:
                          archive=archive,
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
+
+
+    def set_connections(self, num_connections: int):
+        self.num_connections = num_connections
+        return {'num_connections': self.num_connections}
 
     def set_archive(self, archive: bool = True):
         """
@@ -137,9 +132,9 @@ class Chain:
             network = self.network
         if network in ['chain']:
             network = 'main'
-        if test:
+        if test: 
             network = 'test'
-        self.network = self.net = network or self.network
+        self.network = self.net = network
 
         if timeout != None:
             ws_options["timeout"] = timeout
@@ -773,7 +768,11 @@ class Chain:
             # and we won't be able to decode the data properly
             assert len(chunks) == len(chunks_info)
             for chunk_info, response in zip(chunks_info, chunks):
-                storage_result = self._decode_response(response, chunk_info.fun_params, chunk_info.prefix_list, block_hash)
+                try:
+                    storage_result = self._decode_response(response, chunk_info.fun_params, chunk_info.prefix_list, block_hash)
+                except Exception as e:
+                    c.print(f'Error decoding response for {storage} with queries {queries}: {e}', color='red')
+                    continue
                 multi_result = recursive_update(multi_result, storage_result)
 
         results =  self.process_results(multi_result)
@@ -1026,14 +1025,21 @@ class Chain:
     def subnet_params(self, subnet=0, update=False, max_age=None):
         return self.subnet(subnet=subnet, update=update, max_age=max_age)['params']
 
-    def stake_from(self, key=None, extract_value: bool = False, fmt='j', **kwargs
+    def stake_from(self, key=None, extract_value: bool = False, fmt='j', update=False, **kwargs
     ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes from various sources for keys on the network.
         """
         params = [self.get_key_address(key)] if key else []
-        result = self.query_map("StakeFrom", params, extract_value=extract_value, **kwargs)
+        result = self.query_map("StakeFrom", params, extract_value=extract_value, update=update, **kwargs)
         return self.format_amount(result, fmt=fmt)
+
+    def get_stake(self, key=None, update=False): 
+        """
+        Retrieves the stake for a given key.
+        """
+        stake_from = self.stake_from(key=key, extract_value=True, update=update)
+        return sum(stake_from.values())
 
     stakefrom = stake_from 
 
@@ -1323,6 +1329,13 @@ class Chain:
         """
         return 1
 
+
+    def module_exists(self, key, subnet=0):
+        key_address = self.get_key(key).key_address
+        return any([key_address == m['key'] for m in self.modules(subnet=subnet)])
+
+    
+
     def voting_power_delegators(self) -> list[Ss58Address]:
         result = self.query("NotDelegatingVotingPower", [], module="GovernanceModule")
         return result
@@ -1342,6 +1355,10 @@ class Chain:
             params=params,
             key=key,
         )
+
+    def min_stake(self, update: int = 0) -> int:
+        valis = self.valis(df=False, update=update)
+        return min([v['stake'] for v in valis if v['stake'] > 0])
 
     def delegate_rootnet_control(self, key: Keypair, dest: Ss58Address):
         params = {"origin": key, "target": dest}
@@ -1409,6 +1426,7 @@ class Chain:
     def get_key(self, key:str ):
         if isinstance(key, str):
             key = c.get_key( key )
+        assert hasattr(key, 'key_address'), f"Key {key} not found"
         return key
 
     def subnet_params(self, 
@@ -1610,7 +1628,7 @@ class Chain:
     def mynets(self, update=False):
         return self.my_subnets(update=update)
     
-    def my_modules(self, subnet=None, 
+    def my_modules(self, subnet=0, 
                    max_age=None, 
                    keys=None, 
                    features=['name', 'key', 'url',  'stake'],
@@ -1618,8 +1636,8 @@ class Chain:
                    update=False):
         if subnet == None:
             modules = []
-            for sn, ks in self.keys_map().items():
-                sn_modules = self.my_modules(subnet=sn, keys=ks, df=False)
+            for sn, ks in self.key_map().items():
+                sn_modules = self.my_mods(subnet=sn, keys=ks, df=False)
                 for m in sn_modules:
                     m['subnet'] = sn
                     modules += [m]
@@ -1636,12 +1654,14 @@ class Chain:
                 modules = self.modules(keys=keys, subnet=subnet, features=features)
             
         return modules
+
+    mymods = my_modules
     
 
     def valis(self, 
               subnet=0, 
               update=False,
-              df=1,
+              df=True,
               search=None,
               min_stake=50000,
               features=['name', 'key', 'stake_from', 'weights'],
@@ -1651,7 +1671,6 @@ class Chain:
         
         if search != None:
             valis = [v for v in valis if search in v['name'] or search in v['key'] ]
-
         for i in range(len(valis)):
             v = valis[i]
             v['stake'] =   round(sum((v.get('stake_from', {}) or {}).values()) / 10**9, 2)
@@ -1660,7 +1679,7 @@ class Chain:
         valis = [v for v in valis if v['stake'] >= min_stake]
         valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
         if search != None:
-            valis = [v for v in valis if search in v['name']]
+            valis = [v for v in valis if search in v['name'] or search in v['key'] ]
 
         if  df:
             valis = c.df(valis)
@@ -1730,7 +1749,7 @@ class Chain:
                 fn_obj = self.query if bool(feature in ['incentive', 'dividends', 'emission']) else  self.query_map 
                 future = c.submit(fn_obj, kwargs=dict(name=storage_name, params=params), timeout=timeout)
                 future2feature[future] = feature
-        
+                
         progress = c.tqdm(total=len(future2feature))
         for future in c.as_completed(future2feature, timeout=timeout):
             feature = future2feature.pop(future)
@@ -1759,9 +1778,8 @@ class Chain:
                     if m[f] == None:
                         m[f] = []
             if 'stake' in og_features:
-                m['stake'] = sum([v / 10**9 for k,v in m['stake_from'].items() ])
+                m['stake'] = sum([v / 10**9 for k,v in (m['stake_from'] or {}).items() ])
 
-                     
             modules.append(m)  
         if search:
             modules = [m for m in modules if search in m['name']]
@@ -1774,6 +1792,7 @@ class Chain:
         return modules
 
     mods = modules
+
     def format_amount(self, x, fmt='nano') :
         if type(x) in [dict]:
             for k,v in x.items():
@@ -1794,12 +1813,16 @@ class Chain:
     def block_number(self) -> int:
         return self.get_conn().block_number(block_hash=None)
     
-    def keys(self, subnet=0, max_age=None) -> List[str]:
+    def keys(self, subnet=0, update=False) -> List[str]:
         subnet = self.get_subnet(subnet)
-        return self.keys_map(max_age=max_age)[int(subnet)]
+        keys = self.query_map('Keys', params=[subnet], update=update)
+        return [v for k,v in keys.items() if v]
+
     
-    def keys_map(self, max_age=None):
-        return {int(k):list(v.values()) for k,v in self.query_map('Keys', params=[], max_age=max_age).items()}
+    def key_map(self,update=False):
+
+        key_map = self.query_map('Keys', params=[], update=update)
+        return {int(k):list(v.values()) for k,v in key_map.items()}
 
     def key2uid(self, subnet=0) -> int:
         subnet = self.get_subnet(subnet)
@@ -1809,10 +1832,69 @@ class Chain:
         key2uid = self.key2uid(subnet)
         return {v:k for k,v in key2uid.items()}  
     
-    def is_registered(self, key=None, subnet=0,max_age=None) -> bool:
-        key = c.get_key(key)
-        keys = self.keys(subnet, max_age=max_age)
-        return key.ss58_address in keys
+    def is_registered(self, key='module', subnet=2,update=False) -> bool:
+        """
+        is the key registererd
+        """
+        key = self.get_key_address(key)
+        key_map = self.key_map(update=update)
+        if subnet== None:
+            for keys in key_map.values():
+                if key in keys:
+                    return True
+        else:
+
+            subnet = self.get_subnet(subnet)
+            keys = self.keys(subnet=subnet, update=update)
+            if key in keys:
+                return True
+        return False
+    reged = is_registered
+
+    def is_any_registered(self, key=None, update=False) -> bool:
+        """
+        is any subnet regisrteerd
+        """
+        return self.is_registered(key=key, subnet=None, update=update)
+
+
+    def registered_subnets(self, key=None):
+        """return the registered subnets"""
+        key = self.get_key_address(key)
+        key_map = self.key_map(subnet=None, update=update)
+        subnets = []
+        for subnet, keys in key_map.items():
+            if key in keys:
+                subnets.append(subnet)
+        return subnets
+
+
+
+
+    def is_name_registered(self, name:str, subnet=0, update=False) -> bool: 
+        name2key = self.name2key(subnet=subnet, update=update)
+        return bool(name2key.get(name, None))
+
+    def get_unique_name(self, 
+                        name:str, 
+                        subnet=0, 
+                        suffix_key_length=4,
+                        update=False) -> str:
+        """
+        Returns a unique name for the given name in the specified subnet.
+        If the name is already registered, it appends a number to make it unique.
+        """
+        name = name.strip()
+        suffix = ''
+        key_address = self.get_key(name).key_address
+        name2key = self.name2key(subnet=subnet, update=update)
+        while name in name2key:
+            if len(suffix) > 0 :
+                name = '::'.join(name.split('::')[:-1])
+            suffix = key_address[:suffix_key_length]
+            name = f"{name}::{suffix}"
+            suffix_key_length += 1
+        return name
 
     def module(self, 
                    module, 
@@ -1934,14 +2016,7 @@ class Chain:
         amount = float(str(amount).replace(',', ''))
 
         params = {"dest": dest, "value":int(self.to_nanos(amount))}
-        if safety:
-            address2key = c.address2key()
-            from_name = address2key.get(key.ss58_address, key.ss58_address)
-            to_name = address2key.get(dest, dest)
-            c.print(f'Transfer({from_name} --({params["value"]/(10**9)}c)--> {to_name})')
-            if input(f'Are you sure you want to transfer? (y/n): ') != 'y':
-                return False
-        return self.call( module="Balances", fn="transfer_keep_alive", params=params, key=key, multisig=multisig)
+        return self.call( module="Balances", fn="transfer_keep_alive", params=params, key=key, multisig=multisig, safety=safety)
 
     def transfer_multiple(
         self,
@@ -2091,14 +2166,15 @@ class Chain:
         key: str,
         url: str = 'NA',
         name : Optional[str] = None , 
-        metadata: Optional[str] = None, code : Optional[str] = None, # either code or metadata
+        metadata: Optional[str] = None, 
+        code : Optional[str] = None, # either code or metadata
         subnet: Optional[str] = 2,
         net = None,
         wait_for_finalization = False,
         public = False,
         stake = 0,
         safety = False,
-        payer: Optional[Union[str, Keypair]] = None,
+        funder: Optional[Union[str, Keypair]] = None,
         **kwargs
     ) -> ExtrinsicReceipt:
         """
@@ -2112,24 +2188,56 @@ class Chain:
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
-        if hasattr(key, 'ss58_address'):
-            address2key = c.address2key()
-            name = name or address2key.get(key.ss58_address)
-        key =  c.get_key(key or name)
-        if url == None:
-            self.get_module_url(name, public=public)
+
+        network = self.get_subnet_name(net or subnet)
+        name = name or key
+        module_address =  c.get_key(key)
+        name = self.get_unique_name(name, subnet=subnet)
+        url = url or self.get_module_url(name, public=public)
 
         params = {
-            "network_name": self.get_subnet_name(net or subnet),
+            "network_name": network,
             "address":  url,
             "name": name,
             "module_key": c.get_key(key or name).ss58_address,
             "metadata": metadata or code or 'NA',
         }
 
-        return  self.call("register", params=params, key=payer or key, wait_for_finalization=wait_for_finalization, safety=safety)
+        funder = c.get_key(funder or self.funder())
 
-    def deregister(self, key: Keypair, subnet: int=0) -> ExtrinsicReceipt:
+
+
+        return  self.call("register", params=params, key=funder, wait_for_finalization=wait_for_finalization, safety=safety)
+
+
+    def register_vali(self, key: str,funder=None, buffer=10):
+        funder = funder or self.funder()
+        if not self.is_registered(key=key, subnet=None):
+            try:
+                self.register(key=key,funder=funder)
+            except ChainTransactionError as e:
+                if 'already registered' in str(e):
+                    print(f'Module {key} is already registered.')
+                else:
+                    raise e
+        vali_stake = self.get_stake(key=key, update=True)
+        min_stake = self.min_stake(update=True)
+        key_address = self.get_key_address(key)
+        if vali_stake < min_stake:
+            funder_balance = self.balance(funder)
+            remaining_stake = (min_stake - vali_stake) + buffer
+            assert funder_balance >= remaining_stake, f'Funder {funder} has insufficient balance {funder_balance} < {remaining_stake}'
+            self.stake(
+                key=funder,
+                amount=remaining_stake,
+                dest=key_address,
+            )
+        return self.register(key=key, subnet=0, funder=funder)
+
+
+
+
+    def deregister(self, key: Keypair, subnet: int=2) -> ExtrinsicReceipt:
         """
         Deregisters a module from the network.
 
@@ -2143,7 +2251,12 @@ class Chain:
         Raises:
             ChainTransactionError: If the transaction fails.
         """
+        key = self.get_key(key)
         subnet = self.get_subnet(subnet)
+
+        if not self.is_registered(key.key_address, subnet):
+            return {'msg': f'Module {key.key_address} is not registered in subnet {subnet}', 'success': False}
+
         
         params = {"netuid": subnet}
 
@@ -2153,6 +2266,51 @@ class Chain:
     
     def dereg(self, key: Keypair, subnet: int=0):
         return self.deregister(key=key, subnet=subnet)
+
+
+    def funder_path(self, network=None) -> str:
+        """
+        Returns the path to the funder key for the specified network.
+        """
+        network = network or self.network
+        return f'{self.folder}/{network}/funder'
+
+    def funder(self):
+        """
+        Returns the funder key for the current network.
+        """
+        path = self.funder_path()
+        funder = c.get(path, None)
+        if funder is None:
+            self.set_funder('module')            
+        return c.get(path, None)
+    def funder_key(self):
+        """
+        Returns the funder key for the current network.
+        """           
+        return c.get_key(self.funder())
+
+    def set_funder(self, key: str) -> ExtrinsicReceipt:
+
+        assert c.key_exists(key), f'Key {key} not found in key2address'
+        return  c.put(self.funder_path(), key)
+
+    def funder_balance(self, funder=None):
+        funder = funder or self.funder()
+        return self.balance(funder) 
+
+    def fund(self, key_name='test', amount=10.0, subnet=0, funder=None, safety=False):
+        balance = self.balance(key_name)
+        funder = funder or self.funder()
+
+        if balance < amount:
+            amount = amount - balance
+            tx = self.transfer(funder, amount, key_name, safety=safety)
+
+        final_balance = self.balance(key_name)
+        assert final_balance >= amount, f'Final balance {final_balance} is less than expected {amount}'
+        return {'msg': f'Balance ensured for {key_name}: {final_balance}', 'success': True, 'balance': final_balance}
+
 
 
     def dereg_many(self, *key: Keypair, subnet: int = 0):
@@ -2731,25 +2889,6 @@ class Chain:
     def sudo_multisig(self) -> List[str]:
         return self.get_multisig(sudo_multisig_data)
 
-    def sudo_transfer(self,
-        key: Keypair,
-        dest: Ss58Address,
-        amount: int,
-        data: str = None,
-    ):
-        """
-        Transfer funds to a specific address using the sudo key.
-        """
-
-        key = self.get_key(key)
-        return self.call_multisig(
-            key=key,
-            multisig=self.multisig('sudo'),
-            dest=dest,
-            amount=amount,
-            data=data,
-        )
-
     def multisig(self, keys=None, threshold=3):
         if isinstance(keys, str) or isinstance(keys, dict):
             multisig_data = self.get_multisig_data(keys)
@@ -2914,7 +3053,7 @@ class Chain:
         }
 
         key_name = self.get_key_name(key.ss58_address)
-        c.print(f"Call(\nmodule={info_call['module']} \nfn={info_call['fn']} \nkey={key.ss58_address} ({key_name}) \nparams={info_call['params']}) \n)", color='cyan')
+        c.print(f"Call(network={self.network}\nmodule={info_call['module']} \nfn={info_call['fn']} \nkey={key.ss58_address} ({key_name}) \nparams={info_call['params']}) \n)", color='cyan')
 
         if safety:
             if input('Are you sure you want to send this transaction? (y/n) --> ') != 'y':
@@ -2967,10 +3106,10 @@ class Chain:
         return response
 
     def my_valis(self, subnet=0, min_stake=0, features=['name', 'key','weights', 'stake']):
-        return c.df(self.my_modules(subnet, features=features ))
+        return c.df(self.my_mods(subnet, features=features ))
 
     def my_keys(self, subnet=0):
-        return [m['key'] for m in self.my_modules(subnet)]
+        return [m['key'] for m in self.my_mods(subnet)]
 
     def name2key(self, subnet=0, **kwargs) -> dict[str, str]:
         """
@@ -3237,11 +3376,11 @@ class Chain:
         if amount == None:
             amount = input('Enter amount to unstake: ')
             amount = float(str(amount).replace(',', ''))
-            
+
         if dest == None:
             staketo = self.staketo(key)
             idx2key_options = {i: k for i, (k, v) in enumerate(staketo.items()) if v > amount}
-
+            assert len(idx2key_options) > 0, f'No module key found with enough stake to unstake {amount}'
             if len(idx2key_options) == 1:
                 dest = list(idx2key_options.values())[0]
             elif len(idx2key_options) > 1:
@@ -3258,7 +3397,7 @@ class Chain:
         key: Keypair,
         amount: int = None,
         dest: Ss58Address=None ,
-        safety: bool = True,
+        safety: bool = False,
         existential_amount = 10
 
     ) -> ExtrinsicReceipt:

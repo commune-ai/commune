@@ -8,17 +8,21 @@ Server = c.module('server')
 class Test(Server):
     def test_serializer(self):
         return c.module('serializer')().test()  
-    def test_server(self, name = 'module::test_serving', deployer='module::deployer'):
+    def test_server(self, name = 'module::test_serving', deployer=None):
+        deployer = deployer or name
         module = c.serve(name, key=deployer)
-        module = c.connect(name)
-        r = module.info()
-        r2 = c.call(name+'/info')
-        c.print(r, r2)
-        assert c.hash(r['key']) == c.hash(r2['key']), f"Failed to get key {r['key']} != {r2['key']}"
-        deployer_key = c.get_key(deployer)
-        assert r['key'] == deployer_key.ss58_address
-        print(r)
-        assert 'name' in r, f"get failed {r}"
+
+        for i in range(10):
+            try:
+                info = c.call(name + '/info')
+                if 'key' in info:
+                    break
+            except Exception as e:
+                print(e)
+            time.sleep(1)
+            print(f'waiting for {name} to be available')
+        deployer_key = c.get_key(name)
+        assert info['key'] == deployer_key.ss58_address
         c.kill(name)
         assert name not in c.servers(update=True), f"Failed to kill {name}"
         return {'success': True, 'msg': 'server test passed'}

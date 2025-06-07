@@ -8,7 +8,6 @@ from typing import List
 from copy import deepcopy
 import json
 
-
 class Cli:
     def __init__(self, 
                 key=None, 
@@ -37,9 +36,6 @@ class Cli:
         duration = round(time.time() - time_start, 3)
         c.print(f'Result(duration={duration}s)\n')
         self.print_result(result)
-        
-
-
 
     def print_result(self, result:Any):
         is_generator = self.is_generator(result)
@@ -87,21 +83,6 @@ class Cli:
         """
         argv = argv or sys.argv[1:] # remove the first argument (the script name)
         return argv
-
-    def get_init_params(self, argv) -> tuple:
-        new_argv = []
-        init_params = {}
-        for i, arg in enumerate(argv):
-            if arg.startswith('--'):
-                arg = arg[2:]
-                if '=' in arg:
-                    key, value = arg.split('=')
-                    init_params[key] = self.str2python(value)
-                else:
-                    init_params[arg] = True
-            else:
-                new_argv.append(arg)
-        return new_argv, init_params
 
 
     def is_generator(self, obj):
@@ -228,3 +209,20 @@ class Cli:
                     pass
         return x
 
+    def get_init_params(self, argv) -> tuple:
+        """
+        Get the initial parameters from the arguments
+        """
+        new_argv = []
+        init_params = {}
+        for i, arg in enumerate(argv):
+            if arg.startswith('--'):
+                arg = arg[2:]
+                if '=' in arg:
+                    key, value = arg.split('=')
+                    init_params[key] = self.str2python(value)
+                else:
+                    init_params[arg] = True
+            else:
+                new_argv.append(arg)
+        return new_argv, init_params

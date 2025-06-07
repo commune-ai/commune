@@ -151,7 +151,7 @@ class Key:
             key = self.new_key( private_key=private_key, crypto_type=crypto_type, mnemonic=mnemonic, **kwargs)
             key_json = json.loads(key.to_json())
             assert crypto_type == self.get_crypto_type(key_json['crypto_type']), f'crypto_type mismatch {crypto_type} != {key_json["crypto_type"]}'
-            path = self.resolve_path(path) + '/' + crypto_type+ '/' + key.key_address + '.json'
+            path = self.get_path(path) + '/' + crypto_type+ '/' + key.key_address + '.json'
             c.put(path, key_json)
             assert self.key_exists(path, crypto_type=crypto_type), f'key does not exist at {path}'
         return self.get_key(path, crypto_type=crypto_type)
@@ -174,7 +174,7 @@ class Key:
     def key2encrypted(self):
         return {k: self.is_key_encrypted(k) for k in self.keys()}
             
-    def resolve_path(self, path:str) -> str:
+    def get_path(self, path:str) -> str:
         path = str(path)
         if not path.startswith(self.storage_path):
             path = self.storage_path + '/' + path
@@ -298,7 +298,7 @@ class Key:
         elif key in key2path.values():
             return key
         else:
-            return self.resolve_path(key)
+            return self.get_path(key)
 
     def key_name(self, key, crypto_type=None):
         crypto_type = self.get_crypto_type(crypto_type)

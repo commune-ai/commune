@@ -16,7 +16,7 @@ class Vali:
                     tempo : int = 60, # the time between epochs
                     timeout : int = 3, # timeout per evaluation of the module
                     update : bool =False, # update during the first epoch
-                    run_loop : bool = False, # This is the key that we need to change to false
+                    run_loop : bool = True, # This is the key that we need to change to false
                     verbose: bool = True, # print verbose output
                     path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                  **kwargs): 
@@ -32,8 +32,8 @@ class Vali:
         self.set_task(task)
         self.set_network(network=network, tempo=tempo,  search=search,  path=path, update=update)
         if run_loop:
-            c.thread(self.run_loop) if run_loop else ''
-
+            c.thread(self.run_loop) 
+          
     def set_network(self, 
                     network:Optional[str] = None, 
                     tempo:int= 10, 
@@ -141,8 +141,8 @@ class Vali:
         proof = module.pop('proof', None)
         assert c.verify(proof), f'Invalid Proof {proof}'
 
-    def epoch(self, features=['score', 'key', 'duration', 'name'], **kwargs):
-        self.sync()
+    def epoch(self, features=['score', 'key', 'duration', 'name'], update=False, **kwargs):
+        self.sync(update=update)
         n = len(self.modules)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         num_batches = len(batches)

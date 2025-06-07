@@ -2,7 +2,7 @@
 
     "repo_name": "commune",
     "version": "1.0.0", 
-    "code": "commune-ai/commune.git",
+    "code": "commune-ai/commune",
     "app": "communeai.org",
     "core_modules": ["key", "server", "vali", "chain", "client", "cli", "store"],
     "modules_url": "commune-ai/modules",
@@ -20,116 +20,7 @@
         "tweet": "x",
         "d": "pm.docker",
         "openrouter": "model.openrouter"
-        },
-         
-    "routes": {
-            "vali": [
-                "run_epoch",
-                {"from": "run_epoch", "to": "epoch"}
-            ],
-            "streamlit": [
-                "set_page_config"
-            ],
-            "docker": [
-                "ps",
-                "dlogs",
-                "images"
-            ],
-            "client": [
-                "call",
-                "call_search",
-                "connect",
-                "client"
-            ],
-            "repo": [
-                "is_repo"
-            ],
-            "serializer": [
-                "serialize",
-                "deserialize",
-                "serializer_map"
-            ],
-            "key": [
-                "signtest",
-                "rename_key",
-                "ss58_encode",
-                "ss58_decode",
-                "key_info",
-                "add_key",
-                "str2key",
-                "root_key",
-                "pwd2key",
-                "mv_key",
-                "add_keys",
-                "key_exists",
-                "rm_key",
-                "encrypt_key",
-                "decrypt_key",
-                "get_keys",
-                "rm_keys",
-                "key2address",
-                "address2key",
-                "new_key",
-                "encrypt_file",
-                "decrypt_file",
-                "ticket"
-            ],
-            "server": [
-                "fleet",
-                "serve",
-                "wait_for_server", 
-                "endpoint", 
-                "is_endpoint",
-                "processes", 
-                "kill", 
-                "kill_all",
-                "logs",
-                "networks",
-                "rm_server",
-                "server_exists",
-                "add_server",
-                "has_server",
-                "add_servers",
-                "rm_servers",
-                "namespace",
-                "servers", 
-                "history", 
-                {"from": "history", "to": "h"}
-            ],
-            "docker": ["ps"],
-            "chain": [
-                "e",
-                "emissions",
-                "transfer_stake",
-                "stake_transfer",
-                "switch",
-                "subnet",
-                "update_module",
-                "staketo", 
-                "stakefrom",
-                "net",
-                "subnets",
-                "send",
-                "my_keys",
-                "transfer",
-                "multistake",
-                "stake",
-                "unstake",
-                "register",
-                "subnet_params",
-                "global_params",
-                "balance",
-                "bal",
-                "is_registered",
-                "update_subnet"
-            ],
-            "agent": [ 
-            "models",  
-            "model2info", 
-            "generate"
-        ]
         }
-    
 
     
 }

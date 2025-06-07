@@ -8,37 +8,33 @@ class Test(c.Module):
         if module == None:
             test_results ={}
             for m in modules:
-                test_results[m] = self.test(m, timeout=timeout)
+                test_results[m] = self.test(module=m, timeout=timeout)
             return test_results
-        module_obj = self.module(module)()
-        if not hasattr(module, 'test') and self.module_exists(module + '.test'):
-            module = module + '.test'
-            module_obj = self.module(module)()
-        fn2result = {}
-        for i, fn in enumerate(self.test_fns(module_obj)):
-            c.print(f'---Testing({fn})----')
-            try:
-                fn2result[fn] = getattr(module_obj, fn)()
-            except Exception as e:
-                c.print(f'TestError({e})')
-                fn2result[fn] = self.detailed_error(e)
-        return fn2result
+        else:
+            fn2result = {}
+            fns = self.test_fns(module)
+            for fn in fns:
+                fn_name = fn.__name__
+                try:
+                    fn2result[fn_name] = fn()
+                except Exception as e:
+                    c.print(f'TestError({e})')
+                    fn2result[fn_name] = self.detailed_error(e)
+            return fn2result
 
+
+    def has_test_module(self, module):
+        """
+        Check if the module has a test module
+        """
+        if self.module_exists(module + '.test'):
+            return True
+        return False
     def test_module(self, module='module', timeout=50):
         """
         Test the module
         """
-
-        if self.module_exists(module + '.test'):
-            module = module + '.test'
-
-        if module == 'module':
-            module = 'test'
-        Test = self.module(module)
-        test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
-        test = Test()
-        futures = []
-        for fn in test_fns:
+        for fn in self.test_fns(test):
             print(f'Testing({fn})')
             future = self.submit(getattr(test, fn), timeout=timeout)
             futures += [future]
@@ -50,5 +46,16 @@ class Test(c.Module):
 
     testmod = test_module
 
-    def test_fns(self, module=None):
-        return [f for f in dir(self.module(module)) if f.startswith('test_') or f == 'test']
+    def test_fns(self, module='module'):
+        if self.has_test_module(module):
+            module = module + '.test'
+
+        obj = self.module(module)()
+        test_fns = []
+        for fn in dir(obj):
+            if fn.startswith('test_') or fn == 'test':
+                fn_obj = getattr(obj, fn)
+
+
+                test_fns.append(fn_obj)
+        return test_fns

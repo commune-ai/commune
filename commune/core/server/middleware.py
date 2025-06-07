@@ -11,14 +11,13 @@ class Middleware(BaseHTTPMiddleware):
     def __init__(self, app, 
                 max_bytes: int = 1000000, 
                 max_requests: int = 1000,
-                auth_module = 'auth.base',
                 tempo = 60,
+                **kwargs
                 ):
         super().__init__(app)
         self.tempo = tempo
         self.max_bytes = max_bytes
         self.max_requests = max_requests
-        self.auth = c.module(auth_module)()
         self.request_count = 0
         self.last_reset = time.time()
         

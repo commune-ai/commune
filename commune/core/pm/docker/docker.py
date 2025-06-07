@@ -21,14 +21,67 @@ class Docker:
     default_shm_size = '100g'
     default_network = 'host'
     image = 'commune:latest'
+    path = os.path.expanduser('~/commune')
+    modules_path = c.modules_path
 
     def __init__(self):
         pass
 
+    def process2name(self, container):
+        return container.replace('__', '::')
+    
+    def name2process(self, name):
+        return name.replace('::', '__')
+
+    def servers(self, search=None, **kwargs):
+        servers =  list(map(self.process2name, self.ps()))
+        if search != None:
+            servers = [m for m in servers if search in m]
+        servers = sorted(list(set(servers)))
+        return servers
+
+    def server_exists(self, name):
+        name = self.name2process(name)
+        return name in self.ps()
+
+
+    def serve(self, module=None, 
+                fn='server/serve',
+                image='commune:latest', 
+                cwd='/app', port=None, 
+                daemon=True, 
+                d = None,
+                name = None,
+                include_storage=True,
+                **kwargs):
+        daemon = daemon if d is None else d
+        module = module or 'module'
+        port = port or c.free_port()
+        fn = 'server/serve'
+        cmd = f"c {fn} {module} port={port} remote=0"
+
+        # names
+        if '::' in module:
+            name = name or module
+            name = self.name2process(name)
+            module = module.split('::')[0]
+        name = name or module
+        
+        dirpath = c.dirpath(module)
+        params = {
+            'name': name, 'image': image,'port': port,'cmd': cmd,'cwd': cwd, 'daemon': daemon,
+            'volumes': { self.path:'/app', dirpath: self.modules_path + '/' + module },
+        }
+        if include_storage :
+            params['volumes'][c.storage_path] = '/root/.commune'
+        return self.run(**params)
+
+
+
+
     def build(self,
-              path: Optional[str] = './',
+              path: Optional[str] = None,
               tag: Optional[str] = None,
-              sudo: bool = False,
               verbose: bool = True,
               no_cache: bool = False,
               env: Dict[str, str] = {}) -> Dict[str, Any]:
@@ -46,91 +99,168 @@ class Docker:
         Returns:
             Dict[str, Any]: A dictionary containing the status, tag, and result of the build.
         """
-        path = os.path.abspath(path)
-        tag = tag or path.split('/')[-2]
+        path = os.path.abspath(path or self.path)
+        if os.path.isdir(path):
+            if not os.path.exists(os.path.join(path, 'Dockerfile')):
+                raise FileNotFoundError(f"No Dockerfile found in {path}")
+            else:
+                path = os.path.join(path, 'Dockerfile')
+        assert os.path.exists(path), f"Dockerfile not found at {path}"
+        tag = tag or path.split('/')[2]
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
-        return c.cmd(cmd,  cwd=path)
+        return os.system('cd ' + path + ' && ' + cmd)
 
-    def forward(self, module, image=None, auth)
 
     def run(self,
-            module: Optional[str] = None,
-            name: Optional[str] = 'commune',
-            image  = None,
-            volumes: Dict[str, str] = None,
-            gpus: Union[List[int], str, bool] = False,
+            name : str = "commune",
+            image: str = 'commune:latest',
+            fn = 'fn',
+            cmd: str = "tail -f /dev/null",
+            volumes: Dict = None,
+            gpus: Union[List, str, bool] = False,
             shm_size: str = '100g',
-            entrypoint = "c serve api --port",
             sudo: bool = False,
-            build: bool = True,
-            net: Optional[str] = None, # 'host', 'bridge', etc.
-            port = None,
-            ports: Union[List[int], Dict[int, int]] = None,
-            daemon: bool = False,
-            cwd: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None
-            
-            ) -> Dict[str, Any]:
+            build: bool = False,
+            net: Optional = None,  # 'host', 'bridge', etc.
+            port: int = None,
+            ports: Union[List, Dict[int, int]] = None,
+            daemon: bool = True,
+            cwd: Optional = None,
+            env: Optional[Dict] = None,
+            compose_file: str = '~/.commune/docker/docker-compose.yml',
+            restart: str = 'unless-stopped'
+            ) -> Dict:
         """
-        Run a Docker container with advanced configuration options.
+        Generate and run a Docker container using docker-compose.
         """
-        name = name or self.image.split(':')[0]
-        self.kill(name)
-        dcmd = ['docker', 'run']
+        import yaml
+
+        compose_file = os.path.expanduser(compose_file)
         
+        name = name or image.split('::')[0].replace('/', '_')
+        
+        # Build the service configuration
+        service_config = {
+            'image': image,
+            'container_name': name,
+            'restart': restart
+        }
+        
+        # Handle command
+        if cmd:
+            service_config['entrypoint'] = f'bash -c "{cmd}"'
+        
+        # Handle network
         if net:
-            dcmd.extend(['--net', net])
+            service_config['network_mode'] = net
+        
         # Handle GPU configuration
-        if isinstance(gpus, list):
-            dcmd.append(f'--gpus "device={",".join(map(str, gpus))}"')
-        elif isinstance(gpus, str):
-            dcmd.append(f'--gpus "{gpus}"')
-        elif gpus is True:
-            dcmd.append(f'--gpus all')
+        if gpus:
+
+            service_config['deploy'] = {
+                'resources': {
+                    'reservations': {
+                        'devices': []
+                    }
+                }
+            }
+            
+            if isinstance(gpus, list):
+                for gpu in gpus:
+                    service_config['deploy']['resources']['reservations']['devices'].append({
+                        'driver': 'nvidia',
+                        'device_ids': gpus,
+                        'capabilities': ['gpu']
+                    })
+            elif isinstance(gpus, str):
+                if gpus == 'all':
+                    service_config['deploy']['resources']['reservations']['devices'].append({
+                        'driver': 'nvidia',
+                        'count': 'all',
+                        'capabilities': ['gpu']
+                    })
+                else:
+                    service_config['deploy']['resources']['reservations']['devices'].append({
+                        'driver': 'nvidia',
+                        'device_ids': [gpus],
+                        'capabilities': ['gpu']
+                    })
+            elif gpus is True:
+                service_config['deploy']['resources']['reservations']['devices'].append({
+                    'driver': 'nvidia',
+                    'count': 'all',
+                    'capabilities': ['gpu']
+                })
+        
         # Configure shared memory
         if shm_size:
-            dcmd.extend(['--shm-size', shm_size])
+            service_config['shm_size'] = shm_size
+        
         # Handle port mappings
         if port:
-            assert not c.used_port(port), f'Port {port} is already in use'
+            assert not c.port_used(port), f'Port {port} is already in use'
             ports = {port: port}
+        
         if ports:
             if isinstance(ports, list):
                 ports = {port: port for port in ports}
-            for host_port, container_port in ports.items():
-                dcmd.extend(['-p', f'{host_port}:{container_port}'])
-            
+            service_config['ports'] = [f'{host}:{container}' for host, container in ports.items()]
+        
         # Handle volume mappings
         if volumes:
             assert isinstance(volumes, dict)
-            volumes = [f'{k}:{v}' for k, v in volumes.items()]
-            for volume in volumes:
-                dcmd.extend(['-v', volume])
-
+            service_config['volumes'] = [f'{c.abspath(k)}:{v}' for k, v in volumes.items()]
+        
         # Handle environment variables
         if env:
-            for key, value in env.items():
-                dcmd.extend(['-e', f'{key}={value}'])
-
-        # Set container name
-        if name:
-            dcmd.extend(['--name', name])
-
-        # Run in daemon mode
-        if daemon:
-            dcmd.append('-d')
-
-        # Set working directory
-        if entrypoint:
-            dcmd.extend(['--entrypoint', f'bash -c "{entrypoint}"'])
+            service_config['environment'] = env
         
-        # Add image name
-        dcmd.append(image)
+        # Set working directory
+        if cwd:
+            service_config['working_dir'] = cwd
+        
+        # Build the complete docker-compose configuration
+        compose_config = {
+            'services': {
+                name: service_config
+            }
+        }
 
-        command_str = ' '.join(dcmd)
+        
+        # Add networks if needed
+        if net and net != 'host':
+            compose_config['networks'] = {
+                net: {
+                    'driver': 'bridge'
+                }
+            }
+    
+        # Write the docker-compose file
+
+        c.put_yaml(compose_file, compose_config)
+        
+        print(f'Generated docker-compose file: {compose_file}')
+        print(yaml.dump(compose_config, default_flow_style=False, sort_keys=False))
+        
+        # Stop existing container if it exists
+        self.kill(name)
+        
+        # Run docker-compose
+        compose_cmd = ['sudo'] if sudo else []
+        compose_cmd.extend(['docker-compose', '-f', compose_file])
+        
+        # Run the container
+        up_cmd = compose_cmd + ['up']
+        if daemon:
+            up_cmd.append('-d')
+        
+        command_str = ' '.join(up_cmd)
         print(f'Running command: {command_str}')
+
+        
+        
         return c.cmd(command_str, verbose=True)
 
 
@@ -164,6 +294,7 @@ class Docker:
         Returns:
             Dict[str, str]: A dictionary containing the status and name of the container.
         """
+        name = self.name2process(name)
         try:
             c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
             c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
@@ -185,7 +316,7 @@ class Docker:
             Dict[str, str]: A dictionary indicating the status of the operation.
         """
         try:
-            for container in self.ps():
+            for container in self.servers():
                 self.kill(container, sudo=sudo, verbose=verbose)
             return {'status': 'all_containers_killed'}
         except Exception as e:
@@ -239,6 +370,8 @@ class Docker:
         Returns:
             str: The container logs.
         """
+        name = self.name2process(name)
+        
         cmd = ['docker', 'logs']
 
         if tail:
@@ -346,6 +479,7 @@ class Docker:
             c.print(f"Error listing containers: {e}", color='red')
             return []
 
+
     def exec(self, name: str, cmd: str, *extra_cmd) -> str:
         """
         Execute a command in a running Docker container.
@@ -363,7 +497,7 @@ class Docker:
         
         return c.cmd(f'docker exec {name} bash -c "{cmd}"')
 
-    def cstats(self, max_age=10, update=False, cache_dir="./docker_stats") -> pd.DataFrame:
+    def container_stats(self, max_age=10, update=False, cache_dir="./docker_stats") -> pd.DataFrame:
         """
         Get resource usage statistics for all containers.
 
@@ -658,3 +792,70 @@ class Docker:
             }
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
+
+        
+
+    def get_port(self, name: str) -> Dict[int, int]:
+        """
+        Get the exposed ports of a container as a dictionary.
+        
+        Args:
+            name (str): The container name (can use :: notation)
+            
+        Returns:
+            Dict: Dictionary mapping host_port -> container_port
+        """
+        # Convert name format if needed
+        container_name = self.name2process(name)
+        
+        # Check if container exists
+        if not self.exists(container_name):
+            return {}
+        
+        # Get container inspection data
+        try:
+            inspect_output = c.cmd(f'docker inspect {container_name}', verbose=False)
+            container_info = json.loads(inspect_output)[0]
+            
+            # Extract port bindings from HostConfig
+            port_bindings = container_info.get('HostConfig', {}).get('PortBindings', {})
+            
+            # Convert port bindings to a simple dict format
+            ports_dict = {}
+            for container_port, host_configs in port_bindings.items():
+                if host_configs:
+                    # Extract port number from format like "8080/tcp"
+                    container_port_num = int(container_port.split('/')[0])
+                    # Get the host port from the first binding
+                    host_port = int(host_configs[0]['HostPort'])
+                    ports_dict = container_port_num
+                    
+            return ports_dict
+            
+        except Exception as e:
+            c.print(f"Error getting ports for container {container_name}: {e}", color='red')
+            return {}
+
+
+    def namespace(self, search=None, max_age=None, update=True, **kwargs) -> dict:
+        """
+        Get a list of unique namespaces from container names.
+        
+        Returns:
+            List[str]: List of unique namespaces
+        """
+        ip = '0.0.0.0'
+        path = self.get_path('namespace.json')
+        namespace = c.get(path, None, max_age=max_age, update=update)
+        if namespace == None :
+            containers = self.servers(search=search)
+            namespace = {}
+            for container in containers:
+                port = self.get_port(container)
+                namespace[container] =  ip + ':'+  str(port)
+            c.put(path, namespace)
+        return namespace
+
+
+    def urls(self, search=None, mode='http') -> List[str]:
+        return list(self.namespace(search=search).values())

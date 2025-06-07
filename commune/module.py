@@ -24,6 +24,8 @@ class Module:
                 params: dict = None,  
                 cache=True, 
                 verbose=False, 
+                update=False,
+                max_age: int = 600,
                 trials = 1,
                 **kwargs) -> str:
 
@@ -44,11 +46,12 @@ class Module:
         if module in self.module_cache:
             return self.module_cache[module]
         else:
-            tree = self.tree()
+            tree = self.tree(update=update)
             obj_path = tree.get(module, module)
             try:
                 obj = self.obj(obj_path)
             except Exception as e:
+                tree = self.tree(update=True)
                 tree_options = [v for k,v in tree.items() if module in k]
                 if len(tree_options) == 1:
                     obj = self.obj(tree_options[0])
@@ -110,8 +113,7 @@ class Module:
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
 
-    def filepath(self, obj=None) -> str:
-        return inspect.getfile(self.mod(obj))
+
 
     def getfile(self, obj=None) -> str:
         return inspect.getfile(self.mod(obj))
@@ -123,15 +125,33 @@ class Module:
         return os.path.abspath(os.path.expanduser(path))
 
     abs = abspath
-        
+
+    def filepath(self, obj=None) -> str:
+        """
+        get the file path of the module
+        """
+        return inspect.getfile(self.mod(obj)) 
         
     def dirpath(self, module=None) -> str:
-        filepath = self.filepath(module)
-        dirpath =  os.path.dirname(filepath)
-        if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
+        """
+        get the directory path of the module
+        """
+        module = (module or 'module').replace('/', '.')
+        possible_paths = [self.modules_path + '/' + module, self.core_path + '/' + module]
+
+        if any(os.path.exists(pp)  for pp in possible_paths):
+            for pp in possible_paths:
+                if os.path.exists(pp):
+                    dirpath = pp 
+                    break
+        elif self.module_exists(module):
+            filepath = self.filepath(module)
+            dirpath =  os.path.dirname(filepath)
+        else: 
+            raise Exception(f'Module {module} not found in {self.modules_path}')
+        
+        if dirpath.split('s/')[-1] == dirpath.split('/')[-2]:
             dirpath = '/'.join(dirpath.split('/')[:-1])
-
-
         src_tag =  module + '/src' 
         if src_tag in dirpath:
             dirpath = dirpath.split(src_tag)[0] + module
@@ -155,8 +175,19 @@ class Module:
         return (obj or self).__name__
 
     def class_name(self, obj= None) -> str:
-        obj = obj if obj else self
+        if obj == None: 
+            objx = self 
         return obj.__name__
+
+
+    def buidl(self, module:str = 'module', description:str = None, *extra_desc) -> str:
+
+        module_path = self.modules_path + '/' + module
+        description = description or f'build a module'
+        description = description + ' ' + ' '.join(extra_desc)
+        os.makedirs(module_path, exist_ok=True)
+        return self.fn('dev/')(description, source=module_path)
+
     
     def config_path(self, obj = None) -> str:
         global config_path
@@ -176,6 +207,14 @@ class Module:
     def is_admin(self, key:str) -> bool:
         return self.get_key().key_address == key
 
+    def is_home(self, path:str = None) -> bool:
+        """
+        Check if the path is the home path
+        """
+        if path == None:
+            path = self.pwd()
+        return os.path.abspath(path) == os.path.abspath(self.home_path)
+
     def print(self,  *text:str,  **kwargs):
         return self.obj('commune.utils.print_console')(*text, **kwargs)
 
@@ -184,7 +223,6 @@ class Module:
         return time.time()
         
     def pwd(self):
-
         return os.getcwd()
 
     def token(self, data, key=None, module='auth.jwt',  **kwargs) -> str:
@@ -354,8 +392,11 @@ class Module:
     def utils(self, search=None):
         return self.get_utils(search=search)
 
-    def routes(self):
-        routes = self.config['routes']
+    def get_routes(self, obj=None):
+        obj = obj or self
+        if hasattr(self, 'routes'):
+            routes = self.routes
+        routes = {}
         for util in self.get_utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -364,7 +405,7 @@ class Module:
         return routes
 
     def fn2route(self): 
-        routes = self.routes()
+        routes = self.get_routes()
         fn2route = {}
         for k,v in routes.items():
             for f in v:
@@ -664,7 +705,7 @@ class Module:
             try:
                 fn_code_map[fn] = self.code(getattr(module, fn))
             except Exception as e:
-                self.print(f'Error {e} {fn}', color='red')
+                self.print(f'Error {e} {fn}', color='red', verbose=False)
         return fn_code_map
     
     def fn2hash(self, module=None)-> Dict[str, str]:
@@ -791,6 +832,9 @@ class Module:
         else:
             obj = self.module(obj)
         return  inspect.getsource(obj)
+
+    def call(self, *args, **kwargs): 
+        return self.fn('client/call')(*args, **kwargs)
     
     def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -891,10 +935,16 @@ class Module:
                     fn2module[fn] = module
         return fn2module
 
+    def modules(self, search=None,  startswith=None, endswith=None, **kwargs)-> List[str]:  
+        return list(self.tree(search=search, endswith=endswith, startswith=startswith , **kwargs).keys())
+        
+    def get_modules(self, search=None, **kwargs):
+        return self.modules(search=search, **kwargs)
+
     def core_modules(self) -> List[str]:
         return list(self.core_tree().keys())
 
-    def module2schema(self, module=None, max_age=30, update=False, core=True) -> List[str]:
+    def module2schema(self, module=None, max_age=30, update=False, core=True, verbose=False) -> List[str]:
         module2schema = self.get('module2schema', default=None, max_age=max_age, update=update)
         if module2schema == None:
             modules = self.core_modules() if core else self.modules()
@@ -903,7 +953,7 @@ class Module:
                 try:
                     module2schema[module] = self.schema(module)
                 except Exception as e:
-                    self.print(f'Error {e} {module}', color='red')
+                    self.print(f'Module2schemaError({e})', color='red', verbose=verbose)
             # self.put('module2schema', module2schema)
         return module2schema 
 
@@ -1282,23 +1332,30 @@ class Module:
         if len(path) == 0:
             return 'module'
         return path
+
+    def logs(self, module):
+        return self.fn('docker/logs')(module)
     
-    def local_tree(self , **kwargs):
-        return self.get_tree(os.getcwd(), **kwargs)
+    def local_tree(self , depth=10, **kwargs):
+        pwd = os.getcwd()
+        if os.path.expanduser('~') == pwd:
+            depth = 2
+        return self.get_tree(pwd, depth=depth , **kwargs)
 
     def locals(self, **kwargs):
         return list(self.get_tree(self.pwd(), **kwargs).keys())
 
-    def core_tree(self, **kwargs):
-        return {**self.get_tree(self.core_path,  **kwargs)}
 
     def core_modules(self, **kwargs) -> List[str]:
         return list(self.get_tree(self.core_path, **kwargs).keys())
 
+
+    def core_tree(self, **kwargs):
+        return {**self.get_tree(self.core_path,  **kwargs)}
     def modules_tree(self, **kwargs):
         return self.get_tree(self.modules_path, depth=10,  **kwargs)
     
-    def tree(self, search=None,  max_age=60,update=False, **kwargs):
+    def tree(self, search=None, startswith=None, endswith=None, max_age=None, update=False, **kwargs):
 
         params = {'max_age': max_age, 'update': update}
         tree = { 
@@ -1307,6 +1364,10 @@ class Module:
                 ** self.core_tree(**params) 
             }
 
+        if startswith != None:
+            tree = {k:v for k,v in tree.items() if k.startswith(startswith)}
+        if endswith != None:
+            tree = {k:v for k,v in tree.items() if k.endswith(endswith)}
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
@@ -1330,11 +1391,6 @@ class Module:
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
         return tree
-
-    def modules(self, search=None,  **kwargs)-> List[str]:  
-        return list(self.tree(search=search, **kwargs).keys())
-    def get_modules(self, search=None, **kwargs):
-        return self.modules(search=search, **kwargs)
     
     def mods(self, search:str=None, **kwargs) -> 'Module':
         return self.modules(search=search, **kwargs)
@@ -1347,7 +1403,9 @@ class Module:
         except Exception as e:
             return False
         return True
-    
+
+
+
     def new( self, name= None, base_module : str = 'base', update=0):
         """
         make a new module
@@ -1355,34 +1413,50 @@ class Module:
         if not name:
             name = input('Module name: ')
 
-        if name.endswith('.git'):
+        is_git = False
+        is_git = bool(name.endswith('.git') or name.startswith('http'))
+        if is_git:
             git_path = name
             name =  name.split('/')[-1].replace('.git', '')
-            self.cmd(f'git clone {git_path} {name}')
         dirpath = os.path.abspath(self.modules_path +'/'+ name.replace('.', '/'))
-        filename = name.replace('.', '_') + '.py'
-        path = f'{dirpath}/{filename}'
-        # path = dirpath + '/' + modname + '.py'
-        base_module_obj = self.module(base_module)
-        code_map = {}
-        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
-        for k,k_code in self.code_map(base_module).items():
-            
-            k_path = dirpath + '/' +  k.replace(base_module, name)
-            k_code = k_code.replace(base_module_obj.__name__, module_class_name)
-            code_map[k_path] = k_code
-        return code_map
+        
+        if is_git:
+            self.cmd(f'git clone {git_path} {dirpath}')
+            self.cmd(f'rm -rf {dirpath}/.git')
+        else:
+            filename = name.replace('.', '_') + '.py'
+            path = f'{dirpath}/{filename}'
+            module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
+            code_map = self.code_map(base_module)
+            for k,k_code in code_map.items():
+                k_path = dirpath + '/' +  k.replace(base_module, name)
+                code_map[k_path] = k_code
+                self.put_text(k_path, k_code)
         self.go(dirpath)
-        return {'name': name, 'path': path, 'msg': 'Module Created'}
+        return {'name': name, 'path': dirpath, 'msg': 'Module Created'}
     
     create = new
+
+
+    def urls(self, *args, **kwargs):
+        return self.fn('docker/urls')(*args, **kwargs)
+
+
+    def servers(self, *args, **kwargs):
+        return self.fn('docker/servers')(*args, **kwargs)
+
+    def namespace(self, *args, **kwargs):
+        return self.fn('docker/namespace')(*args, **kwargs)
+
+
+    def epoch(self, *args, **kwargs):
+        return self.fn('vali/epoch', *args, **kwargs)
 
     def up(self, image = 'commune'):
         return self.cmd('make up', cwd=self.lib_path)
 
     def enter(self, image = 'commune'):
-        import os
-        return os.system('docker exec -it commune bash')
+        return self.fn('docker/enter')(image)
 
     def founder(self):
         return self.get_key()
@@ -1436,6 +1510,12 @@ class Module:
             files = [f for f in files if search in f]
         return files
 
+
+    def context(self):
+        readme2text = self.readme2text(self.core_path)
+        print('ctx size', len(str(readme2text)))
+        return readme2text
+
     def readme2text(self, path:str = './', search=None, **kwargs) -> str:
         """
         Returns the text of the readme file in the path
@@ -1459,6 +1539,15 @@ class Module:
             return False
 
 
+    def kill(self, server:str = 'commune'):
+        return self.fn('docker/kill')(server)
+
+    def kill_all(self):
+        return self.fn('docker/kill_all')()
+
+    killall = kill_all
+
+
     def configs( path='./', modes=['yaml', 'json'], search=None, names=['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']):
         """
         Returns a list of config files in the path
@@ -1471,6 +1560,9 @@ class Module:
             configs = [f for f in configs if search in f]
         return configs
 
+    def serve(self, module:str = 'module', port:int=None, **kwargs):
+        return self.fn('docker/serve')(module=module, port=port, **kwargs)
+
     def app(self,
            module:str = 'agent', 
            name : Optional[str] = None,
@@ -1480,9 +1572,9 @@ class Module:
         if self.module_exists(module + '.app'):
             module = module + '.app'
         module_class = self.module(module)
-        return self.cmd(f'streamlit run {module_class.filepath()} --server.port {port}')
+        return self.cmd(f'streamlit run {self.filepath(module_class)} --server.port {port}')
     
-    def sync_routes(self, routes:dict=None, verbose=False):
+    def sync_utils(self, verbose=False):
 
         """
         This ties other modules into the current module.
@@ -1490,7 +1582,7 @@ class Module:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        routes = self.routes()
+        routes = self.get_routes()
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
@@ -1764,14 +1856,19 @@ class Module:
         self.endpoints = config['endpoints']
         self.port_range = config['port_range'] # the port range between 50050 and 50150
         self.shortcuts = config["shortcuts"]
-        self.sync_routes()
+        self.sync_utils()
+
+        self.sync_modules()
+        return self.add_globals(globals_input)   
+
+    def sync_modules(self):
+    
         self.modules_url = self.config['modules_url']
         if not os.path.exists(self.modules_path):
             os.makedirs(self.modules_path, exist_ok=True)
         if not os.path.exists(self.modules_path+'/.git'):
             cmd = f'git clone {self.modules_url} {self.modules_path}'
             self.cmd(cmd, cwd=self.module_path, verbose=True)
-        globals_input = self.add_globals(globals_input)
         return {'success': True, 'msg': 'synced config'}
 
     def main(self, *args, **kwargs):
@@ -1789,18 +1886,12 @@ class Module:
     def hash(self, obj, *args, **kwargs):
         from commune.utils import get_hash
         return get_hash(obj, *args, **kwargs)
-
-    def __getattr__(self, k):
-        if k in self.__dict__:
-            return self.__dict__[k]
-        else:
-            raise AttributeError(f'{k} not found in {self.__class__.__name__}')
-
     def test(self, module = None,  **kwargs) ->  Dict[str, str]:
-        return self.fn('test/forward')( module=module,  **kwargs )
+        return self.fn('test/')( module=module,  **kwargs )
 
     def txs(self, *args, **kwargs) -> 'Callable':
         return self.fn('server/txs')( *args, **kwargs)
+
 
 if __name__ == "__main__":
     Module().run()

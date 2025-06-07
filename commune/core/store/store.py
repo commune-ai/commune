@@ -7,6 +7,7 @@ from typing import Optional, Union
 import commune as c
 
 class Store:
+    endpoints=['get', 'put', 'ls']
 
     def __init__(self, 
                 folder='~/.commune/store', 

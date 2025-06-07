@@ -467,8 +467,9 @@ def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
         y =  hashlib.sha3_512(x.encode()).hexdigest()
     else:
         raise ValueError(f'unknown mode {mode}')
-    
     return  y
+
+
 
 def num_words( text):
     return len(text.split(' '))
@@ -1012,6 +1013,7 @@ def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int,
     return used_ports
 
 
+
 def port_free(*args, **kwargs) -> bool:
     return not port_used(*args, **kwargs)
 
@@ -1430,6 +1432,17 @@ def proc(command:str,  *extra_commands, verbose:bool = False, **kwargs):
                                 universal_newlines=True, **kwargs)
     streamer = stream_output(process, verbose=verbose)
     return streamer
+
+def process(command:str,  *extra_commands, verbose:bool = False, **kwargs):
+    process = subprocess.Popen((shlex_split(command), *extra_commands), 
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.PIPE, 
+                                universal_newlines=True, **kwargs)
+    streamer = stream_output(process, verbose=verbose)
+    return streamer
+
+
+
 
 
 
@@ -2250,14 +2263,11 @@ def cmd(
             sudo = True
         if sudo:
             command = f'sudo {command}'
-
         # Handle bash execution
         if bash:
             command = f'bash -c "{command}"'
-
         # Handle working directory
         cwd = os.getcwd() if cwd is None else abspath(cwd)
-
         # Handle environment variables
         if env is None:
             env = {}
@@ -2436,10 +2446,30 @@ def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:boo
     return get_results(futures)
 
 
+def executor(self,  max_workers=8, mode='thread'):
+    if mode == 'process':
+        from concurrent.futures import ProcessPoolExecutor
+        executor =  ProcessPoolExecutor(max_workers=max_workers)
+    elif mode == 'thread':
+        from concurrent.futures import ThreadPoolExecutor
+        executor =  ThreadPoolExecutor(max_workers=max_workers)
+    elif mode == 'async':
+        from commune.core.api.src.async_executor import AsyncExecutor
+        executor = AsyncExecutor(max_workers=max_workers)
+    else:
+        raise ValueError(f"Unknown mode: {mode}. Use 'thread', 'process' or 'async'.")
+
+    return executor
 
 def as_completed(futures:list, timeout:int=10, **kwargs):
-    import concurrent
-    return concurrent.futures.as_completed(futures, timeout=timeout)
+    import concurrent   
+    results = []
+    try:
+        for x in  concurrent.futures.as_completed(futures, timeout=timeout):
+            results.append(x)
+    except TimeoutError:
+        pass
+    return results
 
 def is_coroutine(future):
     """

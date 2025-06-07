@@ -1,40 +1,27 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import  HTTPException
 import uvicorn
 import os
 import json
-from pydantic import BaseModel
 from typing import Dict, Optional
-import commune as c 
-# Pydantic model for module dat
-import requests
 import requests
 from .utils import load_json, save_json, logs
+import commune as c 
 
 class Api:
 
     tempo = 600
     app_name =  __file__.split('/')[-3] + '_app' 
     model='anthropic/claude-3.5-sonnet'
-    endpoints = [
-                'modules', 
-                'add_module', 
-                'remove', 
-                'update', 
-                'test', 
-                'get_module',
-                'info', 
-                'functions']
-
+    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions']
     modules_path = os.path.expanduser('~/.commune/api/modules')
 
     def __init__(self, background:bool = False, path='~/.commune/api', **kwargs):
-
         self.store = c.module('store')(path)
         if background:
-            print(c.serve('api::background'))
+            print(c.serve('api:background'))
 
     def __delete__(self):
-        c.kill('api::background')
+        c.kill('api:background')
         return {"message": "Background process killed"}
 
     def background_loop(self, sleep_initial=10, max_age=100, threads=2):
@@ -53,101 +40,122 @@ class Api:
         return self.ls(self.modules_path)
 
     def n(self):
-        return len(c.get_modules())
+        return len(c.modules())
 
     def names(self, search=None):
-        return  c.get_modules(search=search)
+        return  c.modules(search=search)
+
+    def executor(self,  max_workers=8, mode='thread'):
+        if mode == 'process':
+            from concurrent.futures import ProcessPoolExecutor
+            executor =  ProcessPoolExecutor(max_workers=max_workers)
+        elif mode == 'thread':
+            from concurrent.futures import ThreadPoolExecutor
+            executor =  ThreadPoolExecutor(max_workers=max_workers)
+        elif mode == 'async':
+            from commune.core.api.src.async_executor import AsyncExecutor
+            executor = AsyncExecutor(max_workers=max_workers)
+        else:
+            raise ValueError(f"Unknown mode: {mode}. Use 'thread', 'process' or 'async'.")
+        return executor
 
     def modules(self, 
-                    names:Optional[list]=None,
-                        max_age=None, 
-                        update=False, 
-                        lite=False, 
-                        search=None,
-                        page=1, 
-                        timeout=60, 
-                        page_size=100, 
-                        df = False,
-                        threads=1,
-                        features = ['name', 'schema', 'key'],
-                        mode = 'default',
-                        verbose=False):
+                    modules:Optional[list]=None,
+                    update=False, 
+                    search=None,
+                    page=1, 
+                     page_size=100, 
+                    timeout=200, 
+                    code=True,
+                    df = False,
+                    threads=16,
+                    features = ['name', 'schema', 'key'],
+                    max_age=None, 
+                    mode = 'process',
+                    verbose=False, **kwargs):
 
-
-        names = names or self.names()
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        names = names[start_idx:end_idx]
+        if modules == None:
+            modules = self.names()
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            modules = modules[start_idx:end_idx]
 
         if search != None:
-            names = [n for n in names if search in n]
+            modules = [n for n in names if search in n]
+        
+        if len(modules) == 0:
+            print('No modules found')
+            return []
+
         if threads > 1:
             params = locals()
-            params.pop('self')
+
+            rm_features = ['self', 'modules', 'verbose', 'start_idx', 'end_idx']
+            for f in rm_features:
+                params.pop(f, None)
             params['threads'] = 1
-            n = len(names) 
-            params_list = []
-            params['page_size']  = n // threads
-            for i in range(1, threads+1):
-                if i == threads:
-                    page_size = n - (threads-1) * page_size
-                else:
-                    page_size = n // threads
-                params['page'] = i
-                params_list.append(params)
+            results = []
+            futures = []
+            batch_size = len(modules) // threads
+            if batch_size == 0:
+                batch_size = 1
+            print(f"Loading {len(modules)} modules in batches of {batch_size} with {threads} threads")
+            modules_chunks = [ modules[i:i + batch_size] for i in range(0, len(modules), batch_size) ]
 
+            # from concurrent.futures import ThreadPoolExecutor
             futures = []
-            results = []
-            for params in params_list:
-                c.print(params)
-                future = c.submit(self.modules, params, timeout=timeout)
-                futures.append(future)
-            results = []
-            try:
-                for future in c.as_completed(futures, timeout=timeout):
-                    result = future.result()
-                    print(result)
-                    results.extend(result)
-            except TimeoutError as e:
-                print(f"TimeoutError: {e}")
-            return results
-        elif threads == 1:
-            results = []
-            futures = []
-            future2module = {}
-            progress_bar = c.tqdm(names, desc=f"Loading modules thread={page}", total=len(names))
-            fails = 0
-            for module_name in names:
-                path = self.store.get_path(f'modules/{module_name}.json')
-                result = c.get(path, None,  max_age=max_age, update=update)
-                if result == None:
-                    try:
-                        result = c.info(module_name, max_age=max_age, update=update)
-                        c.put(path, result)
-                    except Exception as e:
-                        result = c.detailed_error(e)
-                        fails += 1
-                progress_bar.update(1)
-                results.append(result)
+            executor = self.executor(max_workers=threads, mode=mode)
+            for i, modules_chunk in enumerate(modules_chunks):
+                params['modules'] = modules_chunk
+                futures.append(executor.submit(self.modules, **params))
+            for future in c.as_completed(futures, timeout=timeout):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    if verbose:
+                        c.print(f"Error in future: {e}", color='red')
+                    results.append(c.detailed_error(e))
+            executor.shutdown(wait=True)
         else:
-            raise Exception(f'thread number not supported thread>=1 vs {thread}')
-
-        # results =  list(filter(result_filter, results))
-        if mode == 'n':
-            results = len(results)
+            # if update and max_age == None:
+            #     max_age = 600
+            #     update = False
+            progress_bar = c.tqdm(modules, desc=f"Loading modules thread={page}", total=len(modules))
+            results = []
+            for module in modules:
+                result = self.module(module, max_age=max_age, update=update)
+                if self.check_module_data(result):
+                    results.append(result)
+                else: 
+                    c.print(result, color='red', verbose=verbose)
+                progress_bar.update(1)
         if df:
             results = c.df(results)
         return results
 
-    def get_module(self, module:str, **kwargs):
-        if not self.module_exists(module):
-            raise HTTPException(status_code=404, detail="Module not found")
-        module_path = self.get_module_path(module)
+    def module(self, module:str, max_age=None, update=False, code=True):
+
+        path = self.store.get_path(f'modules/{module}.json')
+        result = c.get(path, None,  max_age=max_age, update=update)
+        if result == None:
+            try:
+                result = c.info(module, max_age=max_age, update=update ,code=True)
+            except Exception as e:
+                result = c.detailed_error(e)
+            c.put(path, result)
+        module_path = self.module_path(module)
+        if not code:
+            result.pop('code', None)
         info = load_json(module_path)["data"]
-        
         return info
 
-    def get_module_path(self, module):
+    def check_module_data(self, module) -> bool:
+        if not isinstance(module, dict):
+            return False
+        features = ['name', 'key', 'schema']
+        return all([f in module for f in features])
+
+    def module_path(self, module):
         return f"{self.modules_path}/{module}.json"
 
     def ls(self, path=modules_path):
@@ -163,7 +171,7 @@ class Api:
     def check_module(self, module):
         features = ['name', 'url', 'key']  
         if isinstance(module, str):
-            module = self.get_module(module)
+            module = self.module(module)
         if not isinstance(module, dict):
             return False
         assert all([f in module for f in features]), f"Missing feature in module: {module}"
@@ -183,7 +191,7 @@ class Api:
 
     def save_module(self, module):
         print('SAVING MODULE', module["name"])
-        module_path = self.get_module_path(module["name"])
+        module_path = self.module_path(module["name"])
         save_json(module_path, module)
         return {"message": f"Module {module['key']} updated successfully"}
 
@@ -206,14 +214,8 @@ class Api:
 
     def remove(self, module: str):
         assert self.module_exists(module), "Module not found"
-        os.remove(self.get_module_path(module))
+        os.remove(self.module_path(module))
         return {"message": f"Module {module} removed successfully"}
 
     def module_exists(self, module: str):
-        return os.path.exists(self.get_module_path(module))
-
-    def update(self, module: str):
-        if not self.module_exists(module):
-            raise HTTPException(status_code=404, detail="Module not found")
-        module = self.get_module(module)
-        self.save_module(module)
+        return os.path.exists(self.module_path(module))
