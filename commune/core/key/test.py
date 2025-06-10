@@ -1,6 +1,6 @@
 import commune as c
 
-Key = c.module('key')
+Key = c.mod('key')
 
 class Test:
 
@@ -24,7 +24,7 @@ class Test:
         crypto_type = key.get_crypto_type(crypto_type)
         for value in values:
             value = str(value)
-            key = c.new_key(crypto_type=crypto_type)
+            key = key.new_key(crypto_type=crypto_type)
             enc = key.encrypt(value)
             dec = key.decrypt(enc)
             assert str(dec) == value, f'encryption failed, {dec} != {value}'

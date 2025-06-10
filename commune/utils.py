@@ -260,7 +260,6 @@ def bytes2str( data: bytes, mode: str = 'utf-8') -> str:
             return data
         return bytes.decode(data, mode)
 
-
 def python2str( input):
     from copy import deepcopy
     import json
@@ -476,7 +475,7 @@ def num_words( text):
 
 def random_word( *args, n=1, seperator='_', **kwargs):
     import commune as c
-    random_words = c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
+    random_words = c.mod('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
     random_words = random_words.split(' ')[:n]
     if n == 1:
         return random_words[0]
@@ -965,10 +964,7 @@ def free_port(ports = None,
     if ports == None:
         port_range = c.get_port_range(port_range)
         ports = list(range(*port_range))
-        
-        
     ip = ip if ip else '0.0.0.0'
-
     if random_selection:
         ports = c.shuffle(ports)
     port = None
@@ -1088,11 +1084,12 @@ def ip__str__(ip_type:int, ip_str:str, port:int):
 
 def get_port_range(port_range: list = None) -> list:
     import commune as c
-    port_range = c.get('port_range', c.port_range)
+    port_range = c.get('port_range', [])
     if isinstance(port_range, str):
         port_range = list(map(int, port_range.split('-')))
     if len(port_range) == 0:
         port_range = c.port_range
+    print(c.port_range)
     port_range = list(port_range)
     assert isinstance(port_range, list), 'Port range must be a list'
     assert isinstance(port_range[0], int), 'Port range must be a list of integers'
@@ -1764,6 +1761,9 @@ def put_yaml( path:str,  data: dict) -> Dict:
     '''
     Loads a yaml file
     '''
+    dirpath = os.path.dirname(path)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath, exist_ok=True)
     # Directly from dictionary
     data_type = type(data)
     if data_type in [pd.DataFrame]:
@@ -2722,7 +2722,7 @@ def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, D
         if isinstance(module, str) and '/' in module:
             fn = module.split('/')[-1]
             module = '/'.join(module.split('/')[:-1])
-            module = getattr(c.module(module), fn)
+            module = getattr(c.mod(module), fn)
         else:
             module = cls.resolve_module(module)
     else: 

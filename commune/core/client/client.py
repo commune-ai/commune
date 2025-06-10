@@ -14,14 +14,20 @@ class Client:
                  network: Optional[bool] = 'local', 
                  auth = 'auth',
                  mode='http',
+                 storage_path = '~/.commune/client',
                  **kwargs):
-        self.auth = c.module(auth)()
+        self.auth = c.mod(auth)()
         self.key  = c.get_key(key)
         self.url = url
+        self.store = c.mod('store')(storage_path)
+
+    def info(self, url=None):
+        url = self.get_url(url or self.url)
+        
 
     def forward(self, 
                 fn  = 'info', 
-                params: Optional[Union[list, dict]] = None, # if you want to pass params as a list or dict
+                params: Optional[Union[list, dict]] = {}, # if you want to pass params as a list or dict
                 # if you want to pass positional arguments to the function, use args 
                 args : Optional[list] = [], 
                 kwargs : Optional[dict] = {},      
@@ -32,18 +38,20 @@ class Client:
                 stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
+        
         if '/' in str(fn):
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
         else :
             url = self.url
             fn = str(fn)
+
         url = self.get_url(url, mode=mode)
+
+        info = self.info(url)
 
         key = self.get_key(key) # step 1: get the key
         
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
-        
-        t0 = c.time()
 
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
         with requests.Session() as conn:
@@ -73,20 +81,20 @@ class Client:
         return key
 
     def get_params(self, params=None, args=[], kwargs={}, extra_kwargs={}):
-        if isinstance(params, dict) and 'args' in params and 'kwargs' in params:
-            return params
-        params = params or {}
-        args = args or []
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)
-        if params:
-            if isinstance(params, dict):
-                kwargs = {**kwargs, **params}
-            elif isinstance(params, list):
-                args = params
-            else:
-                raise Exception(f'Invalid params {params}')
-        params = {"args": args, "kwargs": kwargs}
+        is_args_kwargs_params = isinstance(params, dict) and ('args' in params or 'kwargs' in params)
+        if not is_args_kwargs_params:
+            params = params or {}
+            args = args or []
+            kwargs = kwargs or {}
+            kwargs.update(extra_kwargs)
+            if params:
+                if isinstance(params, dict):
+                    kwargs = {**kwargs, **params}
+                elif isinstance(params, list):
+                    args = params
+                else:
+                    raise Exception(f'Invalid params {params}')
+            params = {"args": args, "kwargs": kwargs}
         return params
 
 

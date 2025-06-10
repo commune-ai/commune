@@ -1,17 +1,11 @@
 class Task:
-    description = 'Base task for commune'
-    features = ['url', 'name', 'score']
 
-    def __init__(self, fn='info', params=None):
-        """
-        Initialize the task with a function and parameters
-        """
-        self.fn = fn
-        self.params = params or {}
-
-    def forward(self,module, **params):
-        params = {**self.params, **params}
-        result =  getattr(module, self.fn)(**params)
+    def mod(self, mod_name):
+        return c.connect(mod) if isinstance( mod_name, str) else mod_name
+    def forward(self,mod, fn='info', params=None):
+        mod = self.mod(mod)
+        params = params or {}
+        result =  getattr(module, fn)(**params)
         if 'url' in result:
             score = 1
         else: 

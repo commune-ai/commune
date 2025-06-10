@@ -4,21 +4,21 @@ import commune as c
 import os
 import torch, time
 
-Server = c.module('server')
+Server = c.mod('server')
 class Test(Server):
     def test_serializer(self):
-        return c.module('serializer')().test()  
+        return c.mod('serializer')().test()  
     def test_server(self, name = 'module::test_serving', deployer=None):
         deployer = deployer or name
-        module = c.serve(name, key=deployer)
-
+        c.serve(name, key=deployer)
+        print(f'serving {name} with deployer {deployer}')
         for i in range(10):
             try:
                 info = c.call(name + '/info')
                 if 'key' in info:
                     break
             except Exception as e:
-                print(e)
+                print(c.detailed_error(e))
             time.sleep(1)
             print(f'waiting for {name} to be available')
         deployer_key = c.get_key(name)
@@ -27,12 +27,12 @@ class Test(Server):
         assert name not in c.servers(update=True), f"Failed to kill {name}"
         return {'success': True, 'msg': 'server test passed'}
     def test_executor(self):
-        return c.module('executor')().test()
+        return c.mod('executor')().test()
 
     def test_auth(self, auths=['auth.jwt', 'auth']):
         for auth in auths:
             print(f'testing {auth}')
-            c.module(auth)().test()
+            c.mod(auth)().test()
         return {'success': True, 'msg': 'server test passed', 'auths': auths}
 
 

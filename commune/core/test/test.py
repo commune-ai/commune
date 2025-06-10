@@ -8,6 +8,7 @@ class Test(c.Module):
         if module == None:
             test_results ={}
             for m in modules:
+                print(f'Testing module: {m}')
                 test_results[m] = self.test(module=m, timeout=timeout)
             return test_results
         else:
@@ -17,6 +18,7 @@ class Test(c.Module):
                 fn_name = fn.__name__
                 try:
                     fn2result[fn_name] = fn()
+                    print(f'TestResult({fn_name}): {fn2result[fn_name]}')
                 except Exception as e:
                     c.print(f'TestError({e})')
                     fn2result[fn_name] = self.detailed_error(e)

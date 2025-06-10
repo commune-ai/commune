@@ -84,7 +84,7 @@ import commune as c
 c.new_module('my_module')
 
 # Access a module
-my_module = c.module('my_module')
+my_module = c.mod('my_module')
 
 # Serve a module
 c.serve('my_module', port=8000)
@@ -182,7 +182,7 @@ The Docker module offers container management similar to PM2:
 import commune as c
 
 # Initialize Docker module
-docker = c.module('docker')()
+docker = c.mod('pm')()
 
 # Start a container
 docker.start('my_container', 'python:3.8', 

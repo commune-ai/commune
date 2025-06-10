@@ -16,7 +16,7 @@ class Api:
     modules_path = os.path.expanduser('~/.commune/api/modules')
 
     def __init__(self, background:bool = False, path='~/.commune/api', **kwargs):
-        self.store = c.module('store')(path)
+        self.store = c.mod('store')(path)
         if background:
             print(c.serve('api:background'))
 
@@ -40,10 +40,10 @@ class Api:
         return self.ls(self.modules_path)
 
     def n(self):
-        return len(c.modules())
+        return len(c.mods())
 
     def names(self, search=None):
-        return  c.modules(search=search)
+        return  c.mods(search=search)
 
     def executor(self,  max_workers=8, mode='thread'):
         if mode == 'process':
@@ -74,6 +74,11 @@ class Api:
                     mode = 'process',
                     verbose=False, **kwargs):
 
+        if update:
+            mode= 'process'
+        else:
+            mode = 'thread'
+
         if modules == None:
             modules = self.names()
             start_idx = (page - 1) * page_size
@@ -89,7 +94,6 @@ class Api:
 
         if threads > 1:
             params = locals()
-
             rm_features = ['self', 'modules', 'verbose', 'start_idx', 'end_idx']
             for f in rm_features:
                 params.pop(f, None)
@@ -110,11 +114,10 @@ class Api:
                 futures.append(executor.submit(self.modules, **params))
             for future in c.as_completed(futures, timeout=timeout):
                 try:
-                    results.append(future.result())
+                    results.extend(future.result())
                 except Exception as e:
                     if verbose:
                         c.print(f"Error in future: {e}", color='red')
-                    results.append(c.detailed_error(e))
             executor.shutdown(wait=True)
         else:
             # if update and max_age == None:

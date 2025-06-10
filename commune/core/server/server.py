@@ -54,7 +54,7 @@ class Server:
         admin_roles:List[str] = ['admin', 'owner'], # the roles that can call any fn
 
         # PROCESS MANAGER
-        pm = 'pm.docker', # the process manager to use
+        pm = 'pm', # the process manager to use
         free_mode:bool = False, # whether the server is in free mode or not
 
         # MISC
@@ -100,13 +100,14 @@ class Server:
                 allow_headers=["*"],
             )
 
-            def server_fn(fn: str, request: Request, catch_exception=False):
+            def server_fn(fn: str, request: Request):
                 try:
-                    result =  self.forward(fn, request)
+                    return self.forward(fn, request)
                 except Exception as e:
-                    result =  c.detailed_error(e)
-                return result
+                    return c.detailed_error(e)
             app.post("/{fn}")(server_fn)
+
+            c.print(f'Serving(name={name} port={port} free_mode={free_mode} key={self.key.key_address})', color='green')
             uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
             return {'success':True, 'message':f'Set module to {self.name}'}
 
@@ -147,32 +148,10 @@ class Server:
 
     def forward(self, fn:str, request: Request):
 
-        """
-        gets and verifies the request
-        params:
-            fn : str
-                the fn to call
-            request : dict
-                the request object
-        result:
-            data : dict
-                fn : str
-                params : dict
-                client : dict (headers)
-        """
         params = self.get_params(request)
-        client = dict(request.headers)
-        print(f'Client: {client}', color='blue')
-        print(f'Params: {params}', color='blue')
-        self.check_call(client, fn, params) # check the user and the fn
+        headers = dict(request.headers)
 
-        result = self.run_call(client, fn, params) # run the fn
-
-        return result
-
-
-    def run_call(self, client:dict,  fn:str, params:dict):
-        # get the fn object
+        self.check_call(fn, params, headers) # check the user and the fn
         fn_obj = getattr(self.module, fn)
         
         # get the result
@@ -191,16 +170,18 @@ class Server:
                     yield item
         else:
 
-            # save the transaction between the client and server for future auditing
+            # save the transaction between the headers and server for future auditing
+            
             if not self.free_mode:
+                server_headers = self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key)
                 self.tx.forward(
                     module=self.name,
                     fn=fn, # 
                     params=params, # params of the inputes
                     result=self.serializer.forward(result),
                     schema=self.schema.get(fn, {}), # schema of the fn
-                    client=client,
-                    server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key),
+                    client=headers,
+                    server=server_headers,
                 )
         return result
 
@@ -238,7 +219,7 @@ class Server:
         fns = [fn for fn in sorted(list(set(fns + self.helper_fns))) if not fn.startswith('_')]
         fn2cost = {} if not hasattr(self.module, 'fn2cost') else self.module.fn2cost
         self.fn2cost = {fn: fn2cost.get(fn, 1) for fn in fns}
-        schema = c.schema(self.module)
+        schema = c.schema(self.module, code=False)
         schema = {fn: schema[fn] for fn in fns if fn in schema}
         self.schema = schema
         self.fns = list(schema.keys())
@@ -287,7 +268,7 @@ class Server:
                 max_age=None, 
                 update=False, 
                 features=['name', 'url', 'key'], 
-                timeout=8, 
+                timeout=24, 
                 **kwargs):
 
 
@@ -300,6 +281,7 @@ class Server:
         if modules == None :
             urls = self.urls(search=search, **kwargs)
             print(f'Updating modules from {self.modules_path}', color='yellow')
+            
             futures  = [c.submit(c.call, [url + '/info'], timeout=timeout) for url in urls]
             modules =  c.wait(futures, timeout=timeout)
             print(f'Found {len(modules)} modules', color='green')
@@ -314,9 +296,6 @@ class Server:
 
     def n(self, search=None, **kwargs):
         return len(self.modules(search=search, **kwargs))
-    
-    def server_exists(self, name:str, **kwargs) -> bool:
-        return bool(name in self.servers(**kwargs))
 
     def exists(self, name:str, **kwargs) -> bool:
         """check if the server exists"""
@@ -365,20 +344,21 @@ class Server:
         
         return role
 
-    def check_call(self, client:dict, fn:str, params:dict) -> float:
+    def check_call(self, fn:str, params:dict, headers:dict) -> float:
         if self.free_mode:
-            assert fn in self.module.fns, f"Function {fn} not in endpoints={self.module.fns}"
+            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
+            rate = 1
         else:
-            client = self.auth.verify_headers(headers=client, data={'fn': fn , 'params': params}) # verify the headers
-            rate = self.rate(client['key']) * self.fn2cost.get(fn, 1)
-            role = self.role(client['key'])
+            headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
+            rate = self.rate(headers['key']) * self.fn2cost.get(fn, 1)
+            role = self.role(headers['key'])
             rate_limit = self.role2rate.get(role) # admin and owner can call any fn
             if role not in ['admin', 'owner']:
                 rate_limit = self.role2rate.get(role, 1000)
-                assert fn in self.module.fns, f"Function {fn} not in endpoints={self.module.fns}"
-                network_rate_limit = self.network_rate(user=client['key'], network=self.network)
+                assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
+                network_rate_limit = self.network_rate(user=headers['key'], network=self.network)
                 rate_limit = max(rate , rate_limit)
-            assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit}) for user={client}, fn={fn}, params={params}'
+            assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit}) for user={headers}, fn={fn}, params={params}'
 
         return rate
 
@@ -515,20 +495,6 @@ class Server:
     def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
         return self.pm.namespace(search=search, max_age=max_age, update=update, **kwargs)
 
-    def get_url(self, name:str,  tail:int=100, **kwargs):
-        return f'0.0.0.0:{self.get_port(name, tail=tail, **kwargs)}'
-
-    def get_port(self, name:str,  tail:int=100, **kwargs):
-        """
-        get port from the logs
-        """
-        logs = self.logs(name, tail=tail, stream=False, **kwargs)
-        port = None
-        tag = 'Uvicorn running on '
-        for i, line in enumerate(logs.split('\n')[:-1]):
-            if tag in line:
-                return int(line.split(tag)[-1].split(' ')[0].split('::')[-1])
-        return port
 
     def serve(self, 
               module: Union[str, 'Module', Any] = None, # the module in either a string
@@ -545,7 +511,6 @@ class Server:
         module = module or 'module'
         name = name or module
         params = {**(params or {}), **extra_params}
-        print(f'Serving {name} on port {port} free_mode : {free_mode}', color='green')
         return Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
 
 

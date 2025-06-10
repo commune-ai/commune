@@ -1,85 +1,81 @@
-# Commune Process Manager (PM)
+ # start of file
+# Docker Module for Commune
 
-The Process Manager (PM) module in Commune provides tools for managing and orchestrating processes across your distributed system. It integrates with popular process management solutions like PM2 and Docker to give you flexible control over your application processes.
+This module provides a comprehensive interface for managing Docker containers, similar to how PM2 manages processes.
 
 ## Features
 
-- **Multiple Process Management Options**: Support for PM2 and Docker-based process management
-- **Unified Interface**: Common API for managing processes regardless of the underlying technology
-- **Process Monitoring**: Tools to monitor and maintain process health
-- **Configuration Management**: Easy configuration of process parameters
-- **Scalability**: Designed to work with Commune's distributed architecture
-
-## Components
-
-### PM2 Integration
-
-The PM module integrates with [PM2](https://pm2.keymetrics.io/), a popular production process manager for Node.js applications, but can be used for any application type. PM2 provides:
-
-- Process monitoring
-- Automatic restarts
-- Log management
-- Load balancing
-
-### Docker Integration
-
-The Docker integration allows you to manage containerized processes, providing:
-
-- Isolation
-- Consistent environments
-- Resource management
-- Scalability
+- Build and run Docker containers with advanced configuration options
+- Manage container lifecycle (start, stop, restart, delete)
+- Monitor container resource usage
+- Save and load container configurations
+- Execute commands in running containers
+- View container logs
+- List and manage Docker images
 
 ## Usage
 
 ```python
-from commune.core.pm import PM
+import commune as c
 
-# Initialize the Process Manager
-pm = PM()
+# Initialize the Docker module
+docker = c.mod('pm')()
 
-# Start a process
-pm.start(name="my_process", script="path/to/script.py")
+# Start a container
+docker.start('my_container', 'python:3.8', 
+             cmd='python -m http.server',
+             ports={'8000': 8000})
 
-# Stop a process
-pm.stop("my_process")
+# List running containers
+containers = docker.list()
+print(containers)
 
-# Restart a process
-pm.restart("my_process")
+# Monitor container resource usage
+stats = docker.monitor()
+print(stats)
 
-# Get process status
-status = pm.status("my_process")
+# Execute a command in a container
+result = docker.exec('my_container', 'ls -la')
+print(result)
+
+# View container logs
+logs = docker.logs('my_container')
+print(logs)
+
+# Stop a container
+docker.stop('my_container')
+
+# Remove a container
+docker.delete('my_container')
+
+# Save current container configuration
+docker.save('my_setup')
+
+# Load a saved configuration
+docker.load('my_setup')
 ```
 
-## Configuration
+## PM2-like Interface
 
-The PM module can be configured through the Commune configuration system. Example configuration:
+The Docker module provides a PM2-like interface for managing containers:
 
-```yaml
-pm:
-  default_manager: "pm2"  # or "docker"
-  pm2:
-    bin_path: "/usr/local/bin/pm2"
-  docker:
-    compose_path: "./docker-compose.yml"
-```
+- `start(name, image, **kwargs)`: Start a container
+- `stop(name)`: Stop a container
+- `restart(name)`: Restart a container
+- `delete(name)`: Remove a container
+- `list(all=False)`: List containers
+- `monitor()`: Monitor container resource usage
+- `save(config_name)`: Save current container configuration
+- `load(config_name)`: Load a saved configuration
 
-## Installation
+## Advanced Options
 
-The PM module is included in the Commune framework. If you're using it standalone, ensure you have the required dependencies:
+The module supports advanced Docker features:
 
-```bash
-# For PM2 integration
-npm install pm2 -g
-
-# For Docker integration
-pip install docker-compose
-```
-
-## Contributing
-
-Contributions to the PM module are welcome! Please follow the Commune contribution guidelines when submitting changes.
-
-## License
-
-This module is part of the Commune framework and is released under the same license terms as the main project.
+- GPU configuration
+- Volume mapping
+- Port mapping
+- Environment variables
+- Network configuration
+- Shared memory size
+- Custom entrypoints and commands

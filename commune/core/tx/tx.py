@@ -42,11 +42,11 @@ class Tx:
 
         self.key = c.key(key)
         self.version = version
-        self.store = c.module('store')(f'{tx_path}/{self.version}', private=private, key=self.key)
+        self.store = c.mod('store')(f'{tx_path}/{self.version}', private=private, key=self.key)
         self.tx_schema = tx_schema
         self.tx_features = list(self.tx_schema.keys())
-        self.serializer = c.module(serializer)()
-        self.auth = c.module(auth)()
+        self.serializer = c.mod(serializer)()
+        self.auth = c.mod(auth)()
         self.roles = roles
 
 

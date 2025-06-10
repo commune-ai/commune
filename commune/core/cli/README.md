@@ -62,7 +62,7 @@ c agi/config
 
 # Equivalent Python code
 # import commune as c
-# c.module("agi").config()
+# c.mod("agi").config()
 ```
 
 If a module doesn't have a config or YAML file, keyword arguments will be used as the config.
@@ -75,7 +75,7 @@ c agi/code
 
 # Equivalent Python code
 # import commune as c
-# c.module("agi").code()
+# c.mod("agi").code()
 ```
 
 ### Serving a Module

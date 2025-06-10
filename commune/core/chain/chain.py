@@ -1128,11 +1128,13 @@ class Chain:
             balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
         return balances
     
-    def my_balance(self, batch_size=8, timeout=120, max_age=None, update=False, num_connections=10):
+    def my_balance(self, batch_size=32, timeout=120, max_age=None, update=False, num_connections=8):
+
+
         path = self.get_path(f'{self.network}/my_balance')
         balances = c.get(path, None, update=update, max_age=max_age)
         if balances == None:
-
+            self.set_connections(num_connections)
             key2address = c.key2address()
             addresses = list(key2address.values())
             batched_addresses = [addresses[i:i + batch_size] for i in range(0, len(addresses), batch_size)]
@@ -1143,7 +1145,7 @@ class Chain:
             for batch in batched_addresses:
                 batch_hash : str = c.hash(batch)
                 hash2batch[batch_hash] = batch
-                f =  c.submit(self.get_balances, dict(key_addresses=batch), timeout=timeout)
+                f =  c.submit(self.get_balances, dict(key_addresses=batch), timeout=timeout, mode='thread')
                 future2hash[f] = batch_hash
             balances = {}
             progress_bar = c.tqdm(total=n, desc='Getting Balances')
@@ -2054,7 +2056,6 @@ class Chain:
         """
         an overview of your wallets
         """
-        self.set_connections(8)
         my_stake = self.my_stake(update=update, max_age=max_age)
         my_balance = self.my_balance(update=update, max_age=max_age)
         key2address = c.key2address()

@@ -5,7 +5,7 @@ class Test:
 
     
     def __init__(self, module='chain', networkk='test', test_key='test'): 
-        self.chain = c.module(module)(network=networkk)
+        self.chain = c.mod(module)(network=networkk)
         self.key = c.get_key(test_key)
 
     def test_global_params(self):

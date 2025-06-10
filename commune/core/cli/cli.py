@@ -29,7 +29,7 @@ class Cli:
         argv, module, fn = self.get_module_fn(module, fn, argv)
         argv, init_params = self.get_init_params(argv)
         argv, params = self.get_fn_params(argv)
-        fn_obj = getattr(c.module(module)(**init_params), fn)
+        fn_obj = getattr(c.mod(module)(**init_params), fn)
         schema = self.get_schema(module, fn)
         c.print(f'Calling({module}/{fn})')
         result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj
@@ -119,7 +119,7 @@ class Cli:
 
     def get_module_fn(self, module:str, fn:str, argv):
         
-        module_obj = c.module(module)()
+        module_obj = c.mod(module)()
         if len(argv) == 0:
             # scenario 1: no arguments, use the default function
             fn = self.default_fn

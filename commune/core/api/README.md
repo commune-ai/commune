@@ -27,10 +27,10 @@ pip install commune
 import commune as c
 
 # Initialize the API module
-api = c.module('api')()
+api = c.mod('api')()
 
 # Start the API with background processing
-api = c.module('api')(background=True)
+api = c.mod('api')(background=True)
 ```
 
 ### Module Operations

@@ -69,7 +69,7 @@ import commune as c
 c.serve('my_module', port=8000)
 
 # Or manually
-server = c.module('server')()
+server = c.mod('server')()
 server.serve(module='my_module', port=8000)
 ```
 
@@ -82,7 +82,7 @@ import commune as c
 result = c.call('my_module/function', arg1=value1, arg2=value2)
 
 # Using client
-client = c.module('server.client')(url='my_module')
+client = c.mod('server.client')(url='my_module')
 result = client.forward(fn='function', kwargs={'arg1': value1, 'arg2': value2})
 
 # Virtual client
@@ -96,7 +96,7 @@ result = module.function(arg1=value1, arg2=value2)
 import commune as c
 
 # Create auth instance
-auth = c.module('auth')()
+auth = c.mod('auth')()
 
 # Generate token
 token = auth.get_token(data={'user_id': 123})
@@ -139,7 +139,7 @@ rate = server.rate(user='user_address')
 Manage server processes using the ProcessManager:
 
 ```python
-pm = c.module('server.pm')()
+pm = c.mod('server.pm')()
 
 # Start a process
 pm.run(fn='module/function', name='process_name')
