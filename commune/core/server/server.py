@@ -72,45 +72,6 @@ class Server:
         self.admin_roles = admin_roles
         self.pm = c.mod(pm)() # sets the module to the pm
 
-        if serve:
-            module = module or 'module'
-            if isinstance(module, str):
-                if '::' in module:
-                    name = module
-                    module = '::'.join(name.split('::')[:-1])
-
-            self.serializer = c.mod(serializer)() # sets the serializer
-            self.module = c.mod(module)(**(params or {}))
-            self.name = name = name or module 
-            self.key = c.get_key(key or self.name)
-            self.set_fns(fns) 
-            self.set_port(port)
-            self.free_mode = bool(free_mode)
-            self.module.info = self.info
-            self.auth = c.mod(auth)()
-            self.loop = asyncio.get_event_loop() # get the event loop
-
-            app = FastAPI()
-            # app.add_middleware(c.mod(middleware), auth=)
-            app.add_middleware(
-                CORSMiddleware,
-                allow_origins=["*"],  # or your specific origins
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            )
-
-            def server_fn(fn: str, request: Request):
-                try:
-                    return self.forward(fn, request)
-                except Exception as e:
-                    return c.detailed_error(e)
-            app.post("/{fn}")(server_fn)
-
-            c.print(f'Serving(name={name} port={port} free_mode={free_mode} key={self.key.key_address})', color='green')
-            uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-            return {'success':True, 'message':f'Set module to {self.name}'}
-
     @property
     def info(self):
         info  = {   
@@ -501,7 +462,6 @@ class Server:
               params:Optional[dict] = None,  # kwargs for the module
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
-              remote:bool = False, # runs the server remotely (pm2, ray)
               fns = None, # list of fns to serve, if none, it will be the endpoints of the module
               key = None, # the key for the server
               free_mode:bool = False, # whether the server is in free mode or not
@@ -511,6 +471,44 @@ class Server:
         module = module or 'module'
         name = name or module
         params = {**(params or {}), **extra_params}
-        return Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
+        self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
+
+        module = module or 'module'
+        if isinstance(module, str):
+            if '::' in module:
+                name = module
+                module = '::'.join(name.split('::')[:-1])
+
+        self.serializer = c.mod(serializer)() # sets the serializer
+        self.module = c.mod(module)(**(params or {}))
+        self.name = name = name or module 
+        self.key = c.get_key(key or self.name)
+        self.set_fns(fns) 
+        self.set_port(port)
+        self.free_mode = bool(free_mode)
+        self.module.info = self.info
+        self.auth = c.mod(auth)()
+        self.loop = asyncio.get_event_loop() # get the event loop
+
+        app = FastAPI()
+        # app.add_middleware(c.mod(middleware), auth=)
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],  # or your specific origins
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        def server_fn(fn: str, request: Request):
+            try:
+                return self.forward(fn, request)
+            except Exception as e:
+                return c.detailed_error(e)
+        app.post("/{fn}")(server_fn)
+
+        c.print(f'Serving(name={name} port={port} free_mode={free_mode} key={self.key.key_address})', color='green')
+        uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+        return {'success':True, 'message':f'Set module to {self.name}'}
 
 

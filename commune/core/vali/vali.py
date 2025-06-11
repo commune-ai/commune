@@ -183,16 +183,13 @@ class Vali:
                     print(f'Batch {i}/{num_batches} {m["name"]} {m["url"]}')
                     future = c.submit(self.forward, [m] , timeout=self.timeout, mode='process')
                     future2module[future] = m
-
-
-            
                 
             for future in c.as_completed(future2module, timeout=self.timeout):
                 try:
                     m = future2module[future]
                     result = future.result()
                     if isinstance(result, dict) and 'score' in result:
-                        c.print(f'Batch {i}/{num_batches} {m["name"]} ({m["key"]}) --> {result["score"]}', color='green')
+                        c.print(f'Result Module(name={m["name"]} key={m["key"]} score={result["score"]})', color='green')
                         results.append(result)
                     else: 
                         c.print(f'Error({m["name"]}, result={result})', color='red')

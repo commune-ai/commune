@@ -198,7 +198,7 @@ class Module:
                 filepath = self.filepath(module)
                 dirpath =  os.path.dirname(filepath)
             else: 
-                raise Exception(f'Module {module} not found in {self.modules_path}')
+                dirpath = self.modules_path + '/' + module.replace('.', '/')
             
             if dirpath.split('s/')[-1] == dirpath.split('/')[-2]:
                 dirpath = '/'.join(dirpath.split('/')[:-1])
@@ -852,24 +852,14 @@ class Module:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
         
         return schema
- 
-    def get_obj(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        if isinstance(obj, str):
-            if '/' in obj:
-                obj = self.fn(obj)
-            elif self.module_exists(obj):
-                obj = self.mod(obj)
-            elif hasattr(self, obj):
-                obj = getattr(self, obj)
-        else:
-            obj = self.mod(obj)
-        return obj
 
     def code(self, obj = None, search=None, full=False,  *args, **kwargs) -> Union[str, Dict[str, str]]:
         if full:
             return self.code_map(obj, search=search)
         if '/' in str(obj):
             obj = self.fn(obj)
+        elif hasattr(self, obj):
+            obj = getattr(self, obj)
         else:
             obj = self.module(obj)
         return  inspect.getsource(obj)
@@ -1323,7 +1313,6 @@ class Module:
             obj = self.obj_cache[key] = import_object(key, **kwargs)
         return obj
 
-    
     def obj_exists(self, path:str, verbose=False)-> Any:
         # better way to check if an object exists?
         try:
@@ -1832,6 +1821,17 @@ class Module:
                 'from': {'module': from_module, 'path': from_path}, 
                 'to': {'path': to_path, 'module': to_module}
                 } 
+
+    def mv_mod(self, from_module:str = 'dev', to_module:str = 'dev2'):
+        """
+        Move the module to the git repository
+        """
+        from_path = self.dirpath(from_module)
+        to_path = self.dirpath(to_module)
+        return { 
+                'from': {'module': from_module, 'path': from_path}, 
+                'to': {'path': to_path, 'module': to_module}
+                }
 
 
     def address2key(self, *args, **kwargs):
