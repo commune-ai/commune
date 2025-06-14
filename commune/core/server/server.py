@@ -58,7 +58,6 @@ class Server:
         free_mode:bool = False, # whether the server is in free mode or not
 
         # MISC
-        serializer = 'serializer',
         verbose:bool = True, # whether to print the output
         timeout = 10, # (in seconds) the maximum time to wait for a response
         serve:bool = False, # whether to run the api
@@ -71,8 +70,8 @@ class Server:
         self.tx = c.mod(tx)(tx_path=tx_path)
         self.role2rate = role2rate
         self.admin_roles = admin_roles
+        self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
-        self.serializer = c.mod(serializer)() # sets the serializer
 
     @property
     def info(self):
@@ -469,6 +468,7 @@ class Server:
               key = None, # the key for the server
               free_mode:bool = False, # whether the server is in free mode or not
               cwd = None,
+              auth = 'auth',
               serializer = 'serializer',
               **extra_params
               ):
