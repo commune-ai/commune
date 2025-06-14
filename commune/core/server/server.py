@@ -469,6 +469,7 @@ class Server:
               key = None, # the key for the server
               free_mode:bool = False, # whether the server is in free mode or not
               cwd = None,
+              serializer = 'serializer',
               **extra_params
               ):
         module = module or 'module'
