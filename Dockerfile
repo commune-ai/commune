@@ -30,7 +30,7 @@ RUN usermod -aG docker root
 EXPOSE 2375 
 
 # APP # COPY YOUR APP HERE
-WORKDIR /root/commune
+WORKDIR /app
 COPY . .
 RUN pip install -e ./ 
 
