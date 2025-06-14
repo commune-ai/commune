@@ -275,7 +275,7 @@ class PM:
         
         # Run docker-compose
         compose_cmd = ['sudo'] if sudo else []
-        compose_cmd.extend(['docker-compose', '-f', compose_file])
+        compose_cmd.extend(['docker compose', '-f', compose_file])
         
         # Run the container
         up_cmd = compose_cmd + ['up']
