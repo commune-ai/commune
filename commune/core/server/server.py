@@ -63,6 +63,7 @@ class Server:
         timeout = 10, # (in seconds) the maximum time to wait for a response
         serve:bool = False, # whether to run the api
         ):
+        
         self.store = c.mod(store)(path)
         self.network = network or 'local'
         self.tempo = tempo
@@ -71,6 +72,7 @@ class Server:
         self.role2rate = role2rate
         self.admin_roles = admin_roles
         self.pm = c.mod(pm)() # sets the module to the pm
+        self.serializer = c.mod(serializer)() # sets the serializer
 
     @property
     def info(self):
