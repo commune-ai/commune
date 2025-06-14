@@ -243,7 +243,7 @@ class Server:
             urls = self.urls(search=search, **kwargs)
             print(f'Updating modules from {self.modules_path}', color='yellow')
             
-            futures  = [c.submit(c.call, [url + '/info'], timeout=timeout) for url in urls]
+            futures  = [c.submit(c.call, [url + '/info'], timeout=timeout, mode='thread') for url in urls]
             modules =  c.wait(futures, timeout=timeout)
             print(f'Found {len(modules)} modules', color='green')
             modules = list(filter(module_filter, modules))
@@ -426,9 +426,10 @@ class Server:
                 self.store.put(path, self.state)
             return self.state
 
-    def wait_for_server(self, name:str, trials:int=20, trial_backoff:int=0.5, network:str='local', verbose=True, max_age:int=20):
+    def wait_for_server(self, name:str, max_time:int=10, trial_backoff:int=0.5, network:str='local', verbose=True, max_age:int=20):
         # wait for the server to start
-        for trial in range(trials):
+        t0 = c.time()
+        while c.time() - t0 < max_time:
             namespace = self.namespace(network=network)
             if name in namespace:
                 try:

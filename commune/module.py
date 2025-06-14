@@ -16,7 +16,6 @@ nest_asyncio.apply()
 
 class Module:
 
-
     def __init__(self,  
                 globals_input=None, 
                 modules_url = 'commune-ai/modules',
@@ -55,7 +54,7 @@ class Module:
         self.port_range = port_range
         self.endpoints = endpoints
         self.shortcuts = shortcuts
-        self.modules_url = modules_url
+        self.modules_url = self.giturl(modules_url)
         # config attributes
         self.sync_utils()
 
@@ -97,7 +96,10 @@ class Module:
                 self.print(f'Error loading module {module} from {obj_path}: {e}', color='red', verbose=verbose)
                 tree = self.tree(update=True)
                 tree_options = [v for k,v in tree.items() if module in k]
-                if len(tree_options) == 1:
+                if any([v == module for v in tree_options]):
+                    module = [v for v in tree_options if v == module][0]
+                    obj = self.obj(module)
+                elif len(tree_options) == 1:
                     obj = self.obj(tree_options[0])
                 else:
                     raise e
@@ -1064,7 +1066,11 @@ class Module:
         elif isinstance(params, list):
             args = params
             params = None
-        return executor.submit(self.fn(fn), *args, **kwargs, timeout=timeout)
+        if mode == 'thread':
+            future = executor.submit(self.fn(fn), params={'args': args, 'kwargs':kwargs}, timeout=timeout)
+        else:
+            future =  executor.submit(self.fn(fn), *args, **kwargs)
+        return future 
 
     def fn(self, fn:Union[callable, str], params:str=None, splitter='/', default_fn='forward', default_module = 'module') -> 'Callable':
         """
@@ -1418,7 +1424,7 @@ class Module:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
 
-    def get_tree(self, path='./', depth = 10, max_age=60, update=False, **kwargs):
+    def get_tree(self, path='./', depth = 10, max_age=None, update=False, **kwargs):
         """
         Get the tree of the modules in the path
         a tree is a dictionary of the form {modname: module_path}
@@ -1438,6 +1444,8 @@ class Module:
             self.put(tree_cache_path, tree)
         return tree
     
+    ltree = local_tree
+    mtree = modules_tree
 
     
     def check_info(self,info, features=['key', 'hash', 'time', 'founder', 'name', 'schema']):
@@ -1506,8 +1514,7 @@ class Module:
             from concurrent.futures import ProcessPoolExecutor
             executor =  ProcessPoolExecutor(max_workers=max_workers)
         elif mode == 'thread':
-            from concurrent.futures import ThreadPoolExecutor
-            executor =  ThreadPoolExecutor(max_workers=max_workers)
+            executor =  self.mod('executor')(max_workers=max_workers)
         elif mode == 'async':
             from commune.core.api.src.async_executor import AsyncExecutor
             executor = AsyncExecutor(max_workers=max_workers)
@@ -1637,7 +1644,6 @@ class Module:
         except Exception as e:
             return False
 
-
     def kill(self, server:str = 'commune'):
         return self.fn('pm/kill')(server)
 
@@ -1715,40 +1721,20 @@ class Module:
     def giturl(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
         gitsuffix = '.git'
-
         if not url.startswith(gitprefix):
             url = gitprefix + url
         if not url.endswith(gitsuffix):
             url = url + gitsuffix
         return url
 
-    def islink(self, module='datura', expected_features = ['api', 'app', 'code'], suffix_options = ['_url', 'url']):
+    def islink(self, module='datura', link_features = ['link', 'url', 'uri']):
         try:
             module = self.module(module)
-            filtered_features = []
-            for feature in dir(module):
-                feature_options = [f'{feature}{suffix}' for suffix in suffix_options]
-                for feature_option in feature_options:
-                    if hasattr(module, feature_option):
-                        feature_obj = getattr(module, feature_option)
-                        if feature.startswith('_'):
-                            continue
-                        if callable(feature_obj):
-                            continue
-                        if feature in expected_features:
-                            filtered_features += [feature]
-
-                feature_obj = getattr(module, feature)
-                if feature.startswith('_'):
-                    continue
-                if callable(feature_obj):
-                    continue
-                if feature in expected_features:
-                    filtered_features += [feature]
+            islink =  any([hasattr(module, feature) for feature in link_features])
         except Exception as e:
             self.print(e)
-            return False
-        return len(filtered_features) > 0
+            islink = False
+        return islink
 
     def expand_link(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
         dirpath = self.dirpath(module)
@@ -1828,11 +1814,12 @@ class Module:
         """
         from_path = self.dirpath(from_module)
         to_path = self.dirpath(to_module)
-        return { 
+        result =  { 
                 'from': {'module': from_module, 'path': from_path}, 
                 'to': {'path': to_path, 'module': to_module}
                 }
 
+        return self.mv(from_path, to_path)
 
     def address2key(self, *args, **kwargs):
         return self.fn('key/address2key')(*args, **kwargs)
@@ -1906,15 +1893,13 @@ class Module:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-
     def sync_modules(self):
-    
         self.modules_url = self.modules_url
         if not os.path.exists(self.modules_path):
             os.makedirs(self.modules_path, exist_ok=True)
         if not os.path.exists(self.modules_path+'/.git'):
             cmd = f'git clone {self.modules_url} {self.modules_path}'
-            self.cmd(cmd, cwd=self.module_path, verbose=True)
+            self.cmd(cmd, cwd=self.modules_path, verbose=True)
         return {'success': True, 'msg': 'synced config'}
 
     def main(self, *args, **kwargs):

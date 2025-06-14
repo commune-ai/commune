@@ -50,18 +50,15 @@ class SolanaKey:
             private_key = self.new_key(crypto_type=self.crypto_type).private_key
         if type(private_key) == str:
             private_key = c.str2bytes(private_key)
-        if self.crypto_type == KeyType.SOLANA:
-            private_key = private_key[0:32]
-            keypair = SolanaKeypair.from_seed(private_key)
-            public_key = keypair.pubkey().__bytes__()
-            private_key = keypair.secret()
-            key_address = b58encode(bytes(public_key)).decode('utf-8')
-            hash_type = 'base58'
-        else:
-            raise ValueError('crypto_type "{}" not supported'.format(self.crypto_type))
+
+        private_key = private_key[0:32]
+        keypair = SolanaKeypair.from_seed(private_key)
+        public_key = keypair.pubkey().__bytes__()
+        private_key = keypair.secret()
+        key_address = b58encode(bytes(public_key)).decode('utf-8')
+        hash_type = 'base58'
         if type(public_key) is str:
             public_key = bytes.fromhex(public_key.replace("0x", ""))
-
         self.hash_type = hash_type
         self.public_key = public_key
         self.address = self.key_address = self.ss58_address = key_address

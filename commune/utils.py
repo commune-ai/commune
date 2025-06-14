@@ -45,10 +45,8 @@ def import_object( key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
         key = c.path2objectpath(key)
     assert module_path != None and object_name != None, f'Invalid key {key}'
     module_obj = import_module(module_path)
-    try:
-        return  getattr(module_obj, object_name)
-    except Exception as e:
-        return import_module(key)
+
+    return  getattr(module_obj, object_name)
 
 def shlex_split(s):
     result = []
