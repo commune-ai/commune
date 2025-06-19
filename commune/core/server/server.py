@@ -275,11 +275,6 @@ class Server:
         path = f'results/{module}/{user}'
         return len( self.store.paths(path)) 
 
-    @property
-    def address2key(self):  
-        if not hasattr(self, '_address2key'):
-            self._address2key = c.address2key()
-        return self._address2key
 
     def role(self, user) -> str:
         """
@@ -298,6 +293,10 @@ class Server:
             roles = self.roles(max_age=60, update=False)
             if user in roles:
                 role = roles[user]
+
+            if not hasattr(self, 'address2key'):
+                self.address2key = c.address2key()
+            
             elif user in self.address2key:
                 role =  'local'
             else:

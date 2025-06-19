@@ -1302,9 +1302,12 @@ class Module:
         """
         if not self.ensure_syspath_flag:
             import sys
-            path = self.pwd()
-            if path not in sys.path:
-                sys.path.append(path)
+            paths = [self.pwd(), self.repo_path]
+            for path in paths:
+                if path not in sys.path:
+                    sys.path.append(path)
+        return {'paths': sys.path, 'success': True}
+            
 
 
 
@@ -1437,7 +1440,14 @@ class Module:
         tree = self.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
             class_paths = self.classes(path, depth=depth)
-            filter_path = lambda p: p.replace('src.', '') if p.startswith('src.' + self.repo_name) else p
+            
+            def filter_path(p):
+                if p.startswith('src.' + self.repo_name):
+                    return p.replace('src.' + self.repo_name + '.', '')
+                repo_prefix = self.repo_name + '.' + self.repo_name
+                if p.startswith(repo_prefix):
+                    return p.replace(repo_prefix, self.repo_name)
+                return p
             class_paths = [filter_path(p) for p in class_paths]
             simple_paths = [self.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))

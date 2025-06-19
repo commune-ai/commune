@@ -324,6 +324,7 @@ class PM:
         try:
             c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
             c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+            print(f'Killing --> {name}')
             if prune:
                 self.prune()
             return {'status': 'killed', 'name': name}
@@ -374,6 +375,9 @@ class PM:
             return results['repository'].tolist()
         else:
             return results
+
+    def image_exists(self, name: str) -> bool:
+        return bool(name in self.images(df=False))
 
     def logs(self,
              name: str,

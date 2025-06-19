@@ -1822,7 +1822,6 @@ class Chain:
 
     
     def key_map(self,update=False):
-
         key_map = self.query_map('Keys', params=[], update=update)
         return {int(k):list(v.values()) for k,v in key_map.items()}
 
@@ -1834,7 +1833,7 @@ class Chain:
         key2uid = self.key2uid(subnet)
         return {v:k for k,v in key2uid.items()}  
     
-    def is_registered(self, key='module', subnet=2,update=False) -> bool:
+    def is_registered(self, key='module', subnet=2,update=True) -> bool:
         """
         is the key registererd
         """
@@ -2205,9 +2204,6 @@ class Chain:
         }
 
         funder = c.get_key(funder or self.funder())
-
-
-
         return  self.call("register", params=params, key=funder, wait_for_finalization=wait_for_finalization, safety=safety)
 
 
@@ -2235,9 +2231,6 @@ class Chain:
             )
         return self.register(key=key, subnet=0, funder=funder)
 
-
-
-
     def deregister(self, key: Keypair, subnet: int=2) -> ExtrinsicReceipt:
         """
         Deregisters a module from the network.
@@ -2254,16 +2247,7 @@ class Chain:
         """
         key = self.get_key(key)
         subnet = self.get_subnet(subnet)
-
-        if not self.is_registered(key.key_address, subnet):
-            return {'msg': f'Module {key.key_address} is not registered in subnet {subnet}', 'success': False}
-
-        
-        params = {"netuid": subnet}
-
-        response = self.call("deregister", params=params, key=key)
-
-        return response
+        return self.call("deregister", params={"netuid": subnet}, key=key)
     
     def dereg(self, key: Keypair, subnet: int=0):
         return self.deregister(key=key, subnet=subnet)

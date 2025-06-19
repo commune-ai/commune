@@ -480,6 +480,11 @@ def random_word( *args, n=1, seperator='_', **kwargs):
     else:
         return seperator.join(random_words.split(' ')[:n])
 
+def chown(path:str, user:str='root', group:str='root'):
+    cmd = f'chown {user}:{group} {path}'
+    return os.system(cmd)
+
+
 def choice( options:Union[list, dict])->list:
     from copy import deepcopy
     options = deepcopy(options) # copy to avoid changing the original
