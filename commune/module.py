@@ -1604,16 +1604,6 @@ class Module:
             args = [self.code(module)] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
 
-
-    def clone(self, repo:str = 'commune-ai/commune', path:str=None, **kwargs):
-        gitprefix = 'https://github.com/'
-        repo = gitprefix + repo if not repo.startswith(gitprefix) else repo
-        repo_name = repo.split('/')[-1].replace('.git', '')
-        path = os.path.abspath(os.path.expanduser(path or  f'~/{repo_name}'))
-        cmd =  f'git clone {repo} {path}'
-        self.cmd(cmd, verbose=True)
-        return {'path': path, 'repo': repo, 'msg': 'Repo Cloned'}
-    
     def readmes(self,  path='./', search=None, avoid_terms=['/modules/']):
         files =  self.files(path)
         files = [f for f in files if f.endswith('.md')]
@@ -1834,8 +1824,7 @@ class Module:
     def address2key(self, *args, **kwargs):
         return self.fn('key/address2key')(*args, **kwargs)
 
-    def add_mod(self, module:str = 'dev', name:str = None):
-
+    def clone(self, module:str = 'dev', name:str = None):
         repo2path = self.repo2path()
         if os.path.exists(module):
             to_path =  self.modules_path + '/' + module.split('/')[-1]
@@ -1843,33 +1832,22 @@ class Module:
             self.rm(to_path)
             self.cp(from_path, to_path)
             assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
-
         elif 'github.com' in module:
             giturl = module
-            module = module.split('/')[-1].replace('.git', '')
-            
+            module = (name or module.split('/')[-1].replace('.git', '')).replace('/', '.')
             # clone ionto the modules path
-            to_path = self.modules_path + '/' + module.replace('.', '/')
+            to_path = self.modules_path + '/' + module
             cmd = f'git clone {giturl} {self.modules_path}/{module}'
             self.cmd(cmd, cwd=self.modules_path)
-
-        elif module in repo2path:
-            from_path = repo2path[module]
-            to_path =  self.modules_path + '/' + module.replace('.', '/')
-            if os.path.exists(to_path):
-                self.rm(to_path)
-            self.cp(from_path, to_path)
-            assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
         else:
             raise Exception(f'Module {module} does not exist')
-        
         git_path = to_path + '/.git'
         if os.path.exists(git_path):
             self.rm(git_path)
         self.tree(update=1)
         return {'success': True, 'msg': 'added module',  'to': to_path}
 
-    add = add_mod
+    c = add = clone
 
     def rm_mod(self, module:str = 'dev'):
         """
@@ -1884,7 +1862,6 @@ class Module:
         return {'success': True, 'msg': 'removed module'}
 
     rmmod = rm_mod
-    addmod = add_mod
 
     def add_globals(self, globals_input:dict = None):
         """

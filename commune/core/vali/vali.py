@@ -15,7 +15,7 @@ class Vali:
                     batch_size : int = 128, # the batch size of the most parallel tasks
                     task : str= 'task', # score function
                     params = None, # the parameters for the task
-                    key : str = None, # the key for the module
+                    key : str = 'vali', # the key for the module
                     tempo : int = 60, # the time between epochs
                     timeout : int = 32, # timeout per evaluation of the module
                     update : bool =False, # update during the first epoch
@@ -135,7 +135,7 @@ class Vali:
         result = self.task.forward( c.client(module['url'], key=self.key), **params)
         module['score'] =  result.get('score', 0) if isinstance(result, dict) else result
         module['duration'] = c.time() - t0
-        module['url'] = module.get('url', None) or c.client(module['key'], key=self.key).url
+        module['url'] = module.get('url', None)
         module['params'] = params
         module['result'] = result
         module['time'] = c.time()

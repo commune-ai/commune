@@ -156,7 +156,8 @@ class PM:
             cwd: Optional = None,
             env: Optional[Dict] = None,
             compose_file: str = '~/.commune/pm/docker-compose.yml',
-            restart: str = 'unless-stopped'
+            restart: str = 'unless-stopped',
+            verbose = False
             ) -> Dict:
         """
         Generate and run a Docker container using docker-compose.
@@ -267,7 +268,6 @@ class PM:
 
         c.put_yaml(compose_file, compose_config)
         
-        print(f'Generated docker-compose file: {compose_file}')
         print(yaml.dump(compose_config, default_flow_style=False, sort_keys=False))
         
         # Stop existing container if it exists
@@ -283,9 +283,9 @@ class PM:
             up_cmd.append('-d')
         
         command_str = ' '.join(up_cmd)
-        print(f'Running command: {command_str}')
         
-        return c.cmd(command_str, verbose=True)
+        c.cmd(command_str, verbose=verbose)
+        return {'status': 'success', 'name': name, 'image': image, 'command': command_str, 'compose_file': compose_file}
 
 
     def enter(self, contianer): 
@@ -362,7 +362,6 @@ class PM:
         text = c.cmd('docker images')
         rows = []
         for i, line in enumerate(text.split('\n')):
-            print(line)
             if not line.strip():
                 continue
             if i == 0:
@@ -473,7 +472,6 @@ class PM:
                     mem_usage, mem_limit = row.pop('MEM USAGE / LIMIT').split('/')
                     row['MEM_USAGE'] = mem_usage
                     row['MEM_LIMIT'] = mem_limit
-                c.print(row)
                 row['ID'] = row.pop('CONTAINER ID')
 
                 for prefix in ['NET', 'BLOCK']:

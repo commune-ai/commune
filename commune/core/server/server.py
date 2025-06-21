@@ -171,6 +171,9 @@ class Server:
         return True
     
     def set_fns(self, fns:Optional[List[str]]):
+        """
+        set functions
+        """
         fns =  fns or []
         if len(fns) == 0:
             for fa in self.fn_attributes:
@@ -307,7 +310,7 @@ class Server:
 
     def check_call(self, fn:str, params:dict, headers:dict) -> float:
         if self.free_mode:
-            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
+            assert fn in self.fns, f"Function {fn} not in fns={self.fns}"
             rate = 1
         else:
             headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
