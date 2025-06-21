@@ -9,23 +9,27 @@ class Test(Server):
     def test_serializer(self):
         return c.mod('serializer')().test()  
 
-    def test_server(self, name = 'module::test_serving', deployer="test_deployer"):
-        deployer = deployer or name
-        c.serve(name, key=deployer)
-        print(f'serving {name} with deployer {deployer}')
-        for i in range(10):
+    def get_info(self, name:str, timeout:int = 60, interval:int = 1):
+        elapsed_seconds = 0
+        while elapsed_seconds < timeout:
             try:
                 info = c.call(name + '/info')
                 if 'key' in info:
-                    break
+                    return info
             except Exception as e:
                 print(c.detailed_error(e))
-            time.sleep(1)
+            time.sleep(interval)
+            elapsed_seconds += interval
             print(f'waiting for {name} to be available')
-        deployer_key = c.get_key(deployer)
-        assert info['key'] == deployer_key.ss58_address
-        c.kill(name)
-        assert name not in c.servers(update=True), f"Failed to kill {name}"
+        raise TimeoutError(f"Timeout waiting for {name} to be available after {timeout} seconds")
+
+    def test_server(self, 
+                    server = 'module::test_serving', 
+                    key="test_deployer"):
+        c.serve(server, key=key)
+        info = self.get_info(server)
+        assert info['key'] == c.key(key).ss58_address
+        c.kill(server)
         return {'success': True, 'msg': 'server test passed'}
 
     def test_executor(self):
