@@ -2,8 +2,7 @@
 name = "commune"
 dynamic = ["version"]
 description = "Global toolbox that allows you to connect and share any tool (module)"
-license = "MIT"
-license-files = ["LICENCE*"]
+license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">= 3.8, < 3.13"
 dependencies = [
