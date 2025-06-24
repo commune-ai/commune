@@ -3,7 +3,6 @@ name: Publish Python 🐍 distribution 📦 to PyPI
 on:
   push:
     tags:
-        - py-v*
         - v*
 
 permissions:
