@@ -1,31 +1,28 @@
 [project]
 name = "commune"
+version = "0.0.1.beta0"
 description = "Global toolbox that allows you to connect and share any tool (module)"
 license = "MIT"
 readme = "README.md"
-dynamic = ["version"]
-requires-python = ">= 3.8"
+requires-python = ">= 3.8, < 3.13"
 dependencies = [
-    "fastapi",
-    "sse-starlette",
-    "paramiko",
-    "nest_asyncio",
-    "uvicorn",
+    "fastapi>=0.115.13",
+    "sse-starlette>=2.3.6",
+    "paramiko>=3.5.1",
+    "nest_asyncio>=1.6.0",
+    "uvicorn>=0.34.3",
     "scalecodec>=1.2.10,<1.3",
-    "aiofiles",
-    "aiohttp",
-    "pytest",
-    "openai",
-    "torch",
-    "safetensors",
-    "msgpack_numpy",
-    "munch",
-    "retry",
-    "netaddr",
-    "typer",
-    "loguru",
-    "pyyaml",
-    "pandas",
+    "aiofiles>=24.1.0",
+    "aiohttp>=3.12.13",
+    "openai>=1.91.0",
+    "torch>=2.7.1",
+    "safetensors>=0.5.3",
+    "msgpack_numpy>=0.4.8",
+    "munch>=4.0.0",
+    "netaddr>=1.3.0",
+    "loguru>=0.7.3",
+    "pyyaml>=6.0.2",
+    "pandas>=2.3.0",
     "python-dotenv",
     "websocket-client>=0.57.0",
     "base58>=1.0.3",
@@ -41,10 +38,9 @@ dependencies = [
     "py-sr25519-bindings>=0.2.0",
     "py-ed25519-zebra-bindings>=1.0",
     "py-bip39-bindings>=0.1.9",
-    "twine",
-    "psutil"
+    "psutil>=7.0.0"
 ]
-keywords = ["modular"]
+keywords = ["modular", "sdk", "machine learning", "deep-learning", "crypto"]
 classifiers = [
     "Development Status :: 4 - Beta",
     # Indicate who your project is intended for
@@ -74,8 +70,6 @@ Homepage = "https://communeai.org/"
 Repository = "https://github.com/commune-ai/commune"
 Issues = "https://github.com/commune-ai/commune/issues"
 
-
-
 [project.optional-dependencies]
 all = [
     "commune[quality]",
@@ -92,7 +86,6 @@ testing = [
     "pytest>=7.2.0",
     "pytest-benchmark>=4.0.0",
     "pytest-cov",
-    "xxhash"
 ]
 
 [project.scripts]
