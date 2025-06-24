@@ -1,6 +1,6 @@
 [project]
 name = "commune"
-version = "0.0.1.beta0"
+dynamic = ["version"]
 description = "Global toolbox that allows you to connect and share any tool (module)"
 license = "MIT"
 readme = "README.md"
@@ -90,6 +90,10 @@ testing = [
 
 [project.scripts]
 c = "commune:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "commune.__version__"} 
+
 
 [tool.mypy]
 files = ["commune"]
