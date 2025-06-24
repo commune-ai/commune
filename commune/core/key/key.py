@@ -21,6 +21,8 @@ from hashlib import blake2b
 import json
 from scalecodec.types import Bytes
 import hashlib
+import shutil
+
 from copy import deepcopy
 import hmac
 import copy
@@ -157,23 +159,19 @@ class Key:
         return self.get_key(path, crypto_type=crypto_type)
     
     def mv_key(self, path, new_path):
-        new_path = self.get_key_path(new_path)
         key = self.get_key(path)
         key_json = key.to_json()
-        new_key_path = new_path + '/' + self.get_crypto_type(key.crypto_type) + '/' + key.key_address + '.json'
-        new_key_path_dir = '/'.join(new_key_path.split('/')[:-1])
-        if not c.exists(new_key_path_dir):
-            os.makedirs(new_key_path_dir)
-        c.put(new_key_path, key_json)
-        old_key_path = self.get_key_path(path)
-        c.rm(old_key_path)
-        assert self.key_exists(new_key_path), f'key does not exist at {new_key_path}'
-        assert not self.key_exists(old_key_path), f'key still exists at {old_key_path}'
+        crypto_type = self.get_crypto_type(key.crypto_type)
+        new_key_path = self.get_path(new_path + '/' + crypto_type )
+        old_key_path = self.get_path(path + '/' + crypto_type)
+        print(f'moving key from {old_key_path} to {new_key_path}')
+        shutil.copytree(old_key_path, new_key_path, dirs_exist_ok=True)
+        shutil.rmtree(old_key_path)
+        assert self.key_exists(new_path), f'key does not exist at {new_key_path}'
+        assert not self.key_exists(path), f'key still exists at {old_key_path}'
         return {'success': True, 'from': path , 'to': new_path}
+        
 
-    def key2encrypted(self):
-        return {k: self.is_key_encrypted(k) for k in self.keys()}
-            
     def get_path(self, path:str) -> str:
         path = str(path)
         if not path.startswith(self.storage_path):

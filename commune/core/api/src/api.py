@@ -86,7 +86,7 @@ class Api:
             modules = modules[start_idx:end_idx]
 
         if search != None:
-            modules = [n for n in names if search in n]
+            modules = [m for m in modules if search in m]
         
         if len(modules) == 0:
             print('No modules found')

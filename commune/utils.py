@@ -32,7 +32,7 @@ def import_module( import_path:str ) -> 'Object':
     return import_module(import_path)
 
 def import_object( key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
-
+    from importlib import import_module
     ''' Import an object from a string with the format of {module_path}.{object}'''
     module_path = None
     object_name = None
@@ -45,7 +45,6 @@ def import_object( key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
         key = c.path2objectpath(key)
     assert module_path != None and object_name != None, f'Invalid key {key}'
     module_obj = import_module(module_path)
-
     return  getattr(module_obj, object_name)
 
 def shlex_split(s):
@@ -1679,10 +1678,6 @@ def get_folder_size( folder_path:str='/'):
 def mv( path1, path2):
     import shutil
     assert os.path.exists(path1), path1
-    if not os.path.isdir(path2):
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
     shutil.move(path1, path2)
     assert os.path.exists(path2), path2
     assert not os.path.exists(path1), path1
@@ -2390,14 +2385,7 @@ def listdir(path:str='./'):
     return os.listdir(path)
 
 
-
-
-
-
-from typing import *
-import asyncio
 thread_map = {}
-
 def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
     import commune as c
     is_singleton = bool(not isinstance(futures, list))
@@ -2531,12 +2519,10 @@ def threads(search:str = None):
         threads = [t for t in threads if search in t]
     return threads
 
-#  ergret
 def cancel(futures): 
     for f in futures:
         f.cancel()
     return {'success': True, 'msg': 'cancelled futures'}
-
 
 async def async_read(path, mode='r'):
     import aiofiles
@@ -2716,8 +2702,6 @@ def str2python(x):
 def module2hash(search = None, max_age = None, **kwargs):
     infos = self.infos(search=search, max_age=max_age, **kwargs)
     return {i['name']: i['hash'] for i in infos if 'name' in i}
-
-
 
 def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
     import commune as c

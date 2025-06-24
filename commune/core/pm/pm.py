@@ -227,7 +227,6 @@ class PM:
         
         # Handle port mappings
         if port:
-            assert not c.port_used(port), f'Port {port} is already in use'
             ports = {port: port}
         
         if ports:

@@ -172,7 +172,7 @@ class Server:
     
     def set_fns(self, fns:Optional[List[str]]):
         """
-        set functions
+        sets the fns of the server
         """
         fns =  fns or []
         if len(fns) == 0:
@@ -310,7 +310,7 @@ class Server:
 
     def check_call(self, fn:str, params:dict, headers:dict) -> float:
         if self.free_mode:
-            assert fn in self.fns, f"Function {fn} not in fns={self.fns}"
+            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
             rate = 1
         else:
             headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
@@ -474,8 +474,12 @@ class Server:
               serializer = 'serializer',
               **extra_params
               ):
+
+
         module = module or 'module'
         name = name or module
+        if self.exists(name):
+            self.kill(name) # kill the server if it exists
         params = {**(params or {}), **extra_params}
         self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
 

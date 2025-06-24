@@ -40,7 +40,6 @@ class Module:
         Initialize the module by sycing with the config
         """
 
-
         # assume the name of this module is the name of .../
         self.repo_name = os.path.dirname(os.path.abspath(__file__)).split('/')[-1]
         self.home_path = os.path.expanduser('~')
@@ -57,7 +56,6 @@ class Module:
         self.modules_url = self.giturl(modules_url)
         # config attributes
         self.sync_utils()
-
         self.sync_modules()
         self.add_globals(globals_input)   
 

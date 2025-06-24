@@ -430,7 +430,10 @@ class Store:
     def get_key(self, key: str=None) -> str:
         if key == None and hasattr(self, 'key'):
             key = self.key
-        return c.key(key)
+        elif hasattr(key, 'sign'):
+            return key
+        else:
+            return c.key(key)
 
     def encrypt_all(self, key: str=None) -> list:
         """
