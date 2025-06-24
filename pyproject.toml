@@ -3,6 +3,7 @@ name = "commune"
 dynamic = ["version"]
 description = "Global toolbox that allows you to connect and share any tool (module)"
 license = "MIT"
+license-files = ["LICENCE*"]
 readme = "README.md"
 requires-python = ">= 3.8, < 3.13"
 dependencies = [
@@ -38,7 +39,7 @@ dependencies = [
     "py-sr25519-bindings>=0.2.0",
     "py-ed25519-zebra-bindings>=1.0",
     "py-bip39-bindings>=0.1.9",
-    "psutil>=7.0.0"
+    "psutil>=7.0.0",
 ]
 keywords = ["modular", "sdk", "machine learning", "deep-learning", "crypto"]
 classifiers = [
@@ -51,6 +52,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
 ]
 
 [[project.authors]]
@@ -71,15 +73,12 @@ Repository = "https://github.com/commune-ai/commune"
 Issues = "https://github.com/commune-ai/commune/issues"
 
 [project.optional-dependencies]
-all = [
-    "commune[quality]",
-    "commune[testing]",
-]
+all = ["commune[quality]", "commune[testing]"]
 quality = [
-    "black==22.3",  # Compatible with Python 3.8+
+    "black==22.3",   # Compatible with Python 3.8+
     "click==8.0.4",
     "isort>=5.5.4",
-    "flake8>=3.8.3"
+    "flake8>=3.8.3",
 ]
 testing = [
     "setuptools_rust>=1.5.2",
@@ -92,7 +91,7 @@ testing = [
 c = "commune:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "commune.__version__"} 
+version = { attr = "commune.__version__" }
 
 
 [tool.mypy]
