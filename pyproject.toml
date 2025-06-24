@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">= 3.8, < 3.13"
 dependencies = [
     "fastapi>=0.115.13",
-    "sse-starlette>=2.3.6",
+    "sse-starlette>=2.1,<2.3.7",
     "paramiko>=3.5.1",
     "nest_asyncio>=1.6.0",
     "uvicorn>=0.34.3",
