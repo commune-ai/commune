@@ -1,0 +1,39 @@
+name: Python
+
+on:
+  pull_request:
+
+jobs:
+  build_and_test:
+    name: Check everything builds & tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-13, windows-latest]
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.version.python }}
+          architecture: ${{ matrix.version.arch }}
+
+      - name: Install
+        run: |
+          pip install -U pip
+          pip install .
+
+      - name: Check style
+        run: |
+          pip install .[quality]
+          black --check --line-length 80 --target-version py35 commune
+
+      - name: Run tests
+        run: |
+          pip install .[testing]
+          pytest -sv tests/
