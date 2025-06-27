@@ -8,8 +8,8 @@
 <p align="center">
     <a href="https://github.com/commune-ai/commune/blob/main/LICENCE.md"><img alt="GitHub" src="https://img.shields.io/badge/licence-MIT Licence-blue"></a>
     <!-- Uncomment when release to pypi -->
-    <!-- <a href="https://pypi.org/project/safelz4/"><img alt="PyPI" src="https://img.shields.io/pypi/v/commai"></a> -->
-    <img alt="Python Version" src="https://img.shields.io/pypi/pyversions/commai?logo=python">
+    <a href="https://pypi.org/project/commune/"><img alt="PyPI" src="https://img.shields.io/pypi/v/commune"></a>
+    <a href="https://pypi.org/project/commune/"><img alt="Python Version" src="https://img.shields.io/pypi/pyversions/commune?logo=python"></a>
 </p>
 
 
