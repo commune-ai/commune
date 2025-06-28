@@ -28,7 +28,6 @@ import hmac
 import copy
 from Crypto import Random
 import hashlib
-from Crypto.Cipher import AES
 import copy
 import base64
 import struct
@@ -67,9 +66,9 @@ class Key:
                  storage_path = None,
                  **kwargs): 
         
-        self.set_private_key(private_key=private_key, crypto_type=crypto_type, mnemonic=mnemonic, **kwargs)
+        self.set_key(private_key=private_key, crypto_type=crypto_type, mnemonic=mnemonic, **kwargs)
 
-    def set_private_key(self, private_key: Union[bytes, str] ,  crypto_type: int , mnemonic:Optional[str] = None, **kwargs):
+    def set_key(self, private_key: Union[bytes, str] ,  crypto_type: int , mnemonic:Optional[str] = None, **kwargs):
         """
         Allows generation of Keys from a variety of input combination, such as a public/private key combination,
         mnemonic or URI containing soft and hard derivation paths. With these Keys data can be signed and verified
@@ -138,11 +137,6 @@ class Key:
         else: 
             raise ValueError(f'crypto_type {crypto_type} not supported')
         return crypto_type
-
-    @property
-    def shorty(self):
-        n = 4
-        return self.key_address[:n] + '...' + self.key_address[-n:]
         
     def valid_ss58_address(self, address):
         return is_valid_ss58_address(address)
@@ -568,46 +562,18 @@ class Key:
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
 
-    def data2str(self, data: Union[ScaleBytes, bytes, str]) -> str:
-        if not isinstance(data, str):
-            data = json.dumps(data)
-        return data
-
-    def str2data(self, data: Union[ScaleBytes, bytes, str]) -> Union[ScaleBytes, bytes, str]:
-        if isinstance(data, str):
-            try:
-                data = json.loads(data)
-            except json.JSONDecodeError:
-                pass
-        return data
-
     def encrypt(self, data, password=None, key=None):
-        password = self.get_password(password=password, key=key)  
-        data = self.data2str(data)
-        assert isinstance(data, str), f'data should be a string, got {type(data)}'
-        data = data + (AES.block_size - len(data) % AES.block_size) * chr(AES.block_size - len(data) % AES.block_size)
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(password, AES.MODE_CBC, iv)
-        encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
-        return encrypted_bytes.decode() 
+        return self.get_encryption_key(password=password, key=key).encrypt(data)
 
     def decrypt(self, data, password=None, key=None):  
-        password = self.get_password(password=password, key=key)  
-        data = base64.b64decode(data)
-        iv = data[:AES.block_size]
-        cipher = AES.new(password, AES.MODE_CBC, iv)
-        data =  cipher.decrypt(data[AES.block_size:])
-        data = data[:-ord(data[len(data)-1:])].decode('utf-8')
-        data = self.str2data(data)
-        return data
+        return self.get_encryption_key(password=password, key=key).decrypt(data)
 
-    def get_password(self,  password:str=None, key:Optional[str]=None,):
+    def get_encryption_key(self,  password:str=None, key:Optional[str]=None):
+        from .aes import AesKey
         if password == None:
             password = (self if key == None else self.get_key(key)).private_key
-        if isinstance(password, str):
-            password = password.encode()
         # if password is a key, use the key's private key as password
-        return hashlib.sha256(password).digest()
+        return AesKey(password)
 
     def encrypt_key(self, path = 'test.enc', key=None, crypto_type=None,  password=None):
         assert self.key_exists(path), f'file {path} does not exist'

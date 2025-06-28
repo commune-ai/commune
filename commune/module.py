@@ -1666,16 +1666,8 @@ class Module:
     def serve(self, module:str = 'module', port:int=None, **kwargs):
         return self.fn('pm/serve')(module=module, port=port, **kwargs)
 
-    def app(self,
-           module:str = 'agent', 
-           name : Optional[str] = None,
-           port:int=None):
-        name = name or module
-        port = port or self.free_port()
-        if self.module_exists(module + '.app'):
-            module = module + '.app'
-        module_class = self.module(module)
-        return self.cmd(f'streamlit run {self.filepath(module_class)} --server.port {port}')
+    def app(self):
+        os.system(f'cd {self.dp("app")} && c serve api port=8000 free_mode=1 ; docker compose up')
     
     def sync_utils(self, verbose=False):
 
