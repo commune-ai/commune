@@ -14,7 +14,7 @@ services:
     #   - "8000:8000"
     shm_size: 4g
     volumes:
-      - .:/app
+      - .:/root/commune
       - ~/.commune:/root/.commune
       - /var/run/docker.sock:/var/run/docker.sock
     environment:

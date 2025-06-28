@@ -59,7 +59,7 @@ class TestStore:
             self.store.rm(path)
 
 
-    def test_private(self, data={'test': "test", 'fam': 1, "bro": [1,'fam'] }, key='test_key'):
+    def test_private(self, data={'test': "test", 'fam': 1, "bro": [1,"fam"] }, key='test_key'):
         """
         Test the private store
         """
@@ -73,7 +73,7 @@ class TestStore:
             store.put(path, value)
         # assert all([store.is_encrypted(path) for path in data.keys()]), f'Failed to encrypt all {data.keys()}'
         for path, value in data.items():
-            print(store.get(path))
-            assert  store.get(path) == value, f'Failed to get {path}, {store.get(path)} != {value}'
+            new_value = store.get(path)
+            assert  new_value == value, f'Failed to get {path}, {new_value} ({type(new_value)}) != {value} ({type(value)})'
         store.rm_all()
         return {'success': True, 'msg': 'Passed all tests in private store'}        

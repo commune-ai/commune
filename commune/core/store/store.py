@@ -98,8 +98,7 @@ class Store:
             key = self.get_key(key)
             try:
                 data = key.decrypt(data["encrypted_data"])
-            except Exception as e:
-                print(f'Failed to decrypt {path} with key {key}. Error: {e}')
+            except:
                 return default
             return data
 
@@ -429,7 +428,7 @@ class Store:
 
     def get_key(self, key: str=None) -> str:
         if key == None and hasattr(self, 'key'):
-            key = self.key
+            return self.key
         elif hasattr(key, 'sign'):
             return key
         else:

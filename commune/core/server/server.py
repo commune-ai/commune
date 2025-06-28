@@ -136,7 +136,7 @@ class Server:
             
             if not self.free_mode:
                 server_headers = self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key)
-                self.tx.forward(
+                tx = self.tx.forward(
                     module=self.name,
                     fn=fn, # 
                     params=params, # params of the inputes
@@ -145,6 +145,7 @@ class Server:
                     client=headers,
                     server=server_headers,
                 )
+                print(tx)
         return result
 
 

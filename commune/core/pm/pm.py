@@ -27,9 +27,6 @@ class PM:
     def __init__(self):
         pass
 
-
-
-
     def serve(self, module='api', 
                 image='commune:latest', 
                 cwd='/app', port=None, 
@@ -56,7 +53,7 @@ class PM:
         dirpath = c.dirpath(module)
         params = {
             'name': name, 'image': image,'port': port,'cmd': cmd,'cwd': cwd, 'daemon': daemon,
-            'volumes': { self.path:'/root/commune', dirpath: '/app'},
+            'volumes': { self.path:'/root/commune'}
         }
         if include_storage :
             params['volumes'][c.storage_path] = '/root/.commune'
@@ -283,8 +280,8 @@ class PM:
         
         command_str = ' '.join(up_cmd)
         
-        c.cmd(command_str, verbose=verbose)
-        return {'status': 'success', 'name': name, 'image': image, 'command': command_str, 'compose_file': compose_file}
+        c.cmd(command_str, verbose=True)
+        return {'status': 'success', 'name': name, 'image': image, 'command': command_str, 'compose_file': compose_file, 'volumes': volumes, 'ports': ports}
 
 
     def enter(self, contianer): 

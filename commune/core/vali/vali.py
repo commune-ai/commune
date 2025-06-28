@@ -145,7 +145,6 @@ class Vali:
         self.verify_proof(module) # verify the proof
         path = self.get_module_path(module['key'])
         c.put_json(path, module)
-        print(f'FORWARD RESULT --> {module}')
         return module
 
     def get_module_path(self, module:str):
@@ -177,7 +176,6 @@ class Vali:
                 futures.append(future)
             try:
                 batch_results = c.wait(futures, timeout=self.timeout)
-                print(batch_results)
                 results.extend(batch_results)
             except TimeoutError as e:
                 print(f'Timeout in batch {i} for module {future2module[future]}')

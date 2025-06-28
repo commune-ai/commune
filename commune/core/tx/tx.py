@@ -22,10 +22,10 @@ def transform_params(params):
 class Tx:
 
     def __init__(self, 
-                tx_path = '~/.commune/cli/tx' , 
+                tx_path = '~/.commune/server/tx' , 
                 serializer='serializer',
                 auth = 'auth',
-                private = True,
+                private = False,
                 roles = ['client', 'server'],
                 tx_schema = {
                     'module': str,
@@ -50,7 +50,7 @@ class Tx:
         self.roles = roles
 
 
-    def create_tx(self, 
+    def forward(self, 
                  module:str = 'module', 
                  fn:str = 'forward', 
                  params:dict = {}, 
@@ -90,11 +90,12 @@ class Tx:
         tx['hash'] = c.hash(tx) # the hash of the transaction (str)
         assert self.verify(tx)
         tx_path = f'{tx["module"]}/{tx["fn"]}/{tx["hash"]}'
+        print('tx_path --> ' + tx_path)
         self.store.put(tx_path, tx)
-
+ 
         return tx
 
-    forward = create = tx = create_tx
+    create_tx = create = tx = forward
 
     def verify_tx(self, tx):
         """
