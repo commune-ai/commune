@@ -10,7 +10,7 @@ class Task:
         mod = self.mod(mod)
         params = params or {}
         result =  getattr(module, fn)(**params)
-        score = 1 if if 'url' in result else 0
+        score = 1 if 'url' in result else 0
         return score
 
     def mod(self, mod_name):

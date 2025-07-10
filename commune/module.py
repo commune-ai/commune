@@ -22,7 +22,6 @@ class Module:
                 port_range = [50050, 50150],
                 endpoints = ['forward', 'info'],
                 shortcuts = {
-                    'hype': 'hyperliquid',
                     "or" : "model.openrouter",
                     "wallet": "chain.wallet",
                     "r" :  "remote",
@@ -32,6 +31,7 @@ class Module:
                     "serv": "server", 
                     "tweet": "x",
                     "d": "pm.docker",
+                    # 'api': 'app.api',
                     "openrouter": "model.openrouter"
 
                 },
@@ -167,6 +167,13 @@ class Module:
     def path(self, obj=None) -> str:
         return inspect.getfile(self.mod(obj))
 
+    def about(self, module, query='what is this?', *extra_query):
+        """
+        Ask a question about the module
+        """
+        query = query + ' '.join(extra_query)
+        return self.ask(f' {self.schema(module)} {query}')
+
     def abspath(self,path:str=''):
         return os.path.abspath(os.path.expanduser(path))
 
@@ -199,12 +206,11 @@ class Module:
                 dirpath =  os.path.dirname(filepath)
             else: 
                 dirpath = self.modules_path + '/' + module.replace('.', '/')
-            
-            if dirpath.split('s/')[-1] == dirpath.split('/')[-2]:
-                dirpath = '/'.join(dirpath.split('/')[:-1])
             src_tag =  module + '/src' 
             if src_tag in dirpath:
                 dirpath = dirpath.split(src_tag)[0] + module
+            if dirpath.endswith('/src'):
+                dirpath = dirpath[:-4]  # remove the trailing /src
             return dirpath
 
     dp = dirpath
@@ -338,6 +344,7 @@ class Module:
     def is_module_file(self, module = None, exts=['py', 'rs', 'ts'], folder_filenames=['module', 'agent', 'block',  'server']) -> bool:
         dirpath = self.dirpath(module)
         filepath = self.filepath(module)
+        folder_filenames.append(module.split('.')[-1]) # add the last part of the module name to the folder filenames
         for ext in exts:
             for fn in folder_filenames:
                 if filepath.endswith(f'/{fn}.{ext}'):
@@ -882,6 +889,9 @@ class Module:
     def code_hash_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
         return {k:self.hash(str(v)) for k,v in self.code_map(module=module, search=search,**kwargs).items()}
 
+    def code_file_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
+        return list(self.code_map(module=module, search=search,**kwargs).keys())
+
     def cid(self, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return self.hash(self.code_hash_map(module=module, search=search,**kwargs))
 
@@ -973,6 +983,8 @@ class Module:
     def get_modules(self, search=None, **kwargs):
         return self.modules(search=search, **kwargs)
 
+    
+
     def core_modules(self) -> List[str]:
         return list(self.core_tree().keys())
 
@@ -1042,6 +1054,10 @@ class Module:
         '''
         fn = self.fn(fn)
         return isinstance(fn, property)
+
+    def sand(self):
+        import commune as c
+        return c.wait( [c.submit(c.call, ['module']) for i in range(5)])
     
     _executors = {}
     def submit(self, 
@@ -1666,8 +1682,8 @@ class Module:
     def serve(self, module:str = 'module', port:int=None, **kwargs):
         return self.fn('pm/serve')(module=module, port=port, **kwargs)
 
-    def app(self):
-        os.system(f'cd {self.dp("app")} && c serve api port=8000 free_mode=1 ; docker compose up')
+    # def app(self):
+    #     os.system(f'cd {self.dp("app")} && c serve api port=8000 free_mode=1 ; docker compose up -d')
     
     def sync_utils(self, verbose=False):
 

@@ -18,18 +18,18 @@ class PM:
     """
     A module for interacting with Docker.
     """
+
     default_shm_size = '100g'
     default_network = 'host'
     image = 'commune:latest'
-    path = os.path.expanduser('~/commune')
+    path = c.lib_path
     modules_path = c.modules_path
 
-    def __init__(self):
-        pass
 
     def serve(self, module='api', 
                 image='commune:latest', 
-                cwd='/app', port=None, 
+                cwd='/app', 
+                port=None, 
                 daemon=True, 
                 d = None,
                 name = None,
@@ -39,7 +39,7 @@ class PM:
         module = module or 'module'
         port = port or c.free_port()
         fn = 'server/serve'
-        params['remote'] = 0
+        # params['remote'] = 0
         params['port'] = port
         params_cmd = self.params2cmd(params)
         cmd = f"c server/serve {module} {params_cmd}"
@@ -50,16 +50,23 @@ class PM:
             module = module.split('::')[0]
         name = name or module
         
-        dirpath = c.dirpath(module)
         params = {
-            'name': name, 'image': image,'port': port,'cmd': cmd,'cwd': cwd, 'daemon': daemon,
-            'volumes': { self.path:'/root/commune'}
+            'name': name, 
+            'image': image, 
+            'port': port,
+            'cmd': cmd,
+            'cwd': cwd, 
+            'daemon': daemon,
         }
+        dirpath = c.dirpath(module)
+        volumes = {self.path: '/root/' + self.path.split('/')[-1]}
+        pwd = os.getcwd()
+        if pwd != self.path:
+            volumes[pwd] = dirpath
+        params['volumes'] = volumes
         if include_storage :
             params['volumes'][c.storage_path] = '/root/.commune'
         return self.run(**params)
-
-
 
     def process2name(self, container):
         return container.replace('__', '::')
@@ -143,7 +150,7 @@ class PM:
             cmd: str = "tail -f /dev/null",
             volumes: Dict = None,
             gpus: Union[List, str, bool] = False,
-            shm_size: str = '100g',
+            shm_size: str = '5gb',
             sudo: bool = False,
             build: bool = False,
             net: Optional = None,  # 'host', 'bridge', etc.
@@ -153,7 +160,7 @@ class PM:
             cwd: Optional = None,
             env: Optional[Dict] = None,
             compose_file: str = '~/.commune/pm/docker-compose.yml',
-            restart: str = 'unless-stopped',
+            restart: str = 'always',
             verbose = False
             ) -> Dict:
         """
@@ -193,7 +200,7 @@ class PM:
             
             if isinstance(gpus, list):
                 for gpu in gpus:
-                    service_config['deploy']['resources']['reservations']['devices'].append({
+                    service_config['ddeploy']['resources']['reservations']['devices'].append({
                         'driver': 'nvidia',
                         'device_ids': gpus,
                         'capabilities': ['gpu']
@@ -218,9 +225,9 @@ class PM:
                     'capabilities': ['gpu']
                 })
         
-        # Configure shared memory
-        if shm_size:
-            service_config['shm_size'] = shm_size
+        # # Configure shared memory
+        # if shm_size:
+        #     service_config['shm_size'] = shm_size
         
         # Handle port mappings
         if port:
@@ -280,8 +287,8 @@ class PM:
         
         command_str = ' '.join(up_cmd)
         
-        c.cmd(command_str, verbose=True)
-        return {'status': 'success', 'name': name, 'image': image, 'command': command_str, 'compose_file': compose_file, 'volumes': volumes, 'ports': ports}
+        
+        return c.cmd(command_str, verbose=True)
 
 
     def enter(self, contianer): 
@@ -300,7 +307,22 @@ class PM:
             bool: True if the container exists, False otherwise.
         """
         return name in self.servers()
-        
+
+
+    def container2id(self, name: str=None) -> dict:
+        container2id = {}
+        for container in self.servers():
+            container_name = self.name2process(container)
+            cmd = f'docker inspect -f "{{{{.Id}}}}" {container_name}'
+            try:
+                container_id = c.cmd(cmd)
+                container2id[container] = container_id
+            except Exception as e:
+                c.print(f"Error getting ID for {container}: {e}", color='red')
+        if name:
+            return container2id.get(name)
+        return container2id
+
     def kill(self, name: str, sudo: bool = False, verbose: bool = True, prune: bool = False) -> Dict[str, str]:
         """
         Kill and remove a container.
@@ -377,7 +399,8 @@ class PM:
     def logs(self,
              name: str,
              sudo: bool = False,
-             follow: bool = False, f = None,
+             follow: bool = True, 
+             f = None,
              verbose: bool = False,
              tail: int = 100,
              since: Optional[str] = None) -> str:
@@ -667,7 +690,7 @@ class PM:
         Args:
             name (str): The name of the container.
 
-        Returns:
+        Returndef s:
             Dict[str, str]: Result of the operation.
         """
         try:

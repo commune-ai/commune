@@ -55,7 +55,6 @@ class Auth:
         time_now = time.time()
         crypto_type = headers.get('crypto_type', self.crypto_type)
         signature_keys = headers.get('signature_keys', self.signature_keys)
-
         staleness = abs(time_now - float(headers['time']))
         assert staleness < self.max_staleness, f'Token is stale {staleness} > {self.max_staleness}'
         assert 'signature' in headers, 'Missing signature'
@@ -99,7 +98,6 @@ class Auth:
             key = c.get_key(key, crypto_type=crypto_type)
         assert hasattr(key, 'key_address'), f'Invalid key {key}'
         return key
-
 
     def test(self, key='test.auth', crypto_type='sr25519'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}

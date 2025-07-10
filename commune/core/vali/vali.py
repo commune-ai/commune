@@ -184,6 +184,7 @@ class Vali:
         self.epoch_time = c.time()
         self.vote(results)
         if len(results) > 0:
+            df = c.df(results)
             return c.df(results)[result_features].sort_values(by='score', ascending=False)
         else:
             epoch_info = {

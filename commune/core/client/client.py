@@ -9,21 +9,15 @@ import commune as c
 
 class Client:
     def __init__( self,  
-                 url : str = 'module',  
+                url: Optional[str] = None,  # the url of the commune server
                  key : Optional[str]= None,  
-                 network: Optional[bool] = 'local', 
                  auth = 'auth',
-                 mode='http',
                  storage_path = '~/.commune/client',
                  **kwargs):
+        self.url = url
         self.auth = c.mod(auth)()
         self.key  = c.get_key(key)
-        self.url = url
         self.store = c.mod('store')(storage_path)
-
-    def info(self, url=None):
-        url = self.get_url(url or self.url)
-        
 
     def forward(self, 
                 fn  = 'info', 
@@ -35,29 +29,36 @@ class Client:
                 timeout:int=2,  # the timeout for the request
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
+                url = None,
                 stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
-        
+
+
+        # step 1: get the url and fn
         if '/' in str(fn):
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-        else :
-            url = self.url
-            fn = str(fn)
-
+        else: 
+            if self.url == None:
+                url = fn
+                fn = 'info'
+            else: 
+                url = self.url
         url = self.get_url(url, mode=mode)
 
-        info = self.info(url)
+        # step 2 : get the key
+        key = self.get_key(key)
 
-        key = self.get_key(key) # step 1: get the key
-        
-        params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs) # step 3: get the params
+        # step 3: get the params
+        params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
 
-        headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key) # step 4: get the headers
+        # step 4: get the headers  
+        headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key)
+        # step 5: make the request
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
 
-        ## handle the response
+        # step 6: handle the response
         if response.status_code != 200:
             raise Exception(response.text)
         if 'text/event-stream' in response.headers.get('Content-Type', ''):
@@ -74,8 +75,7 @@ class Client:
         return result
     
     def get_key(self,key=None):
-        if key == None:
-            return self.key
+        key = key or  self.key
         if isinstance(key, str):
             key = c.get_key(key)
         return key
@@ -109,35 +109,12 @@ class Client:
         else:
             if not hasattr(self, 'namespace'):
                 self.namespace = c.namespace()
-            if not url in self.namespace:
-                self.namespace = c.namespace(update=True)
             url = self.namespace.get(str(url), url)
         if not url.startswith(mode):
             url = f'{mode}://{url}'
         return url
 
-
-    @classmethod
-    def call(cls, 
-                fn:str = 'module/info',
-                *args,
-                params = None,
-                module : str = None,
-                network:str = 'local',
-                key: Optional[str] = None, # defaults to module key (c.default_key)
-                timeout=40,
-                **kwargs) -> None:
-        fn = str(fn)
-        if '/' in fn and not '//' in fn:
-            module, fn = '.'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-        else:
-            module, fn = fn, 'info'
-        kwargs.update(params or {}) 
-        return cls(url=module, network=network).forward(fn=fn, 
-                                                            params={'args': args, 'kwargs': kwargs},
-                                                            timeout=timeout, 
-                                                            key=key)
-
+    call = forward
     def stream(self, response):
         def process_stream_line(line , stream_prefix = 'data: '):
             event_data = line.decode('utf-8')
@@ -166,26 +143,20 @@ class Client:
         conds.append(c.is_int(url.split(':')[-1]))
         return all(conds)
 
-
     def client(self, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
         """
         Create a client instance.
         """
         class ClientVirtual:
-            def __init__(self, client):
-                self.client = client
+            def __init__(self, module):
+                self.client = Client()
             def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
-                return self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
+                return self.client.forward(fn=module + '/' +remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
             def __getattr__(self, key):
                 if key in [ 'client', 'remote_call'] :
                     return getattr(self, key)
                 else:
                     return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
-        client = Client(url=module)
-        return ClientVirtual(client) if virtual else client
+        return ClientVirtual(module) if virtual else Client(module)
 
-    def connect(self, module:str, **kwargs):
-        """
-        Connect to a module and return a client instance.
-        """
-        return self.client(module, **kwargs)
+    conn = connect = client # alias for client method

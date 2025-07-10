@@ -73,7 +73,6 @@ class Server:
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
 
-    @property
     def info(self):
         info  = {   
             "name": self.name,
@@ -103,9 +102,6 @@ class Server:
             args = []
             kwargs = dict(params)
         return  {"args": args, "kwargs": kwargs}
-
-
-
     
 
     def forward(self, fn:str, request: Request):
@@ -117,6 +113,7 @@ class Server:
         fn_obj = getattr(self.module, fn)
         
         # get the result
+        print('Request(fn={fn}, params={params}, headers={headers})'.format(fn=fn, params=params, headers=headers), color='blue', verbose=self.verbose)
         if callable(fn_obj):
             result = fn_obj(*params['args'], **params['kwargs']) # call the fn
         else:
@@ -133,9 +130,10 @@ class Server:
         else:
 
             # save the transaction between the headers and server for future auditing
+        
+            server_headers = self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key)
             
-            if not self.free_mode:
-                server_headers = self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key)
+            try:
                 tx = self.tx.forward(
                     module=self.name,
                     fn=fn, # 
@@ -144,8 +142,9 @@ class Server:
                     schema=self.schema.get(fn, {}), # schema of the fn
                     client=headers,
                     server=server_headers,
-                )
-                print(tx)
+                    )
+            except Exception as e:
+                print('Error occurred while forwarding transaction:', e)
         return result
 
 
@@ -497,8 +496,8 @@ class Server:
         self.set_fns(fns) 
         self.set_port(port)
         self.free_mode = bool(free_mode)
-        self.module.info = self.info
         self.auth = c.mod(auth)()
+        self.module.info = self.info()
         self.loop = asyncio.get_event_loop() # get the event loop
 
         app = FastAPI()
@@ -523,3 +522,24 @@ class Server:
         return {'success':True, 'message':f'Set module to {self.name}'}
 
 
+
+    def test_server(self, server, n=4, period=0.1, timeout=20):
+        print(f'Testing server {server} with {n} iterations and period {period}', color='blue')
+        futures = []
+        for i in range(n):
+            print(f'Testing {server} with {i}', color='blue')
+            futures.append(c.submit(c.call, [server + '/info'], timeout=timeout, mode='thread'))
+
+        progress = c.tqdm(futures, desc=f"Testing {server}", total=n)
+        results = []
+        for future in c.as_completed(futures, timeout=timeout):
+            try:
+                result = future.result()
+                results.append(result)
+                progress.update(1)
+                print(f'Result from {server}: {c.hash(result)}', color='green')
+            except Exception as e:
+                print(f'Error: {c.detailed_error(e)}', color='red')
+                results.append({'error': str(e)})
+            c.sleep(period)
+        return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
