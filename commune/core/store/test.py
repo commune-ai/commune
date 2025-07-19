@@ -57,6 +57,8 @@ class TestStore:
         assert all([not self.store.is_encrypted(path) for path in path2data.keys()]), f'Failed to decrypt all {path2data.keys()}'
         for path in path2data.keys():
             self.store.rm(path)
+        assert not self.store.exists(path), f'Failed to delete {path}'
+        return {'success': True, 'msg': 'Passed all tests in encrypt_all'}
 
 
     def test_private(self, data={'test': "test", 'fam': 1, "bro": [1,"fam"] }, key='test_key'):

@@ -1,6 +1,9 @@
     
 import commune as c
 class Test(c.Module):
+    description = """
+    i test stuff
+    """
     def forward(self, module=None, timeout=50, modules=[ 'server', 'vali','key', 'chain']):
         """
         Test the module 

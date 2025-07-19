@@ -1117,35 +1117,31 @@ class Chain:
         return subnet
 
     def get_balances(
-        self, key_addresses=None, extract_value: bool = False, block_hash: str = None
+        self, addresses=None,
+        extract_value: bool = False, 
+        block_hash: str = None,
+        threads = 8,
+        timeout= 120
+
     ) -> dict[str, dict[str, int ]]:
         """
         Retrieves a mapping of account balances within the network.
         """
-        key_addresses = key_addresses or list(c.key2address().values())
-        with self.get_conn(init=True) as substrate:
-            storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in key_addresses if not ka.startswith('0x')]
-            balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
-        return balances
-    
-    def my_balance(self, batch_size=32, timeout=120, max_age=None, update=False, num_connections=8):
 
-
-        path = self.get_path(f'{self.network}/my_balance')
-        balances = c.get(path, None, update=update, max_age=max_age)
-        if balances == None:
-            self.set_connections(num_connections)
-            key2address = c.key2address()
-            addresses = list(key2address.values())
-            batched_addresses = [addresses[i:i + batch_size] for i in range(0, len(addresses), batch_size)]
+        if threads > 1:        
+            self.set_connections(threads)
+            from concurrent.futures import ThreadPoolExecutor
             hash2batch = {}
             future2hash = {}
             n = len(addresses)
+            batch_size = n // threads + 1
+            batched_addresses = [addresses[i:i + batch_size] for i in range(0, n, batch_size)]
             print(f'Getting baances for {n } addresses in {len(batched_addresses)} batches')
             for batch in batched_addresses:
+                print(f'Batch: {batch}')
                 batch_hash : str = c.hash(batch)
                 hash2batch[batch_hash] = batch
-                f =  c.submit(self.get_balances, dict(key_addresses=batch), timeout=timeout, mode='thread')
+                f =  c.submit(self.get_balances, dict(addresses=batch, threads=1), timeout=timeout, mode='thread')
                 future2hash[f] = batch_hash
             balances = {}
             progress_bar = c.tqdm(total=n, desc='Getting Balances')
@@ -1160,6 +1156,24 @@ class Chain:
                         # c.print(f'Balance for {address}: {balance} ({counter}/{len(addresses)})')
                 except Exception as e:
                     print(e)
+                    c.print(f'Error getting balances for batch {batch_hash}: {e}', color='red')
+            progress_bar.close()
+            return balances
+        else:
+
+            addresses = addresses or list(c.key2address().values())
+            with self.get_conn(init=True) as substrate:
+                storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in addresses if not ka.startswith('0x')]
+                balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
+            return balances
+    
+    def my_balance(self,  max_age=None, update=False, **kwargs):
+        path = self.get_path(f'{self.network}/my_balance')
+        balances = c.get(path, None, update=update, max_age=max_age)
+        if balances == None:
+            key2address = c.key2address()
+            addresses = list(key2address.values())
+            balances = self.get_balances(addresses=addresses, **kwargs)
             address2key = c.address2key()
             balances = {address2key.get(k, k):v for k,v in balances.items()}
             c.put(path, balances)    

@@ -50,7 +50,7 @@ class Server:
         auth = 'auth', # the auth for the server,
         private = True, # whether the store is private or not
         middleware = 'server.middleware', # the middleware for the server
-        role2rate = {'admin': 100000000, 'owner': 10000000, 'local': 1000000, 'public': 100}, # the rate for each role,
+        role2rate = {'admin': 1000, 'owner': 1000, 'local': 10, 'public': 0}, # the rate for each role,
         admin_roles:List[str] = ['admin', 'owner'], # the roles that can call any fn
 
         # PROCESS MANAGER
@@ -92,32 +92,15 @@ class Server:
         names = [module+str(i) for i in range(n)]
         return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
 
-    def get_params(self, request: Request):
-        params = self.loop.run_until_complete(request.json())
-        params = json.loads(params) if isinstance(params, str) else params
-        if len(params) == 2 and 'args' in params and 'kwargs' in params :
-            kwargs = dict(params.get('kwargs')) 
-            args = list(params.get('args'))
-        else:
-            args = []
-            kwargs = dict(params)
-        return  {"args": args, "kwargs": kwargs}
-    
 
     def forward(self, fn:str, request: Request):
+        request = self.get_request(fn, request) # get the request
 
-        params = self.get_params(request)
-        headers = dict(request.headers)
+        fn = request['fn'] # get the function name
+        params = request['params'] # get the params
 
-        self.check_call(fn, params, headers) # check the user and the fn
-        fn_obj = getattr(self.module, fn)
-        
-        # get the result
-        print('Request(fn={fn}, params={params}, headers={headers})'.format(fn=fn, params=params, headers=headers), color='blue', verbose=self.verbose)
-        if callable(fn_obj):
-            result = fn_obj(*params['args'], **params['kwargs']) # call the fn
-        else:
-            result = fn_obj # if not callable, just return the object
+        fn_obj = getattr(self.module, fn) # get the function object from the module
+        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
 
         # if the result is a generator, wrap it in an EventSourceResponse (SSE) for streaming
         if c.is_generator(result):
@@ -130,18 +113,16 @@ class Server:
         else:
 
             # save the transaction between the headers and server for future auditing
-        
-            server_headers = self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key)
-            
+            result = self.serializer.forward(result) # serialize the result
             try:
                 tx = self.tx.forward(
                     module=self.name,
-                    fn=fn, # 
-                    params=params, # params of the inputes
-                    result=self.serializer.forward(result),
+                    fn=request['fn'], # 
+                    params=request['params'], # params of the inputes
+                    result=result,
                     schema=self.schema.get(fn, {}), # schema of the fn
-                    client=headers,
-                    server=server_headers,
+                    client=request['client'],
+                    server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key),
                     )
             except Exception as e:
                 print('Error occurred while forwarding transaction:', e)
@@ -216,7 +197,6 @@ class Server:
         return {'success':True, 'message':f'Set port to {port}'}
 
 
-
     def servers(self, search=None,  **kwargs) -> List[str]:
         return self.pm.servers(search=search,  **kwargs)
 
@@ -266,7 +246,8 @@ class Server:
         """check if the server exists"""
         return bool(name in self.servers(**kwargs))
 
-    def rate(self, user:str, # the key to rate
+    def call_count(self, user:str, # the key to rate
+            fn = 'info', # the function to rate
              max_age:int = 60, # the maximum age of the rate
              update:bool = False, # whether to update the rate
              module = None, # the module to rate on
@@ -275,7 +256,7 @@ class Server:
             module = self.name
         if '/' in user:
             module, user = user.split('/')
-        path = f'results/{module}/{user}'
+        path = f'results/{module}/{fn}/{user}'
         return len( self.store.paths(path)) 
 
 
@@ -284,6 +265,8 @@ class Server:
         get the role of the address ( admin, owner, local, public)
         """
         assert not self.is_blacklisted(user), f"Address {user} is blacklisted"
+
+        role = 'public'
 
         if c.is_admin(user):
             # can call any fn
@@ -300,31 +283,55 @@ class Server:
             if not hasattr(self, 'address2key'):
                 self.address2key = c.address2key()
             
-            elif user in self.address2key:
+            if user in self.address2key:
                 role =  'local'
             else:
-                # this is a public address that is not in any of the roles
-                role = 'public'
-        
+                role = 'public' # default role is public
+
         return role
 
-    def check_call(self, fn:str, params:dict, headers:dict) -> float:
-        if self.free_mode:
-            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
-            rate = 1
-        else:
-            headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
-            rate = self.rate(headers['key']) * self.fn2cost.get(fn, 1)
-            role = self.role(headers['key'])
-            rate_limit = self.role2rate.get(role) # admin and owner can call any fn
-            if role not in ['admin', 'owner']:
-                rate_limit = self.role2rate.get(role, 1000)
-                assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
-                network_rate_limit = self.network_rate(user=headers['key'], network=self.network)
-                rate_limit = max(rate , rate_limit)
-            assert rate < rate_limit, f'RateLimitExceeded({rate} > {rate_limit}) for user={headers}, fn={fn}, params={params}'
+    def get_request(self, fn:str, request) -> float:
 
-        return rate
+
+        # params
+        params = self.loop.run_until_complete(request.json())
+        params = json.loads(params) if isinstance(params, str) else params
+        if len(params) == 2 and 'args' in params and 'kwargs' in params :
+            kwargs = dict(params.get('kwargs')) 
+            args = list(params.get('args'))
+        else:
+            args = []
+            kwargs = dict(params)
+        params =  {"args": args, "kwargs": kwargs}
+
+        # headers
+        headers = dict(request.headers)
+        headers['key'] = self.key.key_address if 'key' not in headers else headers['key'] # set the key to the key address
+
+        role = 'public'
+        # only valid if the signature is in the headers
+        if 'signature' in headers:
+            headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
+            call_count = self.call_count(user=headers['key'], fn=fn)
+            role = self.role(headers['key']) # get the role of the user
+            role_rate_limit = self.role2rate.get(role, 0) # admin and owner can call any fn
+            key_address_rate_limit = self.role2rate.get(headers['key'], 0) # rate limit for the key address
+            rate_limit = max(role_rate_limit, key_address_rate_limit) # the rate limit for the user
+            if role not in ['admin', 'owner']:
+                assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
+                rate_limit = max(self.network_rate(user=headers['key'], network=self.network) , rate_limit)
+            assert call_count < rate_limit, f'RateLimitExceeded({call_count} > {rate_limit}))'
+
+
+        if self.free_mode and role not in self.admin_roles:
+
+            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
+        else:
+            assert 'signature' in headers, f"Signature not found in headers. Headers={headers} fn={fn} params={params}"
+        
+        print('Call(fn={fn}, params={params}, key={key} )'.format(fn=fn, params=params["kwargs"], key=headers['key']))
+
+        return {'fn': fn, 'params': params, 'client': headers}
 
     def roles(self, max_age:int = 60, update:bool = False):
         """
@@ -470,17 +477,21 @@ class Server:
               key = None, # the key for the server
               free_mode:bool = False, # whether the server is in free mode or not
               cwd = None,
+              remote = False,
               auth = 'auth',
               serializer = 'serializer',
               **extra_params
               ):
 
+        params = {**(params or {}), **extra_params}
+
+        if remote:
+            self.pm.serve(module=module, params=params, name=name)
 
         module = module or 'module'
         name = name or module
         if self.exists(name):
             self.kill(name) # kill the server if it exists
-        params = {**(params or {}), **extra_params}
         self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
 
         module = module or 'module'
@@ -499,7 +510,7 @@ class Server:
         self.auth = c.mod(auth)()
         self.module.info = self.info()
         self.loop = asyncio.get_event_loop() # get the event loop
-
+        
         app = FastAPI()
         # app.add_middleware(c.mod(middleware), auth=)
         app.add_middleware(
@@ -543,3 +554,29 @@ class Server:
                 results.append({'error': str(e)})
             c.sleep(period)
         return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
+
+
+    def worker(self, module):
+        servers = c.servers()
+        i = 0
+        i2name = lambda i: module + '::worker' + str(i)
+        while worker_name in servers:
+            worker_name = i2name(i)
+            i += 1
+        print(f'Starting worker {worker_name}', color='green')
+        c.serve(module=module, name=worker_name, fns=['forward'], key=c.get_key(module), free_mode=True)
+        return {'success': True, 'message': f'Started worker {worker_name}'}
+            
+
+
+    def workers(self, module, n=2):
+        for i in range(n):
+            c.serve(module + '::worker' + str(i))
+
+    def kill_workers(self, module):
+        servers = c.servers()
+        for server in servers:
+            if server.startswith(module + '::worker'):
+                c.kill(server)
+        return {'success': True, 'message': f'Killed workers for {module}'}
+

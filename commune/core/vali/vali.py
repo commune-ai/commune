@@ -12,7 +12,7 @@ class Vali:
     def __init__(self,
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
-                    batch_size : int = 128, # the batch size of the most parallel tasks
+                    batch_size : int = 12, # the batch size of the most parallel tasks
                     task : str= 'task', # score function
                     params = None, # the parameters for the task
                     key : str = 'vali', # the key for the module
@@ -45,7 +45,6 @@ class Vali:
         c.print(f'VALI KEY --> {self.key}', color='yellow')
         return self.key
 
-
     def set_network(self, 
                     network:Optional[str] = None, 
                     tempo:int= 10, 
@@ -76,21 +75,10 @@ class Vali:
         return self.network
     
     def set_task(self, task: Union[str, 'callable', int]):
-
-        if isinstance(task, str):
-            task = c.mod(task)()
-          
-        assert hasattr(task, 'forward'), f'Task {task} does not have a forward method'
-        self.task = task
-        task_path = task.__module__ + '.' + task.__class__.__name__
-        self.task.info  = {
-            'name': task.__class__.__name__.lower(),
-            'schema': c.schema(task_path),
-            'code': c.code_map(task_path),
-        }
-        self.task.info['cid'] = c.hash(task_path)
-        print(f'TASK --> {self.task.info["name"]} {self.task.info["cid"]}', color='yellow')
-        print(f'TASK SCHEMA -->\n\n',self.task.info["schema"]["forward"]["source"]["code"], color='yellow')
+        self.task = c.mod(task)()
+        assert hasattr(self.task, 'forward'), f'Task {task} does not have a forward method'
+        self.task.info = {'name': self.task.__class__.__name__}
+        return self.task.info
 
     def get_path(self, path):
         return os.path.expanduser(f'~/.commune/vali/{path}')
@@ -132,20 +120,20 @@ class Vali:
     def forward(self, module:Union[str, dict], **params):
         module = self.get_module(module)
         t0 = c.time()
-        result = self.task.forward( c.client(module['url'], key=self.key), **params)
-        module['score'] =  result.get('score', 0) if isinstance(result, dict) else result
-        module['duration'] = c.time() - t0
-        module['url'] = module.get('url', None)
+        result = self.task.forward( c.client(url=module['url'], key=self.key), **params)
         module['params'] = params
         module['result'] = result
+        module['score'] =  result.get('score', 0) if isinstance(result, dict) else result
         module['time'] = c.time()
-        module['task'] = self.task.info["name"]
+        module['duration'] = c.time() - t0
         module['proof'] = self.auth.get_headers(module, key=self.key)
+        self.save_result(module) # save the module interaction
+        return module
 
+    def save_result(self, module: Union[str, dict]):
         self.verify_proof(module) # verify the proof
         path = self.get_module_path(module['key'])
         c.put_json(path, module)
-        return module
 
     def get_module_path(self, module:str):
         return self.storage_path + '/' + module + '.json'
@@ -159,9 +147,11 @@ class Vali:
 
         assert self.auth.verify_headers(proof), f'Invalid Proof {proof}'
 
-    def epoch(self, search=None, result_features=['score', 'key', 'duration', 'name'], **kwargs):
+    def epoch(self, search=None, result_features=['score', 'key', 'duration', 'name'], key=None, **kwargs):
         self.set_network(search=search, **kwargs)
         n = len(self.modules)
+        if key:
+            self.set_key(key)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         print(f'Running epoch {self.epochs} with {n} modules in {len(batches)} batches of size {self.batch_size}')
         num_batches = len(batches)

@@ -8,17 +8,6 @@ import json
 from copy import deepcopy
 import time
 
-def transform_params(params):
-    if len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) == 0:
-        return params['args']
-    elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) > 0:
-        return params['kwargs']
-    elif len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) > 0:
-        return params
-    elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) == 0:
-        return {}
-    else:
-        return params
 class Tx:
 
     def __init__(self, 
@@ -64,26 +53,20 @@ class Tx:
         """ 
         create a transaction
         """
-
-        # if client is not None:
-        #     auths['client'] = client
-        # if server is not None:
-        #     auths['server'] = server
-
-
         result = self.serializer.forward(result)
         if client is not None:
             auths['client'] = client
         if server is not None:
             auths['server'] = server
+            
         auths = auths or self.get_auths(module, fn, params, result)
 
         tx = {
             'module': module, # the module name (str)
             'fn': fn, # the function name (str)
             'params': params, # the params is the input to the function  (dict)
-            'schema': schema, # the schema of the function (dict)
             'result': result, # the result of the function (dict)
+            'schema': schema, # the schema of the function (dict)
             'client': auths['client'], # the client auth (dict)
             'server': auths['server'], # the server auth (dict)
         }
@@ -141,10 +124,23 @@ class Tx:
         if not all([key in tx for key in self.tx_features]):
             return False
         return True
+
+
+    def transform_params(self, params):
+        if len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) == 0:
+            return params['args']
+        elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) > 0:
+            return params['kwargs']
+        elif len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) > 0:
+            return params
+        elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) == 0:
+            return {}
+        else:
+            return params
     def txs(self, 
             search=None,
             max_age:float = None, 
-            features:list = ['module', 'fn', 'params', 'client', 'cost', 'time', 'duration',]):
+            features:list = ['module', 'fn', 'params', 'client', 'cost', 'time', 'duration']):
         txs = [x for x in self.store.values() if self.is_tx(x)] 
         if search is not None:
             txs = [x for x in txs if search in x['module'] or search in x['fn'] or search in json.dumps(x['params'])]
@@ -163,7 +159,7 @@ class Tx:
         df['time'] = df['time_end_utc'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(x)))
 
         addres2key = c.address2key()
-        df['params'] = df['params'].apply(transform_params)
+        df['params'] = df['params'].apply(self.transform_params)
         df['cost'] = df['schema'].apply(lambda x: x['cost'] if 'cost' in x else 0)
         df['client'] = df['client'].apply(lambda x: addres2key.get(x['key'], x['key']))
         df = df.sort_values(by='time', ascending=False)

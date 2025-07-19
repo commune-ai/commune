@@ -9,8 +9,9 @@ import commune as c
 
 class Client:
     def __init__( self,  
-                url: Optional[str] = None,  # the url of the commune server
+                 url: Optional[str] = None,  # the url of the commune server
                  key : Optional[str]= None,  
+                 timeout = 10,
                  auth = 'auth',
                  storage_path = '~/.commune/client',
                  **kwargs):
@@ -18,6 +19,7 @@ class Client:
         self.auth = c.mod(auth)()
         self.key  = c.get_key(key)
         self.store = c.mod('store')(storage_path)
+        self.timeout = timeout
 
     def forward(self, 
                 fn  = 'info', 
@@ -26,14 +28,13 @@ class Client:
                 args : Optional[list] = [], 
                 kwargs : Optional[dict] = {},      
                 ## adduitional parameters
-                timeout:int=2,  # the timeout for the request
+                timeout:int=None,  # the timeout for the request
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
                 url = None,
                 stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
-
 
         # step 1: get the url and fn
         if '/' in str(fn):
@@ -48,13 +49,16 @@ class Client:
 
         # step 2 : get the key
         key = self.get_key(key)
+        c.print(f'Client({url}/{fn} key={key.name})', color='yellow')
 
         # step 3: get the params
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
 
         # step 4: get the headers  
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key)
+
         # step 5: make the request
+        timeout = timeout or self.timeout
         with requests.Session() as conn:
             response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
 
@@ -96,7 +100,6 @@ class Client:
                     raise Exception(f'Invalid params {params}')
             params = {"args": args, "kwargs": kwargs}
         return params
-
 
     def get_url(self, url, mode='http'):
         """
@@ -143,20 +146,30 @@ class Client:
         conds.append(c.is_int(url.split(':')[-1]))
         return all(conds)
 
-    def client(self, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
+    def client(self,  url:str = 'module', key:str = None, virtual:bool = True,  **client_kwargs):
         """
         Create a client instance.
         """
+        client =  Client(url, key=key, **client_kwargs)
+        return self.virtual_client(client) if virtual else client
+
+    def virtual_client(self, client = None):
+        client = client or self
         class ClientVirtual:
-            def __init__(self, module):
-                self.client = Client()
-            def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
-                return self.client.forward(fn=module + '/' +remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
+            def __init__(self, client):
+                self._client = client
+                for key in dir(client):
+                    if key.startswith('_') or key in ['_client', '_remote_call']:
+                        continue
+                    if callable(getattr(client, key)):
+                        setattr(self, key, getattr(client, key))
+            def _remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
+                return self._client.forward(fn=remote_fn, args=args, kwargs=kwargs, key=key, timeout=timeout)
             def __getattr__(self, key):
-                if key in [ 'client', 'remote_call'] :
+                if key in [ '_client', '_remote_call'] :
                     return getattr(self, key)
                 else:
-                    return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
-        return ClientVirtual(module) if virtual else Client(module)
+                    return lambda *args, **kwargs : self._remote_call(*args, remote_fn=key, **kwargs)
+        return ClientVirtual(client)
 
     conn = connect = client # alias for client method

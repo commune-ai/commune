@@ -28,21 +28,20 @@ class Auth:
         self.signature_keys = signature_keys
         self.max_staleness = max_staleness
 
-    def headers(self,  data: Any,  key=None, crypto_type=None, signature_keys=None) -> dict:
+    def generate(self,  data: Any,  key=None, crypto_type=None) -> dict:
         """
         Generate the headers with the JWT token
         """
         key = self.get_key(key, crypto_type=crypto_type)
-        signature_keys = signature_keys or self.signature_keys
         result = {
             'data': self.hash(data),
             'time': str(time.time()),
             'key': key.key_address,
         }
-        result['signature'] = key.sign({k: result[k] for k in signature_keys}, mode='str')
+        result['signature'] = key.sign({k: result[k] for k in self.signature_keys}, mode='str')
         return result
 
-    get_headers = headers
+    get_headers = headers = generate 
 
     def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
@@ -50,15 +49,12 @@ class Auth:
         provide the data if you want to verify the data hash
         """
 
-        # check time 
-
-        time_now = time.time()
+        # check staleness 
         crypto_type = headers.get('crypto_type', self.crypto_type)
-        signature_keys = headers.get('signature_keys', self.signature_keys)
-        staleness = abs(time_now - float(headers['time']))
+        staleness = abs(time.time() - float(headers['time']))
         assert staleness < self.max_staleness, f'Token is stale {staleness} > {self.max_staleness}'
         assert 'signature' in headers, 'Missing signature'
-        sig_data = {k: headers[k] for k in signature_keys}
+        sig_data = {k: headers[k] for k in self.signature_keys}
         verified = self.key.verify(sig_data, signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)
         assert verified, 'Invalid signature'
         if data != None:

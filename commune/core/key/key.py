@@ -300,8 +300,14 @@ class Key:
         elif key in address2key.values():
             return key
         else:
-            raise ValueError(f'key {key} not found, available keys: {list(address2key.keys())}')
+            return None
     keyname = key_name
+
+    @property
+    def name(self):
+        if not hasattr(self, '_key_name'):
+            self._key_name = self.key_name(self.key_address, crypto_type=self.crypto_type)
+        return self._key_name
 
     def get_data(self, key:str, crypto_type=None):
         """
@@ -584,7 +590,7 @@ class Key:
         enc_data = key.encrypt(deepcopy(data), password=password)
         enc_text = {'data': enc_data,  "key_address": data['key_address'], "crypto_type": data['crypto_type'], 'encrypted': True}
         c.put(path, enc_text)
-        return {'number_of_characters_encrypted':len(enc_text), 'path':path }
+        return enc_text
     
     def is_key_encrypted(self, key, data=None, crypto_type=None):
         return self.is_encrypted(self.get_data(key, crypto_type=crypto_type) )
@@ -605,7 +611,8 @@ class Key:
 
     def __str__(self):
         crypto_type = self.get_crypto_type(self.crypto_type)
-        return  f'<Key(address={self.key_address} crypto_type={crypto_type}>'
+        name = self.key_name(self.key_address, crypto_type=crypto_type)
+        return  f'<Key(address={self.key_address} name={name} crypto_type={crypto_type} >'
         
     def is_encrypted(self, data):
         if isinstance(data, str):
@@ -662,13 +669,9 @@ class Key:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         return derived_keypair
 
-    def from_password(self, password:str, crypto_type=None, **kwargs):
-        return self.from_uri(password, crypto_type=crypto_type, **kwargs)
-
-    def str2key(self, password:str, crypto_type=None, **kwargs):
-        return self.from_password(password, crypto_type=crypto_type, **kwargs)
+    str2key = from_password = from_uri
 
     def multi(self,key=None, crypto_type=None):
         key = self.get_key(key, crypto_type=crypto_type ) if key != None else self
-        return key.crypto_type_name + '::' + key.key_address
+        return key.crypto_type_name + '/' + key.key_address
     

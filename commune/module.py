@@ -31,7 +31,7 @@ class Module:
                     "serv": "server", 
                     "tweet": "x",
                     "d": "pm.docker",
-                    # 'api': 'app.api',
+                    "api": "app.api",
                     "openrouter": "model.openrouter"
 
                 },
@@ -191,6 +191,7 @@ class Module:
         """
         get the directory path of the module
         """
+        module = self.shortcuts.get(module, module)
         module = (module or 'module').replace('/', '.')
         if module in ['module', 'commune']:
             return self.lib_path
@@ -343,12 +344,19 @@ class Module:
 
     def is_module_file(self, module = None, exts=['py', 'rs', 'ts'], folder_filenames=['module', 'agent', 'block',  'server']) -> bool:
         dirpath = self.dirpath(module)
-        filepath = self.filepath(module)
+        try:
+            filepath = self.filepath(module)
+        except Exception as e:
+            self.print(f'Error getting filepath for {module}: {e}', color='red', verbose=False)
+            return False
         folder_filenames.append(module.split('.')[-1]) # add the last part of the module name to the folder filenames
         for ext in exts:
             for fn in folder_filenames:
                 if filepath.endswith(f'/{fn}.{ext}'):
                     return False
+                non_folder_name = module.split('.')[-1]
+                if filepath.endswith(f'/{non_folder_name}.{ext}'):
+                    return True
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
     
     is_file_module = is_module_file
@@ -811,7 +819,7 @@ class Module:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__
         schema['name'] = fn_obj.__name__
-        schema['source'] = self.source(fn_obj, code=code)
+        schema.update(self.source(fn_obj, code=code))
         return schema
 
     fnschema = fn_schema
@@ -874,7 +882,7 @@ class Module:
     def call(self, *args, **kwargs): 
         return self.fn('client/call')(*args, **kwargs)
     
-    def code_map(self, module = None , search=None, ignore_folders = ['modules'], *args, **kwargs) ->  Dict[str, str]:
+    def code_map(self, module = None , search=None, ignore_folders = ['modules', 'mods'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
         path = dirpath if self.is_module_folder(module) else self.filepath(module)
         code_map = self.file2text(path)
@@ -882,7 +890,6 @@ class Module:
         # ignore if .modules. is in the path
         code_map = {k:v for k,v in code_map.items() if not any(['/'+f+'/' in k for f in ignore_folders])}
         return code_map
-
 
     codemap = code_map
 
@@ -1014,15 +1021,18 @@ class Module:
         info = self.get(path, None, max_age=max_age, update=update)
         if info == None:
             info =  {
-                    'schema': self.schema(module), 
+                    'schema': {}, 
                     'name': module, 
                     'key': self.get_key(key or module).key_address,  
-                    'founder': self.founder().address, 
                     'cid': self.cid(module),
                     'time': time.time()
                     }
+            try:
+                info['schema'] = self.schema(module)
+            except Exception as e:
+                self.print(f'Error getting schema for {module}: {e}', color='red', verbose=False)
             if code:
-                info['code'] = self.code(module, code_map=True)
+                info['code'] = self.code_map(module)
             info['signature'] = self.sign(info)
             self.put(path, info)
             assert self.verify_info(info), f'Invalid signature {info["signature"]}'
@@ -1058,6 +1068,9 @@ class Module:
     def sand(self):
         import commune as c
         return c.wait( [c.submit(c.call, ['module']) for i in range(5)])
+
+    def tools(self):
+        return self.fn('dev/tools')()
     
     _executors = {}
     def submit(self, 
@@ -1424,24 +1437,20 @@ class Module:
     def modules_tree(self, **kwargs):
         return self.get_tree(self.modules_path, depth=10,  **kwargs)
     
-    def tree(self, search=None, startswith=None, endswith=None, max_age=None, update=False, **kwargs):
+    def tree(self, max_age=None, update=False, **kwargs):
 
-        params = {'max_age': max_age, 'update': update}
+        params = {'max_age': max_age, 'update': update, **kwargs}
         tree = { 
                 **self.modules_tree(**params), 
                 **self.local_tree(**params),  
                 ** self.core_tree(**params) 
             }
 
-        if startswith != None:
-            tree = {k:v for k,v in tree.items() if k.startswith(startswith)}
-        if endswith != None:
-            tree = {k:v for k,v in tree.items() if k.endswith(endswith)}
-        if search != None:
-            tree = {k:v for k,v in tree.items() if search in k}
+
         return tree
 
-    def get_tree(self, path='./', depth = 10, max_age=None, update=False, **kwargs):
+    def get_tree(self, path='./', depth = 10, max_age=None, update=False,
+                    search=None, startswith=None, endswith=None,  **kwargs):
         """
         Get the tree of the modules in the path
         a tree is a dictionary of the form {modname: module_path}
@@ -1466,6 +1475,12 @@ class Module:
             simple_paths = [self.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
+        if startswith != None:
+            tree = {k:v for k,v in tree.items() if k.startswith(startswith)}
+        if endswith != None:
+            tree = {k:v for k,v in tree.items() if k.endswith(endswith)}
+        if search != None:
+            tree = {k:v for k,v in tree.items() if search in k}
         return tree
     
     ltree = local_tree
@@ -1483,38 +1498,39 @@ class Module:
 
 
 
-    def new(self, name= None, base_module : str = 'base', update=0):
+
+    def new(self, name= None, base_module : str = 'base', update=True):
         """
         make a new module
         """
         if not name:
-            name = input('Module name: ')
-
-        is_git = False
-        is_git = bool(name.endswith('.git') or name.startswith('http'))
-        if is_git:
-            git_path = name
-            name =  name.split('/')[-1].replace('.git', '')
+            name = input('Module name/github/ipfs/url')
 
         if os.path.exists(name):
-            dirpath = self.abspath(name)
-            name = dirpaht.split('/')[-1]
-            
-        dirpath = os.path.abspath(self.modules_path +'/'+ name.replace('.', '/'))
-        
-        if is_git:
+            original_dirpath = self.abspath(name)
+            name = original_dirpath.split('/')[-1]
+            dirpath = self.abspath(self.modules_path + '/' + name.replace('.', '/'))
+            if os.path.exists(dirpath):
+                self.rm(dirpath)
+            cmd = f'cp -r {original_dirpath} {dirpath}'
+            c.cmd(cmd)
+            return {'name': name, 'path': dirpath, 'msg': 'Module Copied'}
+        elif bool(name.endswith('.git') or name.startswith('http')):
+            git_path = name
+            name =  name.split('/')[-1].replace('.git', '')
+            dirpath = self.abspath(self.modules_path +'/'+ name.replace('.', '/'))
             self.cmd(f'git clone {git_path} {dirpath}')
             self.cmd(f'rm -rf {dirpath}/.git')
         else:
+            dirpath = self.abspath(self.modules_path +'/'+ name.replace('.', '/'))
             module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
             code_map = self.code_map(base_module)
             new_code_map = {}
             new_class_name = name[0].upper() + name[1:]
-            for k,k_code in code_map.items():
-                k_path = dirpath + '/' +  k.replace(base_module, name)
-                k_code = k_code.replace(base_module, new_class_name)
-                new_code_map[k_path] = k_code
-                self.put_text(k_path, k_code)
+            for k,v in code_map.items():
+                k_path =  dirpath + '/' +  k.replace(base_module, name)
+                new_code_map[k_path] = v
+                self.put_text(k_path, v)
             code_map = new_code_map
         self.go(dirpath)
         return {'name': name, 'path': dirpath, 'msg': 'Module Created'}
@@ -1645,7 +1661,7 @@ class Module:
         for f in files:
             readme2text[f] = self.get_text(f)
         return readme2text
-    config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']
+    config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc', 'server']
 
     def import_module(self, module:str = 'commune.utils'):
         from importlib import import_module
@@ -1682,8 +1698,13 @@ class Module:
     def serve(self, module:str = 'module', port:int=None, **kwargs):
         return self.fn('pm/serve')(module=module, port=port, **kwargs)
 
-    # def app(self):
-    #     os.system(f'cd {self.dp("app")} && c serve api port=8000 free_mode=1 ; docker compose up -d')
+    def app(self, *args, **kwargs):
+       return self.fn('app/')(*args, **kwargs)
+    
+
+
+    def api(self, *args, **kwargs):
+       return self.fn('app/api')(*args, **kwargs)
     
     def sync_utils(self, verbose=False):
 

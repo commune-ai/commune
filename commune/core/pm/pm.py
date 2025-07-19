@@ -26,6 +26,8 @@ class PM:
     modules_path = c.modules_path
 
 
+
+
     def serve(self, module='api', 
                 image='commune:latest', 
                 cwd='/app', 
@@ -44,12 +46,13 @@ class PM:
         params_cmd = self.params2cmd(params)
         cmd = f"c server/serve {module} {params_cmd}"
         # names
+
+        name = name or module
+
         if '::' in module:
-            name = name or module
             name = self.name2process(name)
             module = module.split('::')[0]
-        name = name or module
-        
+    
         params = {
             'name': name, 
             'image': image, 
@@ -140,7 +143,8 @@ class PM:
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
-        return os.system('cd ' + path + ' && ' + cmd)
+        cmd = f'cd {path} && ' + cmd
+        return os.system(cmd)
 
 
     def run(self,
@@ -200,7 +204,7 @@ class PM:
             
             if isinstance(gpus, list):
                 for gpu in gpus:
-                    service_config['ddeploy']['resources']['reservations']['devices'].append({
+                    service_config['deploy']['resources']['reservations']['devices'].append({
                         'driver': 'nvidia',
                         'device_ids': gpus,
                         'capabilities': ['gpu']
@@ -225,11 +229,6 @@ class PM:
                     'capabilities': ['gpu']
                 })
         
-        # # Configure shared memory
-        # if shm_size:
-        #     service_config['shm_size'] = shm_size
-        
-        # Handle port mappings
         if port:
             ports = {port: port}
         
@@ -287,9 +286,8 @@ class PM:
         
         command_str = ' '.join(up_cmd)
         
-        
-        return c.cmd(command_str, verbose=True)
-
+        c.cmd(command_str)
+        return compose_config
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'
@@ -316,7 +314,7 @@ class PM:
             cmd = f'docker inspect -f "{{{{.Id}}}}" {container_name}'
             try:
                 container_id = c.cmd(cmd)
-                container2id[container] = container_id
+                container2id[container] = container_id.split('\n')[0]  # Get the first line of output
             except Exception as e:
                 c.print(f"Error getting ID for {container}: {e}", color='red')
         if name:
@@ -398,11 +396,11 @@ class PM:
 
     def logs(self,
              name: str,
+             follow: bool = False,  f:bool = None, # f and follow are alias for each other
              sudo: bool = False,
-             follow: bool = True, 
-             f = None,
-             verbose: bool = False,
+             verbose: bool = False, 
              tail: int = 100,
+            
              since: Optional[str] = None) -> str:
         """
         Get container logs with advanced options.
@@ -698,6 +696,18 @@ class PM:
             return {'status': 'restarted', 'name': name}
         except Exception as e:
             return {'status': 'error', 'name': name, 'error': str(e)}
+
+    def dockerfile_path(self, path=None): 
+        path = path or self.path
+        for i in c.ls(path):
+            if i.endswith('Dockerfile'):
+                return os.path.join(path, i)
+        return None
+
+    def dockerfile(self, path=None):
+        return c.text(self.dockerfile_path(path))
+
+            
 
     def delete(self, name: str) -> Dict[str, str]:
         """

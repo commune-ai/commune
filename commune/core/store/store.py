@@ -10,7 +10,7 @@ class Store:
     endpoints=['get', 'put', 'ls']
 
     def __init__(self, 
-                folder='~/.commune/store', 
+                folder='~/.commune/module', 
                 suffix='json',
                 key = None,
                 private=False,
@@ -108,8 +108,7 @@ class Store:
     
         if isinstance(data, dict) and 'data' in data and ('time' in data or 'timestamp' in data):
             data = data['data']
-        else: 
-            return data
+        return data
 
     def get_time(self, path, default=None):
         """
@@ -197,7 +196,8 @@ class Store:
         return path2data
         
 
-    def ls(self, path='./', search=None, avoid=None):
+    def ls(self, path=None, search=None, avoid=None):
+        path = path or self.folder
         path = self.get_path(path)
         if not os.path.exists(path):
             return []
