@@ -19,11 +19,20 @@ class PM:
     A module for interacting with Docker.
     """
 
-    default_shm_size = '100g'
-    default_network = 'host'
-    image = 'commune:latest'
-    path = c.lib_path
-    modules_path = c.modules_path
+
+
+    def __init__(self,     
+    default_shm_size = '100g',
+    default_network = 'host',
+    image = 'commune:latest',
+    path = c.lib_path,
+    modules_path = c.modules_path):
+
+        self.default_shm_size = default_shm_size
+        self.default_network = default_network
+        self.image = image
+        self.path = path
+        self.modules_path = modules_path
 
 
 
@@ -912,3 +921,15 @@ class PM:
 
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())
+
+
+
+    def ensure_env(self):
+        from .utils import is_docker_installed, is_docker_running, start_docker
+        if not is_docker_installed():
+            raise EnvironmentError("Docker is not installed. Please install Docker to use this module.")
+                                            
+        if not is_docker_running():
+            if not start_docker():
+                raise EnvironmentError("Docker is not running. Please start Docker to use this module.")
+        return True

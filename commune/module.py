@@ -59,7 +59,7 @@ class Module:
         self.sync_modules()
         self.add_globals(globals_input)   
 
-    def mod(self, 
+    def module(self, 
                 module: str = 'module', 
                 params: dict = None,  
                 cache=True, 
@@ -81,28 +81,21 @@ class Module:
             return Module
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
-        if not hasattr(self, 'module_cache'):
-            self.module_cache = {}
-        if module in self.module_cache:
-            return self.module_cache[module]
-        else:
-            tree = self.tree(update=update)
-            obj_path = tree.get(module, module)
-            try:
-                obj = self.obj(obj_path)
-            except Exception as e:
-                self.print(f'Error loading module {module} from {obj_path}: {e}', color='red', verbose=verbose)
-                tree = self.tree(update=True)
-                tree_options = [v for k,v in tree.items() if module in k]
-                if any([v == module for v in tree_options]):
-                    module = [v for v in tree_options if v == module][0]
-                    obj = self.obj(module)
-                elif len(tree_options) == 1:
-                    obj = self.obj(tree_options[0])
-                else:
-                    raise e
-            self.module_cache[module] = obj
-        # Apply parameters if provided
+        tree = self.tree(update=update)
+        obj_path = tree.get(module, module)
+        try:
+            obj = self.obj(obj_path)
+        except Exception as e:
+            self.print(f'Error loading module {module} from {obj_path}: {e}', color='red', verbose=verbose)
+            tree = self.tree(update=True)
+            tree_options = [v for k,v in tree.items() if module in k]
+            if any([v == module for v in tree_options]):
+                module = [v for v in tree_options if v == module][0]
+                obj = self.obj(module)
+            elif len(tree_options) == 1:
+                obj = self.obj(tree_options[0])
+            else:
+                raise e
         if params != None:
             if isinstance(params, dict):
                 obj = obj(**params)
@@ -110,7 +103,7 @@ class Module:
                 obj = obj(*params)
         return obj
 
-    get_module = module = mod
+    get_module  = mod = module
     def forward(self, fn:str='info', params:dict=None, signature=None) -> Any:
         params = params or {}
         assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
@@ -1388,6 +1381,7 @@ class Module:
                                      '_agents', 
                                      'core',
                                     'src', 
+                                    'server',
                                     'servers', 
                                     ]):
         chunks = p.split('.')

@@ -26,14 +26,14 @@ class Cli:
 
         # ---- MODULE/FN ----\
         time_string = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time_start))
-        c.print(f'[{time_string}] Forwarding {module}/{fn} with args: {argv}', color='blue')
         argv = self.get_argv(argv)
         argv, module, fn = self.get_module_fn(module, fn, argv)
         argv, init_params = self.get_init_params(argv)
         argv, params = self.get_fn_params(argv)
         fn_obj = getattr(c.mod(module)(**init_params), fn)
         schema = self.get_schema(module, fn)
-        c.print(f'Calling({module}/{fn})')
+        c.print(f'[{time_string}] Calling({module}/{fn}, params:{params["kwargs"]})', color='blue')
+
         result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj
         duration = round(time.time() - time_start, 3)
         c.print(f'Result(duration={duration}s)\n')
