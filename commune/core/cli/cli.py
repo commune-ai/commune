@@ -31,7 +31,7 @@ class Cli:
         argv, init_params = self.get_init_params(argv)
         argv, params = self.get_fn_params(argv)
         fn_obj = getattr(c.mod(module)(**init_params), fn)
-        schema = self.get_schema(module, fn)
+        # schema = self.get_schema(module, fn)
         c.print(f'[{time_string}] Calling({module}/{fn}, params:{params["kwargs"]})', color='blue')
 
         result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj

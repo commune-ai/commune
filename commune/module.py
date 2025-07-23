@@ -1902,10 +1902,8 @@ class Module:
         return globals_input
 
     def sync_modules(self):
-        self.modules_url = self.modules_url
         if not os.path.exists(self.modules_path):
             os.makedirs(self.modules_path, exist_ok=True)
-        if not os.path.exists(self.modules_path+'/.git'):
             cmd = f'git clone {self.modules_url} {self.modules_path}'
             self.cmd(cmd, cwd=self.modules_path, verbose=True)
         return {'success': True, 'msg': 'synced config'}
