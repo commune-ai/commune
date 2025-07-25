@@ -1,38 +1,35 @@
-# THIS CONTAINER IS A NPM, RUST, PYTHON, DOCKER INTO ONE CONTAINER
-# THIS GENERAL CONTAINER IS THE CORE OF COMMUNE, USE IT AS YOU WISH AT YOUR OWN RISK
-
 FROM ubuntu:22.04
 
-#SYSTEM ENVIRONMENT
 ARG DEBIAN_FRONTEND=noninteractive
-RUN usermod -s /bin/bash root
-RUN apt-get update 
 
+# Essentials
+RUN apt-get update && apt-get install -y \
+    curl git build-essential nano jq vim software-properties-common \
+    python3 python3-pip python3-venv \
+    npm gnupg2 ca-certificates apt-transport-https \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip
 
-# RUST 
-RUN apt-get install -y nano build-essential cargo libstd-rust-dev git
-
-# PYTHON
-RUN apt-get install -y python3 python3-pip python3-venv
-RUN python3 --version
-
-# NPM
-RUN apt-get install -y npm 
+# PM2
 RUN npm install -g pm2
 
-# DOCKER
-RUN apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-RUN apt-get install -y docker.io
-RUN groupadd docker || true
-RUN usermod -aG docker root
-EXPOSE 2375 
+# Rust via rustup (more modern than apt)
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:$PATH"
 
-# APP # COPY YOUR APP HERE
+# Docker + Docker Compose
+RUN install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && \
+    groupadd docker || true && usermod -aG docker root
+
+# Workdir + Install App
 WORKDIR /root/commune
 COPY . .
-RUN pip install -e ./ 
+RUN pip install -e .
 
-# ENTRYPOINT (default to container running in the background in case of no command)
-ENTRYPOINT [ "tail", "-f", "/dev/null"]
+# Default CMD (replace with ENTRYPOINT if needed)
+CMD ["tail", "-f", "/dev/null"]

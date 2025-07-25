@@ -1,0 +1,16 @@
+{
+    "url": "http://localhost:8000",
+    "links": {
+      
+        "home": "/",
+        "whitepaper": "https://ai-secure.github.io/DMLW2022/assets/papers/7.pdf",
+        "github": "https://github.com/commune-ai",
+        "discord": "https://discord.gg/communeai",
+        "x": "https://twitter.com/communeaidotorg",
+        "comhub": "https://www.comhub.app/",
+        "modules": "/modules",
+        "devDiscord": "https://discord.gg/6CpXmP6P",
+        "telegram": "https://t.me/communecommunity"
+      }
+      
+}

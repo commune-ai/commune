@@ -1,0 +1,27 @@
+
+
+services:
+
+  app:
+    build:
+      context: ./
+    container_name: app
+    # restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    # entrypoint: tail -f /dev/null
+
+  # api:
+  #   image: commune:latest
+  #   container_name: commune-api
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ~/.commune:/root/.commune
+  #     - ~/commune:/app
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   entrypoint: ["c", "serve", "api", "remote=0", "port=8000", "free_mode=1"]

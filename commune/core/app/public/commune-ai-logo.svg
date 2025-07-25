@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <style>
+    @font-face {
+      font-family: 'Retro';
+      src: local('Courier New'), local('Courier'), local('monospace');
+    }
+  </style>
+  <rect width="200" height="200" fill="black"/>
+  <text x="100" y="120" font-family="Courier New, monospace" font-size="120" font-weight="bold" fill="#00ff00" text-anchor="middle">C</text>
+</svg>

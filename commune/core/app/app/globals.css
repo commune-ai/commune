@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  scroll-behavior: smooth;
+  background-color: black;
+  --retro-font: 'VT323', 'Courier New', monospace;
+}
+
+body {
+  background-color: black;
+  color: #00ff00;
+  font-family: var(--retro-font);
+}
+
+/* Override all font families to use retro font */
+* {
+  font-family: var(--retro-font) !important;
+  box-sizing: border-box;
+}
+
+/* Terminal cursor effect */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.cursor::after {
+  content: '_';
+  animation: blink 1s infinite;
+}
+
+/* Simple IBM mode styling */
+.ibm-border {
+  border: 1px solid #00ff00;
+}
+
+.ibm-text {
+  color: #00ff00;
+  text-shadow: 0 0 2px #00ff00;
+}
+
+/* Simplified animations */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Simplified panel animations */
+.slide-panel {
+  transition: transform 0.2s linear;
+}
+
+/* Terminal-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  background: black;
+}
+
+::-webkit-scrollbar-track {
+  background: black;
+  border: 1px solid #00ff00;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00ff00;
+  border: 1px solid black;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00cc00;
+}
+
+/* Remove all fancy effects for IBM simplicity */
+a, button {
+  transition: none;
+}
+
+/* Terminal grid effect */
+.terminal-grid {
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 0, 0.03) 2px,
+      rgba(0, 255, 0, 0.03) 4px
+    );
+}
+
+/* Force retro font everywhere */
+h1, h2, h3, h4, h5, h6, p, span, div, button, input, textarea, select, pre, code {
+  font-family: var(--retro-font) !important;
+  letter-spacing: 0.05em;
+}

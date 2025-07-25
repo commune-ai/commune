@@ -46,7 +46,8 @@ class PM:
                 name = None,
                 include_storage=True,
                 **params):
-        daemon = daemon if d is None else d
+        if d is not None:
+            daemon = d
         module = module or 'module'
         port = port or c.free_port()
         fn = 'server/serve'
@@ -295,8 +296,9 @@ class PM:
         
         command_str = ' '.join(up_cmd)
         
-        c.cmd(command_str)
-        return compose_config
+        print(f"Running command: {command_str}")
+        os.system(command_str)
+        return command_str
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'

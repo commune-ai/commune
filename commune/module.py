@@ -477,6 +477,17 @@ class Module:
                 fn2route[to_fn] = k + '/' + from_fn
         return fn2route
 
+    def secret(self, key:str = None, seed=None, update=False, **kwargs) -> str:
+        secret = self.get('secret', {}, update=update)
+        if len(secret) > 0 :
+            return secret
+        time = self.time()
+        seed = seed or self.random_int(0, 1000000)
+        nonce = str(int(secret.get('nonce', 0)) + 1)
+        secret = self.sign({'time': time, 'nonce': nonce}, key=key,**kwargs)
+        self.put('secret', secret)
+        return secret
+
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
         Set the config as well as its local params
