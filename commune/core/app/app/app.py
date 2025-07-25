@@ -14,7 +14,7 @@ class App:
         self.api()
         cwd = c.dp('app')
         os.system( f'cd {cwd} && docker compose up -d')
-        return {"status": "app started", 'cwd': cwd, 'port': port}
+        return {"status": "app started", 'cwd': cwd, 'url': f'http://localhost:{port}'}
 
     def api(self, port=8000, free_mode=True):   
         return c.serve('api', port=port, free_mode=free_mode)
