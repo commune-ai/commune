@@ -605,13 +605,9 @@ def locals2hash(kwargs:dict = {'a': 1}, keys=['kwargs']) -> str:
     kwargs.pop('self', None)
     return dict2hash(kwargs)
 
-
-def random_int(start_value=100, end_value=None):
-    if end_value == None: 
-        end_value = start_value
-        start_value, end_value = 0 , start_value
-    assert start_value != None, 'start_value must be provided'
-    assert end_value != None, 'end_value must be provided'
+def random_int(start_value=0, end_value=100000):
+    assert isinstance(start_value, int) and isinstance(end_value, int), 'start_value and end_value must be integers'
+    assert start_value < end_value, 'start_value must be less than end_value'
     return random.randint(start_value, end_value)
 
 def random_float(min=0, max=1):

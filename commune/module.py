@@ -482,7 +482,7 @@ class Module:
         if len(secret) > 0 :
             return secret
         time = self.time()
-        seed = seed or self.random_int(0, 1000000)
+        seed = seed or self.random_int(0, 1000000) * self.time() / (self.random_int(1, 1000) + 1)
         nonce = str(int(secret.get('nonce', 0)) + 1)
         secret = self.sign({'time': time, 'nonce': nonce}, key=key,**kwargs)
         self.put('secret', secret)
@@ -998,6 +998,7 @@ class Module:
 
     def core_modules(self) -> List[str]:
         return list(self.core_tree().keys())
+    core_mods = core_modules
 
     def module2schema(self, module=None, max_age=30, update=False, core=True, verbose=False) -> List[str]:
         module2schema = self.get('module2schema', default=None, max_age=max_age, update=update)

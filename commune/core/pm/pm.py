@@ -36,16 +36,66 @@ class PM:
 
 
 
+    def compose2dockerfilecmd(self, compose_data: str) -> str:
+        """
+        comnvert to docker file withotu using docker compose
+        """
+
+        volumes = compose_data.get('volumes', {})
+        ports = compose_data.get('ports', {})
+        env = compose_data.get('environment', {})
+        cmd = f'docker run -it --rm '
+        if self.default_network:
+            cmd += f'--network {self.default_network} '
+        if self.default_shm_size:
+            cmd += f'--shm-size {self.default_shm_size} '
+        if self.image:
+            cmd += f'--image {self.image} ' 
+        if volumes:
+            for host_path, container_path in volumes.items():
+                cmd += f'-v {host_path}:{container_path} '
+        if ports:
+            for host_port, container_port in ports.items():
+                cmd += f'-p {host_port}:{container_port} '
+        if env:
+            for key, value in env.items():
+                cmd += f'-e {key}={value} '
+        cmd += f'{self.image} '
+        
+        if 'command' in compose_data:
+            command = compose_data['command']
+            if isinstance(command, list):
+                command = ' '.join(command)
+            cmd += f'bash -c "{command}"'
+        else:
+            cmd += 'tail -f /dev/null'
+        
+        if 'entrypoint' in compose_data:
+            entrypoint = compose_data['entrypoint']
+            if isinstance(entrypoint, list):
+                entrypoint = ' '.join(entrypoint)
+            cmd = f'docker run --entrypoint "{entrypoint}" ' + cmd
+
+        return cmd  
+
+
+
+        
+
 
     def serve(self, module='api', 
                 image='commune:latest', 
                 cwd='/app', 
                 port=None, 
                 daemon=True, 
+                remote = None,
                 d = None,
                 name = None,
                 include_storage=True,
                 **params):
+
+        if remote is not None:
+            daemon = remote
         if d is not None:
             daemon = d
         module = module or 'module'
@@ -58,11 +108,9 @@ class PM:
         # names
 
         name = name or module
-
         if '::' in module:
             name = self.name2process(name)
             module = module.split('::')[0]
-    
         params = {
             'name': name, 
             'image': image, 
@@ -287,7 +335,7 @@ class PM:
         
         # Run docker-compose
         compose_cmd = ['sudo'] if sudo else []
-        compose_cmd.extend(['docker compose', '-f', compose_file])
+        compose_cmd.extend(['docker-compose', '-f', compose_file])
         
         # Run the container
         up_cmd = compose_cmd + ['up']
@@ -331,6 +379,9 @@ class PM:
         if name:
             return container2id.get(name)
         return container2id
+
+    def container2usage(self) -> Dict[str, Any]:
+        return self.container_stats(update=True).to_dict(orient='records')
 
     def kill(self, name: str, sudo: bool = False, verbose: bool = True, prune: bool = False) -> Dict[str, str]:
         """
@@ -512,7 +563,9 @@ class PM:
                 stats.append(row)
                 c.put(path, stats)
             
-        return c.df(stats)
+        stats = c.df(stats)
+
+        stats['name'] = stats['id'].apply(lambda x: self.process2name(x))
 
     def ps(self) -> List[str]:
         """
@@ -926,7 +979,7 @@ class PM:
 
 
 
-    def ensure_env(self):
+    def syncenv(self):
         from .utils import is_docker_installed, is_docker_running, start_docker
         if not is_docker_installed():
             raise EnvironmentError("Docker is not installed. Please install Docker to use this module.")
