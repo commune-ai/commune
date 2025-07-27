@@ -2740,3 +2740,14 @@ def get_args_kwargs(params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
         else:
             kwargs = params
     return args, kwargs
+
+
+# def is_docker():
+#     path = '/proc/self/cgroup'
+#     if not os.path.exists(path):
+#         return False
+#     with open(path, 'r') as f:
+#         for line in f:
+#             if 'docker' in line or 'kubepods' in line:
+#                 return True
+#     return False

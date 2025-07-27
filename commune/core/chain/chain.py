@@ -1117,7 +1117,8 @@ class Chain:
         return subnet
 
     def get_balances(
-        self, addresses=None,
+        self, 
+        addresses=None,
         extract_value: bool = False, 
         block_hash: str = None,
         threads = 8,
@@ -1132,7 +1133,8 @@ class Chain:
         with self.get_conn(init=True) as substrate:
             storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in addresses if not ka.startswith('0x')]
             balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
-        return balances
+        key2balance = {k:v[1].value['data']['free'] for k,v in zip(addresses, balances) }
+        return key2balance
     
     def my_balance(self,  max_age=None, update=False, **kwargs):
         path = self.get_path(f'{self.network}/my_balance')

@@ -49,7 +49,10 @@ class Test:
         tx = self.chain.transfer(from_key, amount , to_key_address, safety=safety)
         to_balance_after = self.chain.balance(to_key_address)
         print(f'to_balance: {to_balance_after}, from_balance: {from_balance}')
-        assert abs(to_balance_after - (to_balance + amount)) < 0.1, f'Balance after transfer {from_balance_after} does not match expected {from_balance + amount}'
+
+        
+
+        assert abs(to_balance_after - (to_balance + amount)) < 0.1, f'Balance after ot match expected {from_balance + amount}'
         return {'msg': 'transfer test passed', 'success': True}
 
 

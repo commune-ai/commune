@@ -346,7 +346,21 @@ class PM:
         
         print(f"Running command: {command_str}")
         os.system(command_str)
-        return command_str
+        return {
+            'status': 'running',
+            'cmd': command_str,
+            'compose_file': compose_file,
+            'name': name,
+            'image': image,
+            'volumes': volumes,
+            'gpus': gpus,
+            'shm_size': shm_size,
+            'net': net,
+            'port': port,
+            'ports': ports,
+            'daemon': daemon,
+            'cwd': cwd,
+        }
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'
@@ -705,11 +719,6 @@ class PM:
         # Convert to DataFrame
         return pd.DataFrame(stats)
 
-    def sync(self):
-        """
-        Sync container statistics.
-        """
-        self.stats(update=1)
 
     # PM2-like methods for container management
     def start(self, name: str, image: str, **kwargs) -> Dict[str, Any]:
@@ -979,7 +988,7 @@ class PM:
 
 
 
-    def syncenv(self):
+    def sync(self):
         from .utils import is_docker_installed, is_docker_running, start_docker
         if not is_docker_installed():
             raise EnvironmentError("Docker is not installed. Please install Docker to use this module.")

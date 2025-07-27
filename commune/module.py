@@ -17,10 +17,10 @@ nest_asyncio.apply()
 class Module:
 
     def __init__(self,  
-                globals_input=None, 
+                name = __file__.split('/')[-2].replace('.py', ''),
                 modules_url = 'commune-ai/modules',
                 port_range = [50050, 50150],
-                endpoints = ['forward', 'info'],
+                expose = ['forward', 'info'],
                 shortcuts = {
                     "or" : "model.openrouter",
                     "wallet": "chain.wallet",
@@ -33,17 +33,19 @@ class Module:
                     "d": "pm.docker",
                     "api": "app.api",
                     "openrouter": "model.openrouter"
-
                 },
-                 update=True, **kwargs):
+                 update=True,
+                globals_input=None,
+                 
+                  **kwargs):
         """
         Initialize the module by sycing with the config
         """
 
         # assume the name of this module is the name of .../
-        self.repo_name = os.path.dirname(os.path.abspath(__file__)).split('/')[-1]
+        self.name  = name
         self.home_path = os.path.expanduser('~')
-        self.storage_path = f'{self.home_path}/.{self.repo_name}'
+        self.storage_path = f'{self.home_path}/.{self.name}'
         self.root_path =os.path.dirname(__file__)
         self.core_path = self.root_path + '/core' # the path to the core
         self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
@@ -51,12 +53,11 @@ class Module:
         self.modules_path = self.mp =  self.modspath = self.root_path + '/modules'
         self.tests_path = f'{self.lib_path}/tests'
         self.port_range = port_range
-        self.endpoints = endpoints
+        self.expose = expose
         self.shortcuts = shortcuts
         self.modules_url = self.giturl(modules_url)
+        self.sync()
         # config attributes
-        self.sync_utils()
-        self.sync_modules()
         self.add_globals(globals_input)   
 
     def module(self, 
@@ -77,7 +78,7 @@ class Module:
         if not isinstance(module, str):
             return module
         # Try to load the module
-        if module in ['module', 'commune']:
+        if module in ['module', 'commune', 'mod']:
             return Module
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
@@ -281,7 +282,7 @@ class Module:
     def verify_token(self, token:str = None,  module='auth.jwt',  *args, **kwargs) -> str:
         return self.module(module)().verify_token(token=token, *args, **kwargs)
 
-    def run(self, fn='info', params="{}", **_kwargs) -> Any: 
+    def run(self, fn:str='info', params: Union[str, dict]="{}", **_kwargs) -> Any: 
         module = 'module'
         if '/' in fn:
             module, fn = fn.split('/')
@@ -821,7 +822,7 @@ class Module:
             'type': str(fn_obj.__annotations__.get('return', None) if hasattr(fn_obj, '__annotations__') else None)
         }
         schema['docs'] = fn_obj.__doc__
-        schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__
+        schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__ # attribute the cost to the function
         schema['name'] = fn_obj.__name__
         schema.update(self.source(fn_obj, code=code))
         return schema
@@ -844,12 +845,12 @@ class Module:
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None , verbose=False, **kwargs)->dict:
+    def schema(self, obj = None , verbose=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
         schema = {}
-        module = obj or self
+        obj = obj or 'module'
         if callable(obj):
             return self.fn_schema(obj, **kwargs)
         elif isinstance(obj, str):
@@ -864,12 +865,12 @@ class Module:
                 raise  Exception(f'{obj} not found')
         elif hasattr(obj, '__class__'):
             obj = obj.__class__
+        obj = obj()
         for fn in self.fns(obj):
             try:
                 schema[fn] = self.fn_schema(getattr(obj, fn), **kwargs)
             except Exception as e:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
-        
         return schema
 
     def code(self, obj = None, search=None, full=False,  *args, **kwargs) -> Union[str, Dict[str, str]]:
@@ -1120,10 +1121,7 @@ class Module:
             elif '/' in fn:
                 module, fn = fn.split('/')
                 if self.module_exists(module):
-                    try:
-                        module = self.module(module)()
-                    except ImportError:
-                        module = self.import_module(module)
+                    module = self.module(module)()
                 elif self.is_python_module(module):
                     module = self.import_module(module)
                 else:
@@ -1238,7 +1236,7 @@ class Module:
                 continue
             if chunk not in name_chunks:
                 name_chunks += [chunk]
-        if name_chunks[0] == self.repo_name:
+        if name_chunks[0] == self.name:
             name_chunks = name_chunks[1:]
         return '.'.join(name_chunks)
     
@@ -1399,6 +1397,7 @@ class Module:
         chunks = p.split('.')
         
 
+
         if len(chunks) < 2:
             return None
         file_name = chunks[-2]
@@ -1408,8 +1407,8 @@ class Module:
             if chunk in path:
                 continue
             path += chunk + '.'
-        if path.startswith(self.repo_name + '.'):
-            path = path[len(self.repo_name)+1:]
+        if path.startswith(self.name + '.'):
+            path = path[len(self.name)+1:]
         if path.endswith('.'):
             path = path[:-1]
         for avoid in avoid_terms:
@@ -1423,8 +1422,8 @@ class Module:
             return 'module'
         return path
 
-    def logs(self, module, **kwargs):
-        return self.fn('pm/logs')(module, **kwargs)
+    def logs(self, *args, **kwargs):
+        return self.fn('pm/logs')(*args, **kwargs)
     
     def local_tree(self , depth=10, **kwargs):
         pwd = os.getcwd()
@@ -1471,11 +1470,11 @@ class Module:
             class_paths = self.classes(path, depth=depth)
             
             def filter_path(p):
-                if p.startswith('src.' + self.repo_name):
-                    return p.replace('src.' + self.repo_name + '.', '')
-                repo_prefix = self.repo_name + '.' + self.repo_name
+                if p.startswith('src.' + self.name):
+                    return p.replace('src.' + self.name + '.', '')
+                repo_prefix = self.name + '.' + self.name
                 if p.startswith(repo_prefix):
-                    return p.replace(repo_prefix, self.repo_name)
+                    return p.replace(repo_prefix, self.name)
                 return p
             class_paths = [filter_path(p) for p in class_paths]
             simple_paths = [self.objectpath2name(p) for p in class_paths]
@@ -1617,7 +1616,7 @@ class Module:
 
 
     def build_image(self, module:str = 'module'):
-        return os.system(f'docker build -t {self.repo_name} {self.lib_path}')
+        return os.system(f'docker build -t {self.name} {self.lib_path}')
 
     def repos(self, search=None):
         return list(self.repo2path(search=search).keys())
@@ -1712,44 +1711,6 @@ class Module:
     def api(self, *args, **kwargs):
        return self.fn('app/api')(*args, **kwargs)
     
-    def sync_utils(self, verbose=False):
-
-        """
-        This ties other modules into the current module.
-        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
-        This allows you to call the function as if it were a method of the current module.
-        for example
-        """
-        routes = self.get_routes()
-        t0 = time.time()
-        # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
-        # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-        def fn_generator(*args, route, **kwargs):
-            
-            def fn_wrapper(*args, **kwargs):
-                try:
-                    fn_obj = self.fn(route)
-                except Exception as e:
-                    fn_obj = self.obj(route)
-                if callable(fn_obj):
-                    return fn_obj(*args, **kwargs)
-                else:
-                    return fn_obj
-            return fn_wrapper(*args, **kwargs)
-
-        for module, fns in routes.items():
-            for fn in fns: 
-                if isinstance(fn, str):
-                    to_fn = fn
-                if hasattr(self, to_fn):
-                    if verbose:
-                        print(f'Warning: {to_fn} already exists')
-                else:
-                    fn_obj = partial(fn_generator, route=f'{module}/{fn}') 
-                    fn_obj.__name__ = to_fn
-                    setattr(self, to_fn, fn_obj)
-        duration = time.time() - t0
-        return {'success': True, 'msg': 'enabled routes', 'duration': duration}
 
     def giturl(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
@@ -1913,12 +1874,6 @@ class Module:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-    def sync_modules(self):
-        if not os.path.exists(self.modules_path):
-            os.makedirs(self.modules_path, exist_ok=True)
-            cmd = f'git clone {self.modules_url} {self.modules_path}'
-            self.cmd(cmd, cwd=self.modules_path, verbose=True)
-        return {'success': True, 'msg': 'synced config'}
 
     def main(self, *args, **kwargs):
         """
@@ -1940,6 +1895,42 @@ class Module:
 
     def txs(self, *args, **kwargs) -> 'Callable':
         return self.fn('server/txs')( *args, **kwargs)
+
+
+    def sync_utils(self, verbose=False):
+
+        """
+        This ties other modules into the current module.
+        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
+        This allows you to call the function as if it were a method of the current module.
+        for example
+        """
+        routes = self.get_routes()
+        t0 = time.time()
+        for module, fns in routes.items():
+            module = self.import_module(module)
+            for fn in fns: 
+                if hasattr(self, fn):
+                    if verbose:
+                        print(f'Warning: {fn} already exists')
+                else:
+                    if verbose:
+                        print(f'Adding {fn} from {module.__name__}')
+                    fn_obj = getattr(module, fn, None)
+                    setattr(self, fn, fn_obj)
+        duration = time.time() - t0
+        return {'success': True, 'msg': 'enabled routes', 'duration': duration}
+
+    def sync(self, mod=None, verbose=False):
+        if mod is not None:
+            print(f'Syncing module {mod}')
+            return self.fn(f'{mod}/sync')()
+        self.sync_utils()
+        if not os.path.exists(self.modules_path):
+            os.makedirs(self.modules_path, exist_ok=True)
+            cmd = f'git clone {self.modules_url} {self.modules_path}'
+            self.cmd(cmd, cwd=self.modules_path, verbose=verbose)
+        return {'success': True, 'msg': 'synced modules and utils'}
 
 
 if __name__ == "__main__":
