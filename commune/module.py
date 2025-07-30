@@ -180,6 +180,14 @@ class Module:
         return inspect.getfile(self.mod(obj)) 
 
     fp = filepath
+
+    def dockerfiles(self, module=None):
+        """
+        get the dockerfiles of the module
+        """
+        dirpath = self.dirpath(module)
+        dockerfiles = [f for f in os.listdir(dirpath) if f.startswith('Dockerfile')]
+        return [os.path.join(dirpath, f) for f in dockerfiles]
         
     def dirpath(self, module=None) -> str:
         """
@@ -389,8 +397,8 @@ class Module:
         
         if self.module_exists(path):
             path = self.dirpath(path)
-            if not include_modules:
-                avoid_terms.append('/modules/')
+            # if not include_modules:
+            #     avoid_terms.append('/modules/')
         files =self.glob(path, **kwargs)
         if not include_hidden_files:
             files = [f for f in files if not '/.' in f]
@@ -478,8 +486,8 @@ class Module:
                 fn2route[to_fn] = k + '/' + from_fn
         return fn2route
 
-    def secret(self, key:str = None, seed=None, update=False, **kwargs) -> str:
-        secret = self.get('secret', {}, update=update)
+    def secret(self, key:str = None, seed=None, update=False, tempo=None, **kwargs) -> str:
+        secret = self.get('secret', {}, update=update, max_age=tempo)
         if len(secret) > 0 :
             return secret
         time = self.time()
@@ -488,6 +496,14 @@ class Module:
         secret = self.sign({'time': time, 'nonce': nonce}, key=key,**kwargs)
         self.put('secret', secret)
         return secret
+
+    def tempo_secret(self, key:str = None,  tempo=1, seed=None, **kwargs) -> str:
+        """
+        Get a secret that is valid for a certain time
+        """
+        return self.secret(key=key, seed=seed, update=True, tempo=tempo, **kwargs)
+
+
 
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
@@ -845,7 +861,7 @@ class Module:
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None , verbose=True, **kwargs)->dict:
+    def schema(self, obj = None , verbose=False, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
@@ -865,7 +881,6 @@ class Module:
                 raise  Exception(f'{obj} not found')
         elif hasattr(obj, '__class__'):
             obj = obj.__class__
-        obj = obj()
         for fn in self.fns(obj):
             try:
                 schema[fn] = self.fn_schema(getattr(obj, fn), **kwargs)
@@ -1061,8 +1076,8 @@ class Module:
     def epoch(self, *args, **kwargs):
         return self.run_epoch(*args, **kwargs)
 
-    def pwd2key(self, pwd):
-        return self.module('key').str2key(pwd)
+    def pwd2key(self, pwd, **kwargs) -> str:
+        return self.module('key')().str2key(pwd, **kwargs)
 
     def is_property(self, fn: 'Callable') -> bool:
         '''
@@ -1504,7 +1519,7 @@ class Module:
 
 
 
-    def new(self, name= None, base_module : str = 'base', update=True):
+    def addmod(self, name= None, base_module : str = 'base', update=True):
         """
         make a new module
         """
@@ -1524,6 +1539,7 @@ class Module:
             git_path = name
             name =  name.split('/')[-1].replace('.git', '')
             dirpath = self.abspath(self.modules_path +'/'+ name.replace('.', '/'))
+            print(f'Cloning {git_path} to {dirpath}')
             self.cmd(f'git clone {git_path} {dirpath}')
             self.cmd(f'rm -rf {dirpath}/.git')
         else:
@@ -1540,7 +1556,9 @@ class Module:
         self.go(dirpath)
         return {'name': name, 'path': dirpath, 'msg': 'Module Created'}
     
-    create = new
+    create = new = add = addmod
+
+
 
     def urls(self, *args, **kwargs):
         return self.fn('pm/urls')(*args, **kwargs)
@@ -1781,8 +1799,6 @@ class Module:
             self.cmd(f'git pull {module} {name}')
         return {'success': True, 'msg': 'pushed module'}
 
-    def build(self, name:str = None, query=None): 
-        return self.fn('build/forward')(name=name, query=query)
 
     def cp_mod(self, from_module:str = 'dev', to_module:str = 'dev2'):
         """
@@ -1802,7 +1818,7 @@ class Module:
                 'to': {'path': to_path, 'module': to_module}
                 } 
 
-    def mv_mod(self, from_module:str = 'dev', to_module:str = 'dev2'):
+    def mvmod(self, from_module:str = 'dev', to_module:str = 'dev2'):
         """
         Move the module to the git repository
         """
@@ -1814,6 +1830,7 @@ class Module:
                 }
 
         return self.mv(from_path, to_path)
+    mv_mod = mvmod
 
     def address2key(self, *args, **kwargs):
         return self.fn('key/address2key')(*args, **kwargs)
@@ -1841,7 +1858,6 @@ class Module:
         self.tree(update=1)
         return {'success': True, 'msg': 'added module',  'to': to_path}
 
-    c = add = clone
 
     def rm_mod(self, module:str = 'dev'):
         """

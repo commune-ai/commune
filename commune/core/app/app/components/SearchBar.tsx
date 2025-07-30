@@ -31,10 +31,10 @@ export const SearchBar = ({ onSearch, placeholder = 'search modules...', classNa
 
   return (
     <form onSubmit={handleSubmit} className={`relative ${className}`}>
-      <div className={`flex items-center gap-2 px-4 py-2 bg-black/60 border rounded-lg transition-all ${
-        isFocused ? 'border-green-400 shadow-lg shadow-green-500/20' : 'border-green-500/30'
+      <div className={`flex items-center gap-4 px-8 py-5 bg-black/90 border-2 rounded-full transition-all duration-300 ${
+        isFocused ? 'border-green-400 shadow-2xl shadow-green-500/40 scale-105' : 'border-green-500/50 hover:border-green-500/70'
       }`}>
-        <Search size={18} className="text-green-500/70" />
+        <Search size={24} className="text-green-500/90" />
         <input
           type="text"
           value={query}
@@ -42,24 +42,24 @@ export const SearchBar = ({ onSearch, placeholder = 'search modules...', classNa
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
-          className="flex-1 bg-transparent text-green-400 text-sm placeholder-green-600/50 focus:outline-none"
+          className="flex-1 bg-transparent text-green-400 text-lg placeholder-green-600/40 focus:outline-none font-mono tracking-wider"
         />
         {query && (
           <button
             type="button"
             onClick={handleClear}
-            className="text-green-400 hover:text-green-300 transition-colors"
+            className="text-green-400 hover:text-green-300 transition-all duration-200 p-2 rounded-full hover:bg-green-500/20"
             aria-label="Clear search"
           >
-            <X size={16} />
+            <X size={20} />
           </button>
         )}
         <button
           type="submit"
-          className="px-3 py-1 text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors border-l border-green-500/30 pl-3"
+          className="px-6 py-3 text-green-400 hover:text-black hover:bg-green-500 transition-all duration-300 rounded-full border border-green-500/60 hover:border-green-500 font-mono uppercase tracking-wide"
           aria-label="Search"
         >
-          <Search size={18} />
+          <Search size={22} />
         </button>
       </div>
     </form>

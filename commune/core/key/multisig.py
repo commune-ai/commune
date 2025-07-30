@@ -143,95 +143,96 @@ class MultiSig:
             raise ValueError(f"Failed to decrypt secret: {str(e)}")
 
 
-def test_multisig():
-    """
-    Test function to verify MultiSig functionality.
-    """
-    print("=== MultiSig Test Suite ===\n")
-    
-    # Test 1: Basic 2-of-3 multisig
-    print("Test 1: Basic 2-of-3 MultiSig")
-    multisig = MultiSig(m=2, n=3)
-    secret = "This is a very secret message!"
-    passwords = ["alice_password", "bob_password", "charlie_password"]
-    
-    # Create shares
-    shares, encrypted_secret = multisig.create_shares(secret, passwords)
-    print(f"Created {len(shares)} shares for secret: '{secret}'")
-    
-    # Try to decrypt with 2 shares (should work)
-    selected_shares = [
-        (shares[0], passwords[0]),  # Alice's share
-        (shares[1], passwords[1])   # Bob's share
-    ]
-    
-    try:
-        decrypted = multisig.combine_shares(selected_shares, encrypted_secret)
-        print(f"✓ Successfully decrypted with 2 shares: '{decrypted}'")
-        assert decrypted == secret, "Decrypted value doesn't match original"
-    except Exception as e:
-        print(f"✗ Failed to decrypt with 2 shares: {e}")
-    
-    # Try to decrypt with only 1 share (should fail)
-    print("\nTest 2: Attempting with insufficient shares (1 of 2 required)")
-    try:
-        single_share = [(shares[0], passwords[0])]
-        decrypted = multisig.combine_shares(single_share, encrypted_secret)
-        print(f"✗ Should have failed but got: '{decrypted}'")
-    except ValueError as e:
-        print(f"✓ Correctly failed with insufficient shares: {e}")
-    
-    # Test 3: Wrong password
-    print("\nTest 3: Attempting with wrong password")
-    wrong_shares = [
-        (shares[0], "wrong_password"),
-        (shares[1], passwords[1])
-    ]
-    try:
-        decrypted = multisig.combine_shares(wrong_shares, encrypted_secret)
-        print(f"✗ Should have failed but got: '{decrypted}'")
-    except ValueError as e:
-        print(f"✓ Correctly failed with wrong password: {e}")
-    
-    # Test 4: 3-of-5 multisig
-    print("\nTest 4: 3-of-5 MultiSig")
-    multisig_3of5 = MultiSig(m=3, n=5)
-    secret_2 = "Another secret requiring 3 of 5 signatures"
-    passwords_5 = [f"user_{i}_pass" for i in range(5)]
-    
-    shares_5, encrypted_secret_5 = multisig_3of5.create_shares(secret_2, passwords_5)
-    
-    # Use shares from users 0, 2, and 4
-    selected_shares_5 = [
-        (shares_5[0], passwords_5[0]),
-        (shares_5[2], passwords_5[2]),
-        (shares_5[4], passwords_5[4])
-    ]
-    
-    try:
-        decrypted_5 = multisig_3of5.combine_shares(selected_shares_5, encrypted_secret_5)
-        print(f"✓ Successfully decrypted 3-of-5: '{decrypted_5}'")
-        assert decrypted_5 == secret_2, "Decrypted value doesn't match original"
-    except Exception as e:
-        print(f"✗ Failed to decrypt 3-of-5: {e}")
-    
-    # Test 5: Edge cases
-    print("\nTest 5: Edge cases")
-    
-    # 1-of-1 multisig (essentially single sig)
-    multisig_1of1 = MultiSig(m=1, n=1)
-    shares_1, encrypted_1 = multisig_1of1.create_shares("single sig secret", ["only_pass"])
-    decrypted_1 = multisig_1of1.combine_shares([(shares_1[0], "only_pass")], encrypted_1)
-    print(f"✓ 1-of-1 multisig works: '{decrypted_1}'")
-    
-    # Invalid M > N
-    try:
-        invalid_multisig = MultiSig(m=5, n=3)
-        print("✗ Should have failed to create invalid multisig")
-    except ValueError as e:
-        print(f"✓ Correctly rejected invalid M > N: {e}")
-    
-    print("\n=== All tests completed ===")
+    @staticmethod
+    def test():
+        """
+        Test function to verify MultiSig functionality.
+        """
+        print("=== MultiSig Test Suite ===\n")
+        
+        # Test 1: Basic 2-of-3 multisig
+        print("Test 1: Basic 2-of-3 MultiSig")
+        multisig = MultiSig(m=2, n=3)
+        secret = "This is a very secret message!"
+        passwords = ["alice_password", "bob_password", "charlie_password"]
+        
+        # Create shares
+        shares, encrypted_secret = multisig.create_shares(secret, passwords)
+        print(f"Created {len(shares)} shares for secret: '{secret}'")
+        
+        # Try to decrypt with 2 shares (should work)
+        selected_shares = [
+            (shares[0], passwords[0]),  # Alice's share
+            (shares[1], passwords[1])   # Bob's share
+        ]
+        
+        try:
+            decrypted = multisig.combine_shares(selected_shares, encrypted_secret)
+            print(f"✓ Successfully decrypted with 2 shares: '{decrypted}'")
+            assert decrypted == secret, "Decrypted value doesn't match original"
+        except Exception as e:
+            print(f"✗ Failed to decrypt with 2 shares: {e}")
+        
+        # Try to decrypt with only 1 share (should fail)
+        print("\nTest 2: Attempting with insufficient shares (1 of 2 required)")
+        try:
+            single_share = [(shares[0], passwords[0])]
+            decrypted = multisig.combine_shares(single_share, encrypted_secret)
+            print(f"✗ Should have failed but got: '{decrypted}'")
+        except ValueError as e:
+            print(f"✓ Correctly failed with insufficient shares: {e}")
+        
+        # Test 3: Wrong password
+        print("\nTest 3: Attempting with wrong password")
+        wrong_shares = [
+            (shares[0], "wrong_password"),
+            (shares[1], passwords[1])
+        ]
+        try:
+            decrypted = multisig.combine_shares(wrong_shares, encrypted_secret)
+            print(f"✗ Should have failed but got: '{decrypted}'")
+        except ValueError as e:
+            print(f"✓ Correctly failed with wrong password: {e}")
+        
+        # Test 4: 3-of-5 multisig
+        print("\nTest 4: 3-of-5 MultiSig")
+        multisig_3of5 = MultiSig(m=3, n=5)
+        secret_2 = "Another secret requiring 3 of 5 signatures"
+        passwords_5 = [f"user_{i}_pass" for i in range(5)]
+        
+        shares_5, encrypted_secret_5 = multisig_3of5.create_shares(secret_2, passwords_5)
+        
+        # Use shares from users 0, 2, and 4
+        selected_shares_5 = [
+            (shares_5[0], passwords_5[0]),
+            (shares_5[2], passwords_5[2]),
+            (shares_5[4], passwords_5[4])
+        ]
+        
+        try:
+            decrypted_5 = multisig_3of5.combine_shares(selected_shares_5, encrypted_secret_5)
+            print(f"✓ Successfully decrypted 3-of-5: '{decrypted_5}'")
+            assert decrypted_5 == secret_2, "Decrypted value doesn't match original"
+        except Exception as e:
+            print(f"✗ Failed to decrypt 3-of-5: {e}")
+        
+        # Test 5: Edge cases
+        print("\nTest 5: Edge cases")
+        
+        # 1-of-1 multisig (essentially single sig)
+        multisig_1of1 = MultiSig(m=1, n=1)
+        shares_1, encrypted_1 = multisig_1of1.create_shares("single sig secret", ["only_pass"])
+        decrypted_1 = multisig_1of1.combine_shares([(shares_1[0], "only_pass")], encrypted_1)
+        print(f"✓ 1-of-1 multisig works: '{decrypted_1}'")
+        
+        # Invalid M > N
+        try:
+            invalid_multisig = MultiSig(m=5, n=3)
+            print("✗ Should have failed to create invalid multisig")
+        except ValueError as e:
+            print(f"✓ Correctly rejected invalid M > N: {e}")
+        
+        print("\n=== All tests completed ===")
 
 
 if __name__ == "__main__":

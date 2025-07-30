@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useState, FormEvent, useEffect } from 'react'
 import { Key } from '@/app/user/key'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
-import { RefreshCw, LogOut, User, Search, Copy } from 'lucide-react'
+import { RefreshCw, LogOut, User, Search, Copy, Filter } from 'lucide-react'
 import { UserProfile } from '@/app/user/profile/UserProfile'
 import type { User as UserType } from '@/app/types/user'
 import { useRouter, usePathname } from 'next/navigation'
@@ -21,6 +21,7 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
   const [showProfile, setShowProfile] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -120,21 +121,23 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
       <header className="fixed top-0 z-40 w-full bg-black border-b border-green-500 font-mono">
         <nav className="p-4 px-4 mx-auto max-w-7xl">
           <div className="flex items-center justify-between gap-4">
-            {/* Left side - Logo image */}
-            <Link href="/" className="flex items-center group">
-              <Image
-                src="/logo.png"
-                alt="dhub logo"
-                width={64}
-                height={64}
-                className="w-16 h-16 object-contain"
-                priority
-              />
-            </Link>
+            {/* Left side - Rotating cube logo */}
+            <div className="flex items-center gap-3">
+              <Link href="/" className="group">
+                <div className="relative w-12 h-12">
+                  <div className="absolute inset-0 animate-spin-slow preserve-3d">
+                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 transform rotate-y-0"></div>
+                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 transform rotate-y-90"></div>
+                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 transform rotate-y-180"></div>
+                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 transform rotate-y-270"></div>
+                  </div>
+                </div>
+              </Link>
+            </div>
+
 
             {/* Right side - User Section */}
             <div className="flex items-center gap-3">
-
               {user ? (
                 <div className="flex items-center gap-2">
                   <button
@@ -175,6 +178,31 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
               )}
             </div>
           </div>
+          
+          {/* Advanced Search Panel - Expandable */}
+          {showAdvancedSearch && (
+            <div className="mt-4 p-4 border border-green-500 bg-black rounded-lg">
+              <div className="text-green-500 text-sm mb-2 uppercase">Advanced Search Options</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-green-500 text-xs uppercase">Include Tags</label>
+                  <input
+                    type="text"
+                    placeholder="tag1, tag2..."
+                    className="w-full mt-1 px-3 py-2 bg-black border border-green-500/50 text-green-400 placeholder-green-600/50 focus:outline-none focus:border-green-400 font-mono text-sm rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-green-500 text-xs uppercase">Exclude Tags</label>
+                  <input
+                    type="text"
+                    placeholder="tag3, tag4..."
+                    className="w-full mt-1 px-3 py-2 bg-black border border-green-500/50 text-green-400 placeholder-green-600/50 focus:outline-none focus:border-green-400 font-mono text-sm rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
       </header>
       
@@ -188,6 +216,35 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
           onLogout={handleLogout}
         />
       )}
+
+      <style jsx>{`
+        .preserve-3d {
+          transform-style: preserve-3d;
+        }
+        .rotate-y-0 {
+          transform: rotateY(0deg);
+        }
+        .rotate-y-90 {
+          transform: rotateY(90deg);
+        }
+        .rotate-y-180 {
+          transform: rotateY(180deg);
+        }
+        .rotate-y-270 {
+          transform: rotateY(270deg);
+        }
+        @keyframes spin-slow {
+          from {
+            transform: rotateY(0deg);
+          }
+          to {
+            transform: rotateY(360deg);
+          }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 4s linear infinite;
+        }
+      `}</style>
     </>
   )
 }

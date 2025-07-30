@@ -48,6 +48,22 @@ const generateCyberpunkPattern = (key: string, color: string) => {
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 };
 
+// Cube Logo Component
+const CubeLogo: React.FC<{ color: string; size?: number; animate?: boolean }> = ({ color, size = 32, animate = false }) => {
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <div 
+        className={`absolute inset-0 border-4 border-t-transparent rounded-lg ${animate ? 'animate-spin' : ''}`} 
+        style={{ borderColor: color }}
+      />
+      <div 
+        className={`absolute inset-2 border-4 border-b-transparent rounded-lg ${animate ? 'animate-spin-reverse' : ''}`} 
+        style={{ borderColor: color }}
+      />
+    </div>
+  );
+};
+
 interface InfoCardProps {
   label: string;
   value: string | number;
@@ -140,11 +156,8 @@ export default function ModuleClient({ params }: { params: { module_name: string
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative w-32 h-32 mx-auto mb-8">
-            <div className="absolute inset-0 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: moduleColor }} />
-            <div className="absolute inset-4 border-4 border-b-transparent rounded-full animate-spin-reverse" style={{ borderColor: moduleColor }} />
-          </div>
-          <p className="text-gray-400 animate-pulse">Loading module...</p>
+          <CubeLogo color={moduleColor} size={128} animate={true} />
+          <p className="text-gray-400 animate-pulse mt-8">Loading module...</p>
         </div>
       </div>
     );
@@ -182,7 +195,7 @@ export default function ModuleClient({ params }: { params: { module_name: string
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-lg" style={{ backgroundColor: `${moduleColor}20`, border: `1px solid ${moduleColor}40` }}>
-                  <ServerIcon className="w-6 h-6" style={{ color: moduleColor }} />
+                  <CubeLogo color={moduleColor} size={24} animate={false} />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white">{params.module_name}</h1>

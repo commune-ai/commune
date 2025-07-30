@@ -72,6 +72,8 @@ class Api:
                 futures.append(future)
             for future in c.as_completed(futures):
                 result = future.result()
+                if isinstance(result, dict) and 'name' in result:
+                    print(f"Module {result['name']} loaded")
                 if self.check_module_data(result):
                     results.append(result)
                 else:
@@ -107,7 +109,7 @@ class Api:
             
         except Exception as e:
 
-            print(f"Error loading module {module}: {e}")
+            print(f"Error({module} error:{e})")
         if not code:
             info.pop('code', None)
         return info
@@ -180,4 +182,15 @@ class Api:
 
     def module_exists(self, module: str):
         return os.path.exists(self.module_path(module))
+
+
+    def sync(self, max_age=10000, page_size=32, threads=8):
+
+        n = self.n()
+        pages = n // page_size + 1
+        print(f"Syncing {n} modules in {pages} pages with page size {page_size}")
+        for page in range(1, pages + 1):
+            print(f"Syncing page {page}/{pages}")
+            self.modules(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
+        return {"message": f"Synced {n} modules in {pages} pages with page size {page_size}"}
 

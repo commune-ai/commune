@@ -105,12 +105,15 @@ class Server:
 
         # if the result is a generator, wrap it in an EventSourceResponse (SSE) for streaming
         if c.is_generator(result):
+            print('Result is a generator, wrapping in EventSourceResponse', color='yellow')
             def generator_wrapper(generator):
                 output =  ''
                 for item in generator:
                     print(item, end='')
                     output += str(item)
                     yield item
+
+            return EventSourceResponse(generator_wrapper(result))
         else:
 
             # save the transaction between the headers and server for future auditing
