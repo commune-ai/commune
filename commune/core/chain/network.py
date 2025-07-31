@@ -8,10 +8,10 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Mapping, TypeVar, cast, List, Dict, Optional
 from collections import defaultdict
-from .storage import StorageKey
-from .key import  Keypair# type: ignore
-from .base import ExtrinsicReceipt, SubstrateInterface
-from .types import (ChainTransactionError,
+from .substrate.storage import StorageKey
+from .substrate.key import  Keypair# type: ignore
+from .substrate.base import ExtrinsicReceipt, SubstrateInterface
+from .substrate.types import (ChainTransactionError,
                     NetworkQueryError, 
                     SubnetParamsMaps, 
                     SubnetParamsWithEmission,

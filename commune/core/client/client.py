@@ -32,10 +32,11 @@ class Client:
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
                 url = None,
-                stream: bool = False, # if the response is a stream
+                # stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
 
+        stream = True
         # step 1: get the url and fn
         if '/' in str(fn):
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
@@ -54,9 +55,11 @@ class Client:
         # step 3: get the params
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
 
+
         # step 4: get the headers  
         headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key)
-
+        print(f'Headers: {headers}')
+        print(f'Params: {params}')
         # step 5: make the request
         timeout = timeout or self.timeout
         with requests.Session() as conn:
@@ -66,6 +69,7 @@ class Client:
         if response.status_code != 200:
             raise Exception(response.text)
         if 'text/event-stream' in response.headers.get('Content-Type', ''):
+            print('Streaming response...')
             result = self.stream(response)
         else:
             if 'application/json' in response.headers.get('Content-Type', ''):
@@ -118,20 +122,21 @@ class Client:
         return url
 
     call = forward
+
+    def process_stream_line(line , stream_prefix = 'data: '):
+        event_data = line.decode('utf-8')
+        if event_data.startswith(stream_prefix):
+            event_data = event_data[len(stream_prefix):] 
+        if event_data == "": # skip empty lines if the event data is empty
+            return ''
+        if isinstance(event_data, str):
+            if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
+                event_data = json.loads(event_data)['data']
+        return event_data
     def stream(self, response):
-        def process_stream_line(line , stream_prefix = 'data: '):
-            event_data = line.decode('utf-8')
-            if event_data.startswith(stream_prefix):
-                event_data = event_data[len(stream_prefix):] 
-            if event_data == "": # skip empty lines if the event data is empty
-                return ''
-            if isinstance(event_data, str):
-                if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
-                    event_data = json.loads(event_data)['data']
-            return event_data
         try:
             for chunk in response.iter_lines():
-                yield process_stream_line(chunk)
+                yield self.process_stream_line(chunk)
         except Exception as e:
             yield c.detailed_error(e)
 

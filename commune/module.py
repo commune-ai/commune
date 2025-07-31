@@ -14,51 +14,61 @@ from typing import *
 import nest_asyncio
 nest_asyncio.apply()
 
-class Module:
+class Module: 
 
-    def __init__(self,  
-                name = __file__.split('/')[-2].replace('.py', ''),
-                modules_url = 'commune-ai/modules',
-                port_range = [50050, 50150],
-                expose = ['forward', 'info'],
-                shortcuts = {
-                    "or" : "model.openrouter",
-                    "wallet": "chain.wallet",
-                    "r" :  "remote",
-                    "ch" :  "chain",
-                    "chain": "chain", 
-                    "local": "server",
-                    "serv": "server", 
-                    "tweet": "x",
-                    "d": "pm.docker",
-                    "api": "app.api",
-                    "openrouter": "model.openrouter"
-                },
-                 update=True,
-                globals_input=None,
-                 
+    def __init__(self, 
+                  config = None,
                   **kwargs):
         """
         Initialize the module by sycing with the config
         """
+        self.sync(config=config)
 
-        # assume the name of this module is the name of .../
-        self.name  = name
-        self.home_path = os.path.expanduser('~')
-        self.storage_path = f'{self.home_path}/.{self.name}'
+
+    def sync(self, mod=None, verbose=False, config = None):
+
         self.root_path =os.path.dirname(__file__)
-        self.core_path = self.root_path + '/core' # the path to the core
         self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
-        self.home_path = self.homepath  = os.path.expanduser('~') # the home path
-        self.modules_path = self.mp =  self.modspath = self.root_path + '/modules'
+        self.core_path = self.root_path + '/core' # the path to the core
         self.tests_path = f'{self.lib_path}/tests'
-        self.port_range = port_range
-        self.expose = expose
-        self.shortcuts = shortcuts
-        self.modules_url = self.giturl(modules_url)
-        self.sync()
-        # config attributes
-        self.add_globals(globals_input)   
+        self.modules_path = self.mp =  self.modspath = self.root_path + '/modules'
+        self.home_path = self.homepath = os.path.expanduser('~')
+
+
+        self.set_config(config)
+        self.name  = self.config['name']
+        self.storage_path = f'{self.home_path}/.{self.name}'
+        self.port_range = self.config['port_range']
+        self.expose = self.config['expose']
+        self.shortcuts = self.config['shortcuts']
+        modules_url = self.code_link(self.config['links']['modules'])
+        if mod is not None:
+            print(f'Syncing module {mod}')
+            return self.fn(f'{mod}/sync')()
+
+        """
+        SYNC UTILS
+        """
+        routes = self.routes()
+        t0 = time.time()
+        for module, fns in routes.items():
+            module = self.import_module(module)
+            for fn in fns: 
+                if hasattr(self, fn):
+                    if verbose:
+                        print(f'Warning: {fn} already exists')
+                else:
+                    if verbose:
+                        print(f'Adding {fn} from {module.__name__}')
+                    fn_obj = getattr(module, fn, None)
+                    setattr(self, fn, fn_obj)
+
+        duration = time.time() - t0
+        if not os.path.exists(self.modules_path):
+            os.makedirs(self.modules_path, exist_ok=True)
+            cmd = f'git clone {modules_url} {self.modules_path}'
+            self.cmd(cmd, cwd=self.modules_path, verbose=verbose)
+        return {'success': True, 'msg': 'synced modules and utils'}
 
     def module(self, 
                 module: str = 'module', 
@@ -248,15 +258,15 @@ class Module:
         return self.fn('dev/')(description, source=module_path)
 
     def config_path(self, obj = None) -> str:
-        global config_path
         if obj in [None, 'module']:
-            return config_path
-        json_path =  self.dirpath(obj) + '/config.json'
-        yaml_path =  self.dirpath(obj) + '/config.yaml'
-        if os.path.exists(json_path):
-            return json_path
-        elif os.path.exists(yaml_path):
-            return yaml_path
+            filename =  '/'.join(__file__.split('/')[:-2]+['config']) 
+            config_path = None
+        else:
+            filename = self.dirpath(obj) + '/config'
+        for filetype in ['json', 'yaml']:
+            config_path = filename + '.' + filetype 
+        assert config_path != None
+        return config_path
 
     def storage_dir(self, module=None):
         module = self.mod(module)
@@ -446,21 +456,14 @@ class Module:
             utils = [u for u in utils if search in u]
         return sorted(utils)
         
-    def util2path(self, search=None):
-        utils_paths = self.get_utils(search=search)
-        util2path = {}
-        for f in utils_paths:
-            util2path[f.split('.')[-1]] = f
-        return util2path
-    
     def utils(self, search=None):
         return self.get_utils(search=search)
 
-    def get_routes(self, obj=None):
+    def routes(self, obj=None):
         obj = obj or self
-        if hasattr(self, 'routes'):
-            routes = self.routes
         routes = {}
+        if hasattr(self.config, 'routes'):
+            routes.update(self.config.routes)
         for util in self.get_utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -469,7 +472,7 @@ class Module:
         return routes
 
     def fn2route(self): 
-        routes = self.get_routes()
+        routes = self.routes()
         fn2route = {}
         for k,v in routes.items():
             for f in v:
@@ -504,16 +507,25 @@ class Module:
         return self.secret(key=key, seed=seed, update=True, tempo=tempo, **kwargs)
 
 
-
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
         Set the config as well as its local params
         '''
         config = config or {}
-        config = {**self.config(), **config}
-        if isinstance(config, dict):
-            config = self.dict2munch(config)
-        self.config = config 
+        if isinstance(config, str) :
+            if os.path.exists(config):
+                if config.endswith('.yaml') or config.endswith('.yml'):
+                    import yaml
+                    config = yaml.load(open(config, 'r'), Loader=yaml.FullLoader)
+                elif config.endswith('.json'):
+                    import json
+                    config = json.load(open(config, 'r'))
+            elif config == 'default':
+                config = {}
+        elif config == None:
+            config = {}
+            
+        self.config = {**self.get_config(), **config }
         return self.config
 
     def search(self, search:str = None, **kwargs):
@@ -525,6 +537,7 @@ class Module:
         """
         path = None
         dirpath_options = [ self.lib_path , self.root_path,  self.pwd()]
+
         path_options = [os.path.join(dp, f'config.{file_type}') for dp in dirpath_options for file_type in file_types]
         for p in path_options:
             if os.path.exists(p):
@@ -555,10 +568,6 @@ class Module:
 
     config = get_config
 
-    def dict2munch(self, d:Dict) -> 'Munch':
-        from munch import Munch
-        return Munch(d)
-    
     def put_json(self, 
                  path:str, 
                  data:Dict, 
@@ -900,7 +909,7 @@ class Module:
         return  inspect.getsource(obj)
 
     def call(self, *args, **kwargs): 
-        return self.fn('client/call')(*args, **kwargs)
+        return self.fn('client/')(*args, **kwargs)
     
     def code_map(self, module = None , search=None, ignore_folders = ['modules', 'mods'], *args, **kwargs) ->  Dict[str, str]:
         dirpath = self.dirpath(module)
@@ -1533,7 +1542,8 @@ class Module:
             if os.path.exists(dirpath):
                 self.rm(dirpath)
             cmd = f'cp -r {original_dirpath} {dirpath}'
-            c.cmd(cmd)
+            
+            self.cmd(cmd)
             return {'name': name, 'path': dirpath, 'msg': 'Module Copied'}
         elif bool(name.endswith('.git') or name.startswith('http')):
             git_path = name
@@ -1730,7 +1740,7 @@ class Module:
        return self.fn('app/api')(*args, **kwargs)
     
 
-    def giturl(self, url:str='commune-ai/commune'):
+    def code_link(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
         gitsuffix = '.git'
         if not url.startswith(gitprefix):
@@ -1753,7 +1763,7 @@ class Module:
         module = self.module(module)
         code_link = module.code
         if not code_link.startswith('https://'):
-            code_link = self.giturl(code_link)
+            code_link = self.code_link(code_link)
         code_link = code_link.replace('.git', '')
         cmd = f'git clone {code_link} {dirpath}'
         cmds = [f'rm -rf {dirpath}', f'git clone {code_link} {dirpath}']
@@ -1765,13 +1775,7 @@ class Module:
             return False
     
     def links(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
-        modules = self.modules()
-        filtered_modules = []
-        for module in modules:
-            islink = self.islink(module, expected_features=expected_features)
-            if islink:
-                filtered_modules += [module]
-        return filtered_modules
+        return self.config['links']
 
     def push(self, path = None, comment=None):
         path = path or (self.modules_path + '/' + module.replace('.', '/'))
@@ -1844,11 +1848,11 @@ class Module:
             self.cp(from_path, to_path)
             assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
         elif 'github.com' in module:
-            giturl = module
+            code_link = module
             module = (name or module.split('/')[-1].replace('.git', '')).replace('/', '.')
             # clone ionto the modules path
             to_path = self.modules_path + '/' + module
-            cmd = f'git clone {giturl} {self.modules_path}/{module}'
+            cmd = f'git clone {code_link} {self.modules_path}/{module}'
             self.cmd(cmd, cwd=self.modules_path)
         else:
             raise Exception(f'Module {module} does not exist')
@@ -1857,7 +1861,6 @@ class Module:
             self.rm(git_path)
         self.tree(update=1)
         return {'success': True, 'msg': 'added module',  'to': to_path}
-
 
     def rm_mod(self, module:str = 'dev'):
         """
@@ -1911,43 +1914,6 @@ class Module:
 
     def txs(self, *args, **kwargs) -> 'Callable':
         return self.fn('server/txs')( *args, **kwargs)
-
-
-    def sync_utils(self, verbose=False):
-
-        """
-        This ties other modules into the current module.
-        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
-        This allows you to call the function as if it were a method of the current module.
-        for example
-        """
-        routes = self.get_routes()
-        t0 = time.time()
-        for module, fns in routes.items():
-            module = self.import_module(module)
-            for fn in fns: 
-                if hasattr(self, fn):
-                    if verbose:
-                        print(f'Warning: {fn} already exists')
-                else:
-                    if verbose:
-                        print(f'Adding {fn} from {module.__name__}')
-                    fn_obj = getattr(module, fn, None)
-                    setattr(self, fn, fn_obj)
-        duration = time.time() - t0
-        return {'success': True, 'msg': 'enabled routes', 'duration': duration}
-
-    def sync(self, mod=None, verbose=False):
-        if mod is not None:
-            print(f'Syncing module {mod}')
-            return self.fn(f'{mod}/sync')()
-        self.sync_utils()
-        if not os.path.exists(self.modules_path):
-            os.makedirs(self.modules_path, exist_ok=True)
-            cmd = f'git clone {self.modules_url} {self.modules_path}'
-            self.cmd(cmd, cwd=self.modules_path, verbose=verbose)
-        return {'success': True, 'msg': 'synced modules and utils'}
-
 
 if __name__ == "__main__":
     Module().run()

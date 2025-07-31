@@ -132,7 +132,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
   return (
     <div
       onClick={handleCardClick}
-      className='cursor-pointer border-2 bg-black p-6 font-mono hover:shadow-2xl transition-all duration-300 relative overflow-hidden group flex flex-col h-[420px]'
+      className='cursor-pointer border-2 bg-black p-6 font-mono hover:shadow-2xl transition-all duration-300 relative overflow-hidden group flex flex-col h-[420px] rounded-2xl'
       style={{ 
         borderColor: moduleColor,
         boxShadow: isHovered ? `0 0 30px ${moduleColor}80, inset 0 0 20px ${moduleColor}20` : `0 0 10px ${moduleColor}40`,
@@ -144,7 +144,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
     >
       {/* Loading overlay */}
       {isLoading && (
-        <div className='absolute inset-0 z-20 bg-black/90 flex items-center justify-center'>
+        <div className='absolute inset-0 z-20 bg-black/90 flex items-center justify-center rounded-2xl'>
           <div className='text-5xl font-bold animate-pulse text-white'>{`loading...`}</div>
         </div>
       )}
@@ -168,7 +168,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
               {/* Key */}
               <div className='flex items-center gap-2'>
                 <span className='text-xl lowercase font-bold text-white/60'>key</span>
-                <div className='border px-3 py-1 rounded-md' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
+                <div className='border px-3 py-1 rounded-lg' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
                   <code className='text-xl font-mono text-white/80'>
                     {shorten(module.key, 4)}
                   </code>
@@ -182,7 +182,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
               {module.cid && (
                 <div className='flex items-center gap-2'>
                   <span className='text-xl lowercase font-bold text-white/60'>cid</span>
-                  <div className='border px-3 py-1 rounded-md' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
+                  <div className='border px-3 py-1 rounded-lg' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
                     <code className='text-xl font-mono text-white/80'>
                       {shorten(module.cid, 4)}
                     </code>
@@ -196,7 +196,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
               {/* Date */}
               <div className='flex items-center gap-2'>
                 <span className='text-xl lowercase font-bold text-white/60'>time</span>
-                <div className='border px-3 py-1 rounded-md' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
+                <div className='border px-3 py-1 rounded-lg' style={{ borderColor: `${moduleColor}50`, backgroundColor: `${moduleColor}10` }}>
                   <span className='text-xl font-mono text-white/80'>
                     {time2str(module.time)}
                   </span>
@@ -207,7 +207,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
             {/* Right side - Pattern image */}
             {cyberpunkPattern && (
               <div 
-                className='w-48 h-48 rounded-lg overflow-hidden border-2 opacity-70 group-hover:opacity-90 transition-opacity duration-300'
+                className='w-48 h-48 rounded-xl overflow-hidden border-2 opacity-70 group-hover:opacity-90 transition-opacity duration-300'
                 style={{
                   borderColor: `${moduleColor}40`,
                   backgroundImage: `url(${cyberpunkPattern})`,
@@ -237,7 +237,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
                 {module.tags.slice(0, 8).map((tag, i) => (
                   <span
                     key={i}
-                    className='text-lg border px-3 py-1 lowercase tracking-wide transition-all duration-200 hover:scale-110 text-white'
+                    className='text-lg border px-3 py-1 lowercase tracking-wide transition-all duration-200 hover:scale-110 text-white rounded-full'
                     style={{ 
                       borderColor: `${moduleColor}50`,
                       backgroundColor: `${moduleColor}15`,

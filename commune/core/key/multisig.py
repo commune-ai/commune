@@ -46,7 +46,7 @@ class MultiSig:
     def __init__(self, m: int, n: int):
         """
         Initialize MultiSig with M of N threshold.
-        
+
         Args:
             m: Minimum number of signatures required
             n: Total number of possible signers

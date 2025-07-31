@@ -71,20 +71,6 @@ class Chain:
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
 
-
-    def set_connections(self, num_connections: int):
-        self.num_connections = num_connections
-        return {'num_connections': self.num_connections}
-
-    def set_archive(self, archive: bool = True):
-        """
-        Sets the archive mode for the chain.
-
-        Args:
-            archive: Whether to enable archive mode or not.
-        """
-        self.archive = archive
-        return {'archive': self.archive}
         
     def switch(self, network=None):
         og_network = self.network
@@ -117,6 +103,16 @@ class Chain:
             url = mode_prefix + url
         self.url = url
         return {'url': self.url}
+
+    def resolve_network(self, network: str = None, test: bool = False):
+        if network == None:
+            network = self.network
+        if network in ['chain']:
+            network = 'main'
+        if test: 
+            network = 'test'
+        return network
+
     def set_network(self, 
                         network=None,
                         mode = 'wss',
@@ -128,22 +124,14 @@ class Chain:
                         wait_for_finalization: bool = False,
                         timeout: int  = None ):
         t0 = c.time()
-        if network == None:
-            network = self.network
-        if network in ['chain']:
-            network = 'main'
-        if test: 
-            network = 'test'
-        self.network = self.net = network
 
+        self.network = self.net = self.resolve_network(network=network, test=test)
         if timeout != None:
             ws_options["timeout"] = timeout
         self.ws_options = ws_options
-
-        self.set_archive(archive)
+        self.archive = archive
         self.set_url(url, mode=mode)
-        self.set_connections(num_connections)   
-                    
+        self.num_connections = num_connections
         self.wait_for_finalization = wait_for_finalization
 
         return {
@@ -189,7 +177,6 @@ class Chain:
                 self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options, use_remote_preset=True ))
             self.connection_latency = round(c.time() - t0, 2)
             c.print(f'Chain(network={self.network} url={self.url} connections={self.num_connections} latency={self.connection_latency}s)', color='blue') 
-
         conn = self.connections_queue.get(timeout=timeout)
         if init:
             conn.init_runtime()  # type: ignore
@@ -786,10 +773,11 @@ class Chain:
             block_hash = substrate.get_block_hash(block)
         return block_hash
     
-    def block(self):
+    def block(self, block: Optional[int] = None) -> int:
         with self.get_conn(init=True) as substrate:
-            block_number = substrate.get_block_number()
+            block_number = substrate.get_block_number(block)
         return block_number
+
     
     def runtime_spec_version(self):
         # Get the runtime version
@@ -1230,6 +1218,19 @@ class Chain:
             if w['name'] != '--' and w['balance'] > min_balance:
                 new_wallets.append(w)
         return [w['name'] for w in new_wallets]
+
+
+    def wallet(self, key):
+        balance = self.balance(key)
+        staketo = self.staketo(key=key, extract_value=True)
+        key = self.get_key_address(key)
+        return {
+            'key': key,
+            'balance': balance,
+            'staketo': staketo,
+        }
+
+
 
 
     def tx_rate_limit(self) -> int:
@@ -2042,7 +2043,7 @@ class Chain:
         my_balance = self.my_balance(update=update, max_age=max_age)
         key2address = c.key2address()
         wallets = []
-        wallet_names = set(list(my_stake) + list(my_balance))
+        wallet_names = set(key2address.keys())
         for k in wallet_names:
             if not k in key2address:
                 continue
@@ -3395,13 +3396,77 @@ class Chain:
         params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
         return self.call(fn="add_stake", params=params, key=key, safety=safety)
 
-    def events(self, block=None):
+    def events(self, block=None, back=None) -> list[dict[str, Any]]:
         """
         Get events from a specific block or the latest block
         """
+        if back != None:
+            block = self.block()
+            since = self.block() - back
+            assert since < block, f"Block {block} is not greater than since {since}"
+            block2events  = {}
+            future2block = {}
+            for block in range(since, block + 1):
+                print(f"Getting events for block {block}")
+                f = c.submit(self.events, params=dict(block=block), timeout=60)
+                future2block[f] = block
+            for future in c.as_completed(future2block):
+                block = future2block[future]
+                events = future.result()
+                block2events[block] = events
+                print(f"Got {len(events)} events for block {block}")
+
+            return block2events
+
+        block = block or self.block()
+        path = self.get_path(f'events/{block}')
+        events = c.get(path, None)
+        if events is not None:
+            c.print(f"Events for block {block} already cached, returning cached events", color='green')
+            return events
         block_hash = self.block_hash(block)
         with self.get_conn(init=True) as substrate:
             # Get events from the block
             events = substrate.get_events(block_hash)
+        
         events = [e.value for e in events]
+        # include the tx hash
+
+        # c.put(path, events)
         return events
+
+
+    def transfer_events(self, block=None, back=None):
+        """
+        Get transfer events from the blockchain
+        
+        Args:
+            block: Specific block number to check (if None, uses latest)
+            back: Number of blocks to look back from current block
+        
+        Returns:
+            List of transfer events
+        """
+        # Get all events
+        events = self.events(block=block, back=back)
+        
+        transfer_events = []
+        
+        # If back is specified, we get a dict of block->events
+        if back is not None:
+            for block_num, block_events in events.items():
+                for event in block_events:
+                    # Check if this is a transfer event from Balances module
+                    if (event.get('module_id') == 'Balances' and 
+                        event.get('event_id') == 'Transfer'):
+                        event['block'] = block_num
+                        transfer_events.append(event)
+        else:
+            # Single block events
+            for event in events:
+                if (event.get('module_id') == 'Balances' and 
+                    event.get('event_id') == 'Transfer'):
+                    event['block'] = block
+                    transfer_events.append(event)
+        
+        return transfer_events

@@ -1,0 +1,26 @@
+
+{
+    "name": "commune",
+    "version": "0.1.0",
+    "description": "A Python package for commune utilities",
+    "shortcuts": {
+                    "or" : "model.openrouter",
+                    "wallet": "chain.wallet",
+                    "r" :  "remote",
+                    "ch" :  "chain",
+                    "chain": "chain", 
+                    "local": "server",
+                    "serv": "server", 
+                    "tweet": "x",
+                    "d": "pm.docker",
+                    "api": "app.api",
+                    "openrouter": "model.openrouter"
+                },
+
+    "expose" : ["forward", "info"],
+    "port_range": [50050, 50150],
+    "links": {
+        "modules" : "git/commune-ai/modules"
+    }
+            
+}

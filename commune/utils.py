@@ -1268,6 +1268,7 @@ def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
 
 def hardware(fmt:str='gb'):
     return {
+        'os': osname(),
         'cpu': cpu_info(),
         'memory': memory_info(fmt=fmt),
         'disk': disk_info(fmt=fmt),
@@ -1446,6 +1447,7 @@ def determine_type( x):
     x_type_name = x_type.__name__.lower()
     return x_type_name
 
+
 def detailed_error(e) -> dict:
     import traceback
     tb = traceback.extract_tb(e.__traceback__)
@@ -1460,6 +1462,8 @@ def detailed_error(e) -> dict:
         'line_text': line_text
     }   
     return response
+
+error = detailed_error
 
 def error(e) -> dict:
     import traceback
@@ -2041,13 +2045,6 @@ def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
     return x
 
 
-def hardware(fmt:str='gb'):
-    return {
-        'cpu': cpu_info(),
-        'memory': memory_info(fmt=fmt),
-        'disk': disk_info(fmt=fmt),
-        'gpu': gpu_info(fmt=fmt),
-    }
 
 def sys_path():
     return sys.path
@@ -2713,7 +2710,6 @@ def getsourcelines( module = None, search=None, *args, **kwargs) -> Union[str, D
         module = cls
     return inspect.getsourcelines(module)
 
-
 def round(x, sig=6, small_value=1.0e-9):
     import math
     """
@@ -2722,6 +2718,10 @@ def round(x, sig=6, small_value=1.0e-9):
     return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
 
+
+def dict2munch(self, d:Dict) -> 'Munch':
+    from munch import Munch
+    return Munch(d)
 
 
 def get_args_kwargs(params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
@@ -2740,7 +2740,6 @@ def get_args_kwargs(params={},  args:List = [], kwargs:dict = {}, ) -> Tuple:
         else:
             kwargs = params
     return args, kwargs
-
 
 # def is_docker():
 #     path = '/proc/self/cgroup'

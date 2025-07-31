@@ -559,34 +559,6 @@ class Server:
             c.sleep(period)
         return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
 
-
-    def worker(self, module):
-        servers = c.servers()
-        i = 0
-        i2name = lambda i: module + '::worker' + str(i)
-        while worker_name in servers:
-            worker_name = i2name(i)
-            i += 1
-        print(f'Starting worker {worker_name}', color='green')
-        c.serve(module=module, name=worker_name, fns=['forward'], key=c.get_key(module), free_mode=True)
-        return {'success': True, 'message': f'Started worker {worker_name}'}
-            
-
-
-    def workers(self, module, n=2):
-        for i in range(n):
-            c.serve(module + '::worker' + str(i))
-
-    def kill_workers(self, module):
-        servers = c.servers()
-        for server in servers:
-            if server.startswith(module + '::worker'):
-                c.kill(server)
-        return {'success': True, 'message': f'Killed workers for {module}'}
-
-
-
-
     def test_serializer(self):
         return c.mod('serializer')().test()  
 
