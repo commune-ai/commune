@@ -80,7 +80,7 @@ class Tx:
 
     create_tx = create = tx = forward
 
-    def verify_tx(self, tx):
+    def verify(self, tx):
         """
         verify the transaction
         """
@@ -89,7 +89,6 @@ class Tx:
             assert self.auth.verify(tx[role], data=auth_data[role]), f'{role} auth is invalid'
         return True
 
-    vtx = verify = verify_tx
 
     def paths(self, path=None):
         return self.store.paths(path=path)
@@ -99,7 +98,6 @@ class Tx:
         Get the encrypted paths of the transactions
         """
         return self.store.encrypted_paths(path=path)
-
    
     def _rm_all(self):
         """
@@ -202,7 +200,6 @@ class Tx:
         print('Transaction is valid')
 
         return { 'time': time.time() - t0, 'msg': 'Transaction test passed'}
-        
 
     def get_auths(self, module:str, fn:str, params:dict, result:Any):
         """

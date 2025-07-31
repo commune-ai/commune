@@ -38,8 +38,10 @@ class Chain:
     tempo = 60
     blocktime = block_time = 8
     blocks_per_day = 24*60*60/block_time
+
+    
     urls = {
-        "main":  {"lite": ["api.communeai.net"],  "archive": ["archive-node-0.communeai.net", "archive-node-1.communeai.net"]},
+        "main":  {"lite": ["api.communeai.net"],  "archive": ["commune-archive-node-0.communeai.net", "commune-archive-node-1.communeai.net"]},
         "test": {"lite": ["testnet.api.communeai.net"]}
     }
     networks = list(urls.keys())
@@ -145,7 +147,12 @@ class Chain:
     def get_url(self,  mode=None, **kwargs):
         mode = mode or self.mode
         sub_key = 'archive' if self.archive else 'lite'
-        url = c.choice(self.urls[self.network].get(sub_key))
+        url_options = self.urls[self.network].get(sub_key, [])
+        if len(url_options) == 0 and self.archive:
+            print(f'No archive nodes available for network {self.network}, switching to lite mode')
+            self.archive = False
+            return self.get_url(mode=mode, **kwargs)
+        url = c.choice(url_options)
         if not url.startswith(mode):
             url = mode + '://' + url
         return url    
@@ -3396,17 +3403,29 @@ class Chain:
         params = {"amount":  amount * 10**9, "module_key": self.get_key_address(dest)}
         return self.call(fn="add_stake", params=params, key=key, safety=safety)
 
-    def events(self, block=None, back=None) -> list[dict[str, Any]]:
+    def events(self, block=None, back=None, from_block = None, to_block=None) -> list[dict[str, Any]]:
         """
         Get events from a specific block or the latest block
         """
-        if back != None:
-            block = self.block()
-            since = self.block() - back
+        if back != None or from_block != None or to_block != None:
+            if from_block is not None and to_block is not None:
+                block = to_block
+                since = from_block
+            elif back is not None:
+                block = self.block()
+                since = block - back
+            else:
+                raise ValueError("Must specify either 'back' or 'from_block' and 'to_block'")
             assert since < block, f"Block {block} is not greater than since {since}"
             block2events  = {}
             future2block = {}
             for block in range(since, block + 1):
+                path = self.get_path(f'events/{block}')
+                events = c.get(path, None)
+                if events is not None:
+                    c.print(f"Events for block {block} already cached, returning cached events", color='green')
+                    block2events[block] = events
+                    continue
                 print(f"Getting events for block {block}")
                 f = c.submit(self.events, params=dict(block=block), timeout=60)
                 future2block[f] = block
@@ -3432,7 +3451,7 @@ class Chain:
         events = [e.value for e in events]
         # include the tx hash
 
-        # c.put(path, events)
+        c.put(path, events)
         return events
 
 

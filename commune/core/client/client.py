@@ -133,6 +133,8 @@ class Client:
             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                 event_data = json.loads(event_data)['data']
         return event_data
+
+        
     def stream(self, response):
         try:
             for chunk in response.iter_lines():

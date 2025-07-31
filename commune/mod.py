@@ -14,7 +14,7 @@ from typing import *
 import nest_asyncio
 nest_asyncio.apply()
 
-class Module: 
+class Mod: 
 
     def __init__(self, 
                   config = None,
@@ -89,7 +89,7 @@ class Module:
             return module
         # Try to load the module
         if module in ['module', 'commune', 'mod']:
-            return Module
+            return Mod
         module = module.replace('/', '.')
         module = self.shortcuts.get(module, module)
         tree = self.tree(update=update)
@@ -229,7 +229,7 @@ class Module:
     dp = dirpath
     
     def modname(self, obj=None):
-        obj = obj or Module
+        obj = obj or Mod
         if  isinstance(obj, str):
             obj = self.module(obj)
         module_file =  inspect.getfile(obj)
@@ -1149,7 +1149,7 @@ class Module:
                 elif self.is_python_module(module):
                     module = self.import_module(module)
                 else:
-                    raise Exception(f'Module {module} not found')  
+                    raise Exception(f'Mod {module} not found')  
                 fn_obj = getattr(module, fn)
             elif self.object_exists(fn):
                 fn_obj =  self.obj(fn)
@@ -1533,7 +1533,7 @@ class Module:
         make a new module
         """
         if not name:
-            name = input('Module name/github/ipfs/url')
+            name = input('Mod name/github/ipfs/url')
 
         if os.path.exists(name):
             original_dirpath = self.abspath(name)
@@ -1544,7 +1544,7 @@ class Module:
             cmd = f'cp -r {original_dirpath} {dirpath}'
             
             self.cmd(cmd)
-            return {'name': name, 'path': dirpath, 'msg': 'Module Copied'}
+            return {'name': name, 'path': dirpath, 'msg': 'Mod Copied'}
         elif bool(name.endswith('.git') or name.startswith('http')):
             git_path = name
             name =  name.split('/')[-1].replace('.git', '')
@@ -1564,7 +1564,7 @@ class Module:
                 self.put_text(k_path, v)
             code_map = new_code_map
         self.go(dirpath)
-        return {'name': name, 'path': dirpath, 'msg': 'Module Created'}
+        return {'name': name, 'path': dirpath, 'msg': 'Mod Created'}
     
     create = new = add = addmod
 
@@ -1810,7 +1810,7 @@ class Module:
         """
         from_path = self.dirpath(from_module)
         if not os.path.exists(from_path):
-            raise Exception(f'Module {from_path} does not exist')
+            raise Exception(f'Mod {from_path} does not exist')
         to_path = self.modules_path + '/' + to_module
         if os.path.exists(to_path):
             if input(f'Path {to_path} already exists. Do you want to remove it? (y/n)'):
@@ -1855,7 +1855,7 @@ class Module:
             cmd = f'git clone {code_link} {self.modules_path}/{module}'
             self.cmd(cmd, cwd=self.modules_path)
         else:
-            raise Exception(f'Module {module} does not exist')
+            raise Exception(f'Mod {module} does not exist')
         git_path = to_path + '/.git'
         if os.path.exists(git_path):
             self.rm(git_path)
@@ -1868,7 +1868,7 @@ class Module:
         """
         path = self.dirpath(module)
         if not os.path.exists(path):
-            raise Exception(f'Module {path} does not exist')
+            raise Exception(f'Mod {path} does not exist')
         self.rm(path)
         assert not os.path.exists(path), f'Failed to remove {path}'
         self.tree(update=1)
@@ -1886,9 +1886,9 @@ class Module:
         globals_input = globals_input or {}
         for k,v in self.__dict__.items():
             globals_input[k] = v     
-        for f in self.fns(Module, mode='self'):
+        for f in self.fns(Mod, mode='self'):
             def wrapper_fn(f, *args, **kwargs):
-                fn = getattr(Module(), f)
+                fn = getattr(Mod(), f)
                 return fn(*args, **kwargs)
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
@@ -1916,6 +1916,6 @@ class Module:
         return self.fn('server/txs')( *args, **kwargs)
 
 if __name__ == "__main__":
-    Module().run()
+    Mod().run()
 
 
