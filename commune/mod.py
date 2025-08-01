@@ -67,7 +67,8 @@ class Mod:
         if not os.path.exists(self.modules_path):
             os.makedirs(self.modules_path, exist_ok=True)
             cmd = f'git clone {modules_url} {self.modules_path}'
-            self.cmd(cmd, cwd=self.modules_path, verbose=verbose)
+            print(f'Syncing modules from {modules_url} to {self.modules_path}')
+            self.cmd(cmd)
         return {'success': True, 'msg': 'synced modules and utils'}
 
     def module(self, 
@@ -219,9 +220,12 @@ class Mod:
                 dirpath =  os.path.dirname(filepath)
             else: 
                 dirpath = self.modules_path + '/' + module.replace('.', '/')
+
+             
             src_tag =  module + '/src' 
             if src_tag in dirpath:
                 dirpath = dirpath.split(src_tag)[0] + module
+            
             if dirpath.endswith('/src'):
                 dirpath = dirpath[:-4]  # remove the trailing /src
             return dirpath

@@ -21,7 +21,7 @@
     "expose" : ["forward", "info"],
     "port_range": [50050, 50150],
     "links": {
-        "modules" : "git/commune-ai/modules"
+        "modules" : "commune-ai/modules"
         
     }
             
