@@ -55,11 +55,20 @@ class Client:
         # step 3: get the params
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
 
+        # step 4: get the headers/auth
+        headers = self.auth.forward({'fn': fn, 'params': params}, key=key)
 
-        # step 4: get the headers  
-        headers = self.auth.get_headers({'fn': fn, 'params': params}, key=key)
-        print(f'Headers: {headers}')
-        print(f'Params: {params}')
+        result = self.post(
+            url=url, 
+            fn=fn,
+            params=params, 
+            headers=headers, 
+            timeout=timeout, 
+            stream=stream
+        )
+        return result
+
+    def post(self, url, fn,  params=None, headers=None, timeout=None, stream=False):
         # step 5: make the request
         timeout = timeout or self.timeout
         with requests.Session() as conn:
@@ -81,6 +90,7 @@ class Client:
                 if response.status_code != 200:
                     raise Exception(result)
         return result
+
     
     def get_key(self,key=None):
         key = key or  self.key

@@ -15,7 +15,10 @@ class Api:
     endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
     modules_path = os.path.expanduser('~/.commune/api/modules')
 
-    def __init__(self, background:bool = False, path='~/.commune/api', **kwargs):
+    def __init__(self,
+                expose_functions = ['chain/info', 'chain/forward', 'chain/stream', 'chain/stream_forward'],
+                background:bool = False, 
+                path='~/.commune/api', **kwargs):
         self.store = c.mod('store')(path)
 
     def paths(self):
@@ -114,6 +117,15 @@ class Api:
             info.pop('code', None)
         return info
 
+
+    allowed_functions = ['chain/events', 'chain/forward', 'chain/stream', 'chain/stream_forward', 'schema']
+
+    def call(self, fn, params={"text": "hey"}, **kwargs):
+        assert fn in self.allowed_functions, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
+        return c.fn(fn)(**params, **kwargs)
+
+    def ask(self, text, **kwargs):
+        return c.ask(text, **kwargs)
     def check_module_data(self, module) -> bool:
         if not isinstance(module, dict):
             return False
@@ -193,4 +205,5 @@ class Api:
             print(f"Syncing page {page}/{pages}")
             self.modules(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
         return {"message": f"Synced {n} modules in {pages} pages with page size {page_size}"}
+
 

@@ -83,7 +83,8 @@ class PM:
         
 
 
-    def serve(self, module='api', 
+    def serve(self,
+                module='api', 
                 image='commune:latest', 
                 cwd='/app', 
                 port=None, 
@@ -105,7 +106,6 @@ class PM:
         params['port'] = port
         params_cmd = self.params2cmd(params)
         cmd = f"c server/serve {module} {params_cmd}"
-        # names
 
         name = name or module
         if '::' in module:
@@ -120,10 +120,8 @@ class PM:
             'daemon': daemon,
         }
         dirpath = c.dirpath(module)
-        volumes = {self.path: '/root/' + self.path.split('/')[-1]}
+        volumes = {self.path: '/root/' + self.path.split('/')[-1], dirpath : '/root/app/' + module}
         pwd = os.getcwd()
-        if pwd != self.path:
-            volumes[pwd] = dirpath
         params['volumes'] = volumes
         if include_storage :
             params['volumes'][c.storage_path] = '/root/.commune'
@@ -192,17 +190,13 @@ class PM:
         """
         path = os.path.abspath(path or self.path)
         if os.path.isdir(path):
-            if not os.path.exists(os.path.join(path, 'Dockerfile')):
-                raise FileNotFoundError(f"No Dockerfile found in {path}")
-            else:
-                path = os.path.join(path, 'Dockerfile')
+            path = path + '/Dockerfile'
         assert os.path.exists(path), f"Dockerfile not found at {path}"
         tag = tag or path.split('/')[2]
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
-        cmd = f'cd {path} && ' + cmd
-        return os.system(cmd)
+        return os.system(f'cd {path} && ' + cmd)
 
 
     def run(self,

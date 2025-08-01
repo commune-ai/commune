@@ -1729,7 +1729,7 @@ class Mod:
         return configs
 
     def serve(self, module:str = 'module', port:int=None, **kwargs):
-        return self.fn('pm/serve')(module=module, port=port, **kwargs)
+        return self.mod('pm')().serve(module=module, port=port, **kwargs)
 
     def app(self, *args, **kwargs):
        return self.fn('app/')(*args, **kwargs)

@@ -70,6 +70,7 @@ class Server:
         self.verbose = verbose
         self.tx = c.mod(tx)(tx_path=tx_path)
         self.role2rate = role2rate
+
         self.admin_roles = admin_roles
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
@@ -131,7 +132,6 @@ class Server:
             except Exception as e:
                 print('Error occurred while forwarding transaction:', e)
         return result
-
 
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
         return  self.tx.txs( *args, **kwargs)
@@ -314,13 +314,18 @@ class Server:
 
         role = 'public'
         # only valid if the signature is in the headers
+        if self.free_mode and self.role2rate['public'] == 0:
+            self.role2rate['public'] = 1000
         if 'signature' in headers:
             headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
             call_count = self.call_count(user=headers['key'], fn=fn)
             role = self.role(headers['key']) # get the role of the user
             role_rate_limit = self.role2rate.get(role, 0) # admin and owner can call any fn
+            if role_rate_limit == 0:
+                raise Exception(f'Role {role} cannot call function {fn}')
             key_address_rate_limit = self.role2rate.get(headers['key'], 0) # rate limit for the key address
             rate_limit = max(role_rate_limit, key_address_rate_limit) # the rate limit for the user
+            
             if role not in ['admin', 'owner']:
                 assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
                 rate_limit = max(self.network_rate(user=headers['key'], network=self.network) , rate_limit)
