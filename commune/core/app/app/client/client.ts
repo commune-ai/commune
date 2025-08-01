@@ -1,6 +1,6 @@
 
 import config from '@/config.json';
-import Key from '@/app/user/key';
+import Key from '@/app/key';
 
 export class Client {
   public url: string;

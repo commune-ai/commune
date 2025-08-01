@@ -12,7 +12,7 @@ class App:
         
     def app(self, port=3000):
         self.api()
-        cwd = c.dp('app')
+        cwd = c.dirpath('app')
         os.system( f'cd {cwd} && docker compose up -d')
         return {"status": "app started", 'cwd': cwd, 'url': f'http://localhost:{port}'}
 

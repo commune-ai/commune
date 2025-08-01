@@ -113,7 +113,7 @@ export const AdvancedSearch = ({
   }
 
   return (
-    <div className="w-full space-y-3 font-mono">
+    <div className="w-full max-w-4xl mx-auto space-y-3 font-mono">
       {/* Main Search Bar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">

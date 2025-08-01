@@ -22,13 +22,13 @@ class Auth:
         :param signature_keys: the keys to use for signing 
         """
         self.signature_keys = signature_keys
-        self.key = c.get_key(key, crypto_type=crypto_type)
+        self.key = self.get_key(key, crypto_type=crypto_type)
         self.hash_type = hash_type
         self.crypto_type = crypto_type
         self.signature_keys = signature_keys
         self.max_staleness = max_staleness
 
-    def generate(self,  data: Any,  key=None, crypto_type=None) -> dict:
+    def forward(self,  data: Any,  key=None, crypto_type=None) -> dict:
         """
         Generate the headers with the JWT token
         """
@@ -41,7 +41,7 @@ class Auth:
         result['signature'] = key.sign({k: result[k] for k in self.signature_keys}, mode='str')
         return result
 
-    get_headers = headers = generate 
+    get_headers = headers = generate = forward
 
     def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
@@ -77,20 +77,13 @@ class Auth:
         else: 
             raise ValueError(f'Invalid hash type {self.hash_type}')
 
-    def get_crypto_type(self, crypto_type=None):
-        """
-        Get the crypto type
-        """
-        if crypto_type is None:
-            crypto_type = self.crypto_type
-        assert crypto_type in ['sr25519', 'ed25519'], f'Invalid crypto type {crypto_type}'
-        return crypto_type
-
     def get_key(self, key=None, crypto_type=None):
-        crypto_type = self.get_crypto_type(crypto_type)
+        crypto_type =  crypto_type or self.crypto_type
+        if not hasattr(self, 'key'):
+            self.key = c.get_key(key, crypto_type=crypto_type)
         if key is None:
             key = self.key
-        if isinstance(key, str):
+        else:
             key = c.get_key(key, crypto_type=crypto_type)
         assert hasattr(key, 'key_address'), f'Invalid key {key}'
         return key
@@ -98,7 +91,7 @@ class Auth:
     def test(self, key='test.auth', crypto_type='sr25519'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
         auth = Auth(key=key, crypto_type=crypto_type)
-        headers = auth.headers(data, key=key, crypto_type=crypto_type)
+        headers = auth.forward(data, key=key, crypto_type=crypto_type)
         headers = auth.verify(headers)
         headers = auth.verify(headers, data=data)
         return {'headers': headers}

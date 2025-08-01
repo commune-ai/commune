@@ -29,7 +29,7 @@ import ModuleSchema from './ModuleSchema'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 
-type TabType = 'code' | 'api' | 'history' | 'links'
+type TabType = 'code' | 'api' | 'transactions' | 'links'
 
 interface ModuleClientProps {
   module_name: string
@@ -212,8 +212,7 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
   const [loading, setLoading] = useState<boolean>(true)
   const [syncing, setSyncing] = useState<boolean>(false)
   const [codeMap, setCodeMap] = useState<Record<string, string>>({})
-  const initialTab: TabType = code ? 'code' : api ? 'api' : 'history'
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
+  const [activeTab, setActiveTab] = useState<TabType>('code')
   const [hasFetched, setHasFetched] = useState(false)
 
   const fetchModule = useCallback(async (update = false) => {
@@ -284,42 +283,13 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
   const patternBg = generatePattern(moduleColor, module.key || module.name)
 
   const tabs = [
-    { id: 'history', label: 'HISTORY', icon: ClockIcon },
-    { id: 'links', label: 'LINKS', icon: LinkIcon },
+    // { id: 'history', label: 'HISTORY', icon: ClockIcon },
+    // { id: 'links', label: 'LINKS', icon: LinkIcon },
     { id: 'code', label: 'CODE', icon: CodeBracketIcon },
     { id: 'api', label: 'API', icon: ServerIcon },
+    { id: 'transactions', label: 'TRANSACTIONS', icon: ArrowTrendingUpIcon },
   ]
 
-  // Mock data - replace with real data from your API
-  const historyData = [
-    {
-      version: 'v2.1.0',
-      date: 'Nov 15, 2024',
-      changes: [
-        'Added WebSocket support for real-time updates',
-        'Improved error handling and retry logic',
-        'Performance optimizations for large datasets'
-      ]
-    },
-    {
-      version: 'v2.0.0',
-      date: 'Oct 28, 2024',
-      changes: [
-        'Complete UI redesign with new color scheme',
-        'Migrated to TypeScript for better type safety',
-        'Added comprehensive test coverage'
-      ]
-    },
-    {
-      version: 'v1.5.2',
-      date: 'Oct 10, 2024',
-      changes: [
-        'Fixed memory leak in data processing',
-        'Updated dependencies to latest versions',
-        'Added support for custom themes'
-      ]
-    }
-  ]
 
   const linkedModules = {
     dependencies: [
@@ -542,68 +512,13 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
                 transition={{ duration: 0.2 }}
                 className='p-8'
               >
-                {activeTab === 'history' && (
-                  <div className='space-y-6'>
-                    <div className='flex items-center gap-3 mb-8'>
-                      <ArrowTrendingUpIcon className='h-6 w-6' style={{ color: moduleColor }} />
-                      <h2 className='text-2xl font-bold text-white'>Version History</h2>
-                    </div>
-                    <div className='relative'>
-                      {historyData.map((item, i) => (
-                        <HistoryItem key={i} {...item} color={moduleColor} />
-                      ))}
-                    </div>
+
+                {activeTab === 'transactions' && (
+                  <div className='space-y-4'>
+                    <h2 className='text-2xl font-bold mb-4'>Transactions</h2>
+                    <p className='text-gray-400'>No transactions available for this module.</p>
                   </div>
                 )}
-                
-                {activeTab === 'links' && (
-                  <div className='space-y-8'>
-                    <div className='flex items-center gap-3 mb-6'>
-                      <LinkIcon className='h-6 w-6' style={{ color: moduleColor }} />
-                      <h2 className='text-2xl font-bold text-white'>Linked Modules</h2>
-                    </div>
-                    
-                    {/* Dependencies */}
-                    <div>
-                      <h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
-                        <DocumentDuplicateIcon className='h-5 w-5 text-red-400' />
-                        Dependencies
-                      </h3>
-                      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                        {linkedModules.dependencies.map((mod, i) => (
-                          <LinkedModule key={i} {...mod} type='dependency' color={moduleColor} />
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Dependents */}
-                    <div>
-                      <h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
-                        <DocumentDuplicateIcon className='h-5 w-5 text-teal-400' />
-                        Used By
-                      </h3>
-                      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                        {linkedModules.dependents.map((mod, i) => (
-                          <LinkedModule key={i} {...mod} type='dependent' color={moduleColor} />
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Related */}
-                    <div>
-                      <h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
-                        <DocumentDuplicateIcon className='h-5 w-5 text-blue-400' />
-                        Related Modules
-                      </h3>
-                      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                        {linkedModules.related.map((mod, i) => (
-                          <LinkedModule key={i} {...mod} type='related' color={moduleColor} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 {activeTab === 'code' && (
                   <ModuleCode
                     files={codeMap}

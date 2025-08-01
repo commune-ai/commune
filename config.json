@@ -14,13 +14,15 @@
                     "tweet": "x",
                     "d": "pm.docker",
                     "api": "app.api",
-                    "openrouter": "model.openrouter"
+                    "openrouter": "model.openrouter",
+                    "substrate": "chain.substrate"
                 },
 
     "expose" : ["forward", "info"],
     "port_range": [50050, 50150],
     "links": {
         "modules" : "git/commune-ai/modules"
+        
     }
             
 }

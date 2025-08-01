@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { X, Copy, LogOut, Key as KeyIcon, Shield, Globe, FileSignature, CheckCircle, History, Package, User, Terminal, Lock, Zap } from 'lucide-react'
-import { Key } from '@/app/user/key'
+import { Key } from '@/app/key'
 import type { User } from '@/app/types/user'
 
 interface UserProfileProps {

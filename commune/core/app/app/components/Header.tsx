@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState, FormEvent, useEffect } from 'react'
-import { Key } from '@/app/user/key'
+import { Key } from '@/app/key'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import { RefreshCw, LogOut, User, Search, Copy, Filter } from 'lucide-react'
 import { UserProfile } from '@/app/user/profile/UserProfile'
@@ -10,18 +10,15 @@ import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 
 interface HeaderProps {
-  onSearch?: (term: string) => void
   onRefresh?: () => void
 }
 
-export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
+export const Header = ({ onRefresh }: HeaderProps = {}) => {
   const [password, setPassword] = useState('')
   const [keyInstance, setKeyInstance] = useState<Key | null>(null)
   const [user, setUser] = useState<UserType | null>(null)
   const [showProfile, setShowProfile] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
   const [copiedAddress, setCopiedAddress] = useState(false)
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -90,26 +87,6 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
     }
   }
 
-  const handleSearchSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    if (onSearch) {
-      onSearch(searchQuery)
-    } else {
-      // Trigger search via global event for module explorer
-      window.dispatchEvent(new CustomEvent('searchModules', { detail: searchQuery }))
-    }
-  }
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value)
-    // Real-time search
-    if (onSearch) {
-      onSearch(value)
-    } else {
-      window.dispatchEvent(new CustomEvent('searchModules', { detail: value }))
-    }
-  }
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     setCopiedAddress(true)
@@ -122,7 +99,7 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
         <nav className="p-4 px-4 mx-auto max-w-7xl">
           <div className="flex items-center justify-between gap-4">
             {/* Left side - Rotating cube logo */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               <Link href="/" className="group">
                 <div className="relative w-12 h-12">
                   <div className="absolute inset-0 animate-spin-slow preserve-3d">
@@ -134,7 +111,6 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
                 </div>
               </Link>
             </div>
-
 
             {/* Right side - User Section */}
             <div className="flex items-center gap-3">
@@ -178,31 +154,6 @@ export const Header = ({ onSearch, onRefresh }: HeaderProps = {}) => {
               )}
             </div>
           </div>
-          
-          {/* Advanced Search Panel - Expandable */}
-          {showAdvancedSearch && (
-            <div className="mt-4 p-4 border border-green-500 bg-black rounded-lg">
-              <div className="text-green-500 text-sm mb-2 uppercase">Advanced Search Options</div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-green-500 text-xs uppercase">Include Tags</label>
-                  <input
-                    type="text"
-                    placeholder="tag1, tag2..."
-                    className="w-full mt-1 px-3 py-2 bg-black border border-green-500/50 text-green-400 placeholder-green-600/50 focus:outline-none focus:border-green-400 font-mono text-sm rounded"
-                  />
-                </div>
-                <div>
-                  <label className="text-green-500 text-xs uppercase">Exclude Tags</label>
-                  <input
-                    type="text"
-                    placeholder="tag3, tag4..."
-                    className="w-full mt-1 px-3 py-2 bg-black border border-green-500/50 text-green-400 placeholder-green-600/50 focus:outline-none focus:border-green-400 font-mono text-sm rounded"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </nav>
       </header>
       
