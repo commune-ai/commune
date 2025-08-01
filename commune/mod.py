@@ -1178,6 +1178,9 @@ class Mod:
             args = []
         return args
 
+    def hosts(self):
+        return self.fn('remote/hosts')()
+
     def how(self, module, query, *extra_query) : 
         code = self.code(module)
         query = ' '.join([query, *extra_query])
@@ -1696,8 +1699,12 @@ class Mod:
         return readme2text
     config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc', 'server']
 
-    def import_module(self, module:str = 'commune.utils'):
+    
+    def import_module(self, module:str = 'commune.utils', lib_name = 'commune'):
         from importlib import import_module
+        double_lib_name = f'{lib_name}.{lib_name}'
+        if double_lib_name in module:
+            module = module.replace(double_lib_name, lib_name)
         return import_module(module)
 
     def is_python_module(self, module:str = 'commune.utils'):
@@ -1731,14 +1738,17 @@ class Mod:
     def serve(self, module:str = 'module', port:int=None, **kwargs):
         return self.mod('pm')().serve(module=module, port=port, **kwargs)
 
-    def app(self, *args, **kwargs):
-       return self.fn('app/')(*args, **kwargs)
-    
+    def app(self, module=None, **kwargs):
+        
+        if module:
+            return self.fn(module + '/app' )()
+        return self.fn('app/')(**kwargs)
 
 
     def api(self, *args, **kwargs):
        return self.fn('app/api')(*args, **kwargs)
     
+
 
     def code_link(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
