@@ -41,7 +41,6 @@ class Mod:
         self.port_range = self.config['port_range']
         self.expose = self.config['expose']
         self.shortcuts = self.config['shortcuts']
-        modules_url = self.code_link(self.config['links']['modules'])
         if mod is not None:
             print(f'Syncing module {mod}')
             return self.fn(f'{mod}/sync')()
@@ -50,7 +49,6 @@ class Mod:
         SYNC UTILS
         """
         routes = self.routes()
-        t0 = time.time()
         for module, fns in routes.items():
             module = self.import_module(module)
             for fn in fns: 
@@ -63,13 +61,21 @@ class Mod:
                     fn_obj = getattr(module, fn, None)
                     setattr(self, fn, fn_obj)
 
-        duration = time.time() - t0
-        if not os.path.exists(self.modules_path):
-            os.makedirs(self.modules_path, exist_ok=True)
+        self.sync_mods()
+
+
+        return {'success': True, 'msg': 'synced modules and utils'}
+
+    def sync_mods(self):
+        modules_url = self.code_link(self.config['links']['modules'])
+        modules_exist = os.path.exists(self.modules_path)
+        update_modules =  len(os.listdir(self.modules_path)) == 0
+        if update_modules:
+            # os.makedirs(self.modules_path, exist_ok=True)
+            print(f'Updating modules from {modules_url} to {self.modules_path}')
             cmd = f'git clone {modules_url} {self.modules_path}'
             print(f'Syncing modules from {modules_url} to {self.modules_path}')
             self.cmd(cmd)
-        return {'success': True, 'msg': 'synced modules and utils'}
 
     def module(self, 
                 module: str = 'module', 
@@ -143,28 +149,6 @@ class Mod:
                 raise Exception(f'{module} not found')
         assert os.path.exists(path), f'{path} does not exist'
         return self.cmd(f'code {path}', **kwargs)
-
-    def g(self, module=None, **kwargs):
-        """
-        go the file
-        """
-        return self.go(module=module, **kwargs)
-
-
-    def gof(self, module=None, **kwargs):
-        """
-        go the file
-        """
-        try:
-            path = self.filepath(module)
-        except:
-            path = self.modules_path + '/' + module
-        if path.split('/')[-1] == path.split('/')[-2]:
-            path = '/'.join(path.split('/')[:-1])
-        assert os.path.exists(path), f'{path} does not exist'
-        return self.cmd(f'code {path}', **kwargs)
-
-
 
     def getfile(self, obj=None) -> str:
         return inspect.getfile(self.mod(obj))
@@ -252,14 +236,6 @@ class Mod:
             objx = self 
         return obj.__name__
 
-
-    def buidl(self, module:str = 'module', description:str = None, *extra_desc) -> str:
-
-        module_path = self.modules_path + '/' + module
-        description = description or f'build a module'
-        description = description + ' ' + ' '.join(extra_desc)
-        os.makedirs(module_path, exist_ok=True)
-        return self.fn('dev/')(description, source=module_path)
 
     def config_path(self, obj = None) -> str:
         if obj in [None, 'module']:
@@ -416,6 +392,7 @@ class Mod:
         files =self.glob(path, **kwargs)
         if not include_hidden_files:
             files = [f for f in files if not '/.' in f]
+
         files = list(filter(lambda f: not any([at in f for at in avoid_terms]), files))
         # search terms
         if relative: 
@@ -430,23 +407,18 @@ class Mod:
     def files_size(self):
         return len(str(self.files()))
 
+
+    def envs(self, key:str = None, **kwargs) -> None:
+        return self.get_key(key, **kwargs).envs()
+
     def encrypt(self,data: Union[str, bytes], key: str = None, password: str = None, **kwargs ) -> bytes:
         return self.get_key(key).encrypt(data, password=password)
     def decrypt(self, data: Any,  password : str = None, key: str = None, **kwargs) -> bytes:
         return self.get_key(key).decrypt(data, password=password)
-
-    def encrypt_test(self, data: Union[str, bytes], key: str = None, password: str = None, **kwargs) -> bool:
-        encrypted = self.encrypt(data, key=key, password=password, **kwargs)
-        decrypted = self.decrypt(encrypted, key=key, password=password, **kwargs)
-        return data == decrypted
         
     def sign(self, data:dict  = None, key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
         return self.get_key(key, crypto_type=crypto_type).sign(data, mode=mode, **kwargs)
 
-    def signtest(self, data:dict  = 'hey', key: str = None,  crypto_type='sr25519', mode='str', **kwargs) -> bool:
-        signature = self.sign(data, key, crypto_type=crypto_type, mode=mode, **kwargs)
-        return self.verify(data, signature, key=key, crypto_type=crypto_type, **kwargs)
-    
     def size(self, module) -> int:
         return len(str(self.code_map(module)))
 
@@ -580,11 +552,21 @@ class Mod:
                  **kwargs) -> str:
         if not path.endswith('.json'):
             path = path + '.json'
-        path = self.get_path(path=path)
+        path = self.get_path(path)
         if isinstance(data, dict):
             data = json.dumps(data)
         self.put_text(path, data)
         return path
+
+    def env(self):
+        """
+        Get the environment variables
+        """
+        import os
+        env = {}
+        for k,v in os.environ.items():
+            env[k] = v
+        return env
 
     def rm(self, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/', './']):
         avoid_paths = list(set((avoid_paths)))
@@ -804,30 +786,13 @@ class Mod:
                 self.print(f'Error {e} {fn}', color='red', verbose=False)
         return fn_code_map
     
-    def fn2hash(self, module=None)-> Dict[str, str]:
-        module = self.mod(module)   
-        return {k:self.hash(v) for k,v in self.fn2code(module).items()}
-
     def fn_code(self,fn:str, module=None,**kwargs) -> str:
         '''
         Returns the code of a function
         '''
         fn = self.fn(fn)      
         return inspect.getsource(fn)       
-    
-    def is_generator(self, obj):
-        """
-        Is this shiz a generator dawg?
-        """
-        if isinstance(obj, str):
-            if not hasattr(self, obj):
-                return False
-            obj = getattr(self, obj)
-        if not callable(obj):
-            result = inspect.isgenerator(obj)
-        else:
-            result =  inspect.isgeneratorfunction(obj)
-        return result
+
 
     fn2cost = {}
 
@@ -947,20 +912,6 @@ class Mod:
             module = self
         return inspect.getsource(module)
 
-    def params(self, fn='forward'):
-        """
-        Gets the function defaults
-        """
-    
-        fn = self.obj(fn)
-        params = dict(inspect.signature(fn)._parameters)
-        for k,v in params.items():
-            if v._default != inspect._empty and  v._default != None:
-                params[k] = v._default
-            else:
-                params[k] = None
-        return params
-
     def dir(self, obj=None, search=None, *args, **kwargs):
         obj = self.obj(obj)
         if search != None:
@@ -987,16 +938,6 @@ class Mod:
         if not include_hidden: 
             fns = [f for f in fns if not f.startswith('__') and not f.startswith('_')]
         return fns
-        
-    
-    def clear_info_history(self):
-        return self.rm('info')
-
-    
-    def resolve_info_path(self, name):
-        if not isinstance(name, str):
-            name = str(name)
-        return self.get_path('info/' + name)
 
 
     def module2fns(self,max_age=30, update=False, core=True) -> List[str]:
@@ -1017,9 +958,9 @@ class Mod:
                     fn2module[fn] = module
         return fn2module
 
-    def modules(self, search=None,  startswith=None, endswith=None, **kwargs)-> List[str]:  
+    def mods(self, search=None,  startswith=None, endswith=None, **kwargs)-> List[str]:  
         return list(self.tree(search=search, endswith=endswith, startswith=startswith , **kwargs).keys())
-    mods = modules
+    modules = mods
     def get_modules(self, search=None, **kwargs):
         return self.modules(search=search, **kwargs)
 
@@ -1051,7 +992,8 @@ class Mod:
             key=None,
             **kwargs):
             
-        path = self.resolve_info_path(module)
+        path = self.get_path('info/' + str(name)) 
+        
         info = self.get(path, None, max_age=max_age, update=update)
         if info == None:
             info =  {
@@ -1392,9 +1334,6 @@ class Mod:
             return False
 
     def object_exists(self, path:str, verbose=False)-> Any:
-
-        # better way to check if an object exists?
-
         return self.obj_exists(path, verbose=verbose)
 
     def m(self):
@@ -1632,34 +1571,11 @@ class Mod:
                     repo2path[r] = p
         return dict(sorted(repo2path.items(), key=lambda x: x[0]))
 
-    def repo2git(self, search=None):
-        """
-        Returns a dictionary of the form {repo_name: git_url}
-        """
-        repo2path = self.repo2path(search=search)
-        repo2git = {}
-        for repo, path in repo2path.items():
-            git_path = os.path.join(path, '.git', 'config')
-            if os.path.exists(git_path):
-                with open(git_path, 'r') as f:
-                    for line in f:
-                        if 'url =' in line:
-                            url = line.split('=')[1].strip()
-                            repo2git[repo] = url
-                            break
-        return dict(sorted(repo2git.items(), key=lambda x: x[0]))
-
-
     def build_image(self, module:str = 'module'):
         return os.system(f'docker build -t {self.name} {self.lib_path}')
 
     def repos(self, search=None):
         return list(self.repo2path(search=search).keys())
-
-    def chat(self, *args, module=None, **kwargs):
-        if module != None:
-            args = [self.code(module)] + list(args)
-        return self.module("agent")().ask(*args, **kwargs) 
 
     def help(self, query:str = 'what is this', *extra_query , mod='module', **kwargs):
         query = ' '.join([query, *extra_query])
@@ -1691,7 +1607,6 @@ class Mod:
     def context_size(self, path:str = './', search=None, **kwargs) -> int:
         return len(str(self.readme2text(path=path, search=search, **kwargs)))
 
-
     def readme2text(self, path:str = './', search=None, **kwargs) -> str:
         """
         Returns the text of the readme file in the path
@@ -1701,9 +1616,7 @@ class Mod:
         for f in files:
             readme2text[f] = self.get_text(f)
         return readme2text
-    config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc', 'server']
 
-    
     def import_module(self, module:str = 'commune.utils', lib_name = 'commune'):
         from importlib import import_module
         double_lib_name = f'{lib_name}.{lib_name}'
@@ -1726,14 +1639,16 @@ class Mod:
 
     killall = kill_all
 
-
-    def configs( path='./', modes=['yaml', 'json'], search=None, names=['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']):
+    def configs( path='./', 
+                modes=['yaml', 'json'], 
+                search=None, 
+                config_name_options = ['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc', 'server'],
+                names=['config', 'cfg', 'module', 'block',  'agent', 'mod', 'bloc']):
         """
         Returns a list of config files in the path
         """
         def is_config(f):
-            name_options = self.config_name_options
-            return any(f.endswith(f'{name}.{m}') for name in names for m in modes)
+            return any(f.endswith(f'{name}.{m}') for name in config_name_options for m in modes)
         configs =  [f for f in  self.files(path) if is_config(f)]
         if search != None:
             configs = [f for f in configs if search in f]
@@ -1743,16 +1658,12 @@ class Mod:
         return self.mod('pm')().serve(module=module, port=port, **kwargs)
 
     def app(self, module=None, **kwargs):
-        
         if module:
             return self.fn(module + '/app' )()
         return self.fn('app/')(**kwargs)
 
-
     def api(self, *args, **kwargs):
        return self.fn('app/api')(*args, **kwargs)
-    
-
 
     def code_link(self, url:str='commune-ai/commune'):
         gitprefix = 'https://github.com/'
@@ -1762,31 +1673,6 @@ class Mod:
         if not url.endswith(gitsuffix):
             url = url + gitsuffix
         return url
-
-    def islink(self, module='datura', link_features = ['link', 'url', 'uri']):
-        try:
-            module = self.module(module)
-            islink =  any([hasattr(module, feature) for feature in link_features])
-        except Exception as e:
-            self.print(e)
-            islink = False
-        return islink
-
-    def expand_link(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
-        dirpath = self.dirpath(module)
-        module = self.module(module)
-        code_link = module.code
-        if not code_link.startswith('https://'):
-            code_link = self.code_link(code_link)
-        code_link = code_link.replace('.git', '')
-        cmd = f'git clone {code_link} {dirpath}'
-        cmds = [f'rm -rf {dirpath}', f'git clone {code_link} {dirpath}']
-        if input(f'Are you sure you want to run {cmds}') == 'y':
-            for cmd in cmds:
-                self.cmd(cmd, cwd=dirpath)
-        else:
-            self.print('Aborting')
-            return False
     
     def links(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
         return self.config['links']

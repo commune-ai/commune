@@ -8,5 +8,6 @@ WORKDIR /app
 COPY ./package.json .
 RUN npm install
 
-
-ENTRYPOINT ["npm", "run" , "dev"]
+# For development, we don't need to build
+# The dev server will handle compilation on the fly
+ENTRYPOINT ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]

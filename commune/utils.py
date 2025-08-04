@@ -1961,6 +1961,18 @@ def system_info():
         'disk': disk_info(),
     }
 
+
+def is_generator( obj):
+    """
+    Is this shiz a generator dawg?
+    """
+    import inspect
+    if not callable(obj):
+        result = inspect.isgenerator(obj)
+    else:
+        result =  inspect.isgeneratorfunction(obj)
+    return result
+
 def is_mac():
     return sys.platform == 'darwin'
 

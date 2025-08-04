@@ -2,6 +2,7 @@
 import config from '@/config.json';
 import Key from '@/app/key';
 
+
 export class Client {
   public url: string;
 
@@ -15,6 +16,11 @@ export class Client {
   constructor(url: string = config.url, mode: string = 'http', key: Key) {
     if (!url.startsWith(`${mode}://`)) {
       url = `${mode}://${url}`;
+    }
+    // if {HOST} is present in the URL, replace it with the actual host
+    if (url.includes('{HOST}')) {
+      const host = process.env.HOST || 'localhost';
+      url = url.replace('{HOST}', host);
     }
     this.url = url;
     this.key = key;
@@ -30,7 +36,6 @@ export class Client {
   public async call(
     fn: string = 'info',
     params: Record<string, any> = {},
-    headers: Record<string, string> = {}
   ): Promise<any> {
     try {
       return await this.async_call(fn, params);
@@ -44,7 +49,6 @@ export class Client {
   public sync_call(
     fn: string = 'info',
     params: Record<string, any> = {},
-    headers: Record<string, string> = {}
   ): any {
     let future = this.async_call(fn, params);
     let result: any;

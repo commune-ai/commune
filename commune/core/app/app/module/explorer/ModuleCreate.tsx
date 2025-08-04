@@ -5,12 +5,6 @@ import { ModuleType, DefaultModule } from '@/app/types/module'
 import { Client } from '@/app/client/client'
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
-const STORAGE_PREFIXES = {
-  github: 'https://github.com/',
-  ipfs: 'ipfs://',
-  s3: 's3://',
-  arweave: 'ar://'
-} as const
 
 interface CreateModuleProps {
   onClose: () => void

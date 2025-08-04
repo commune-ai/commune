@@ -5,7 +5,7 @@ from typing import List, Dict, Union, Optional, Any
 import commune as c
 import subprocess
 import json
-import yaml
+
 import pandas as pd
 import subprocess
 import json
@@ -18,30 +18,15 @@ class PM:
     """
     A module for interacting with Docker.
     """
-
-
-
-    def __init__(self,     
     default_shm_size = '100g',
     default_network = 'host',
     image = 'commune:latest',
     path = c.lib_path,
-    modules_path = c.modules_path):
-
-        self.default_shm_size = default_shm_size
-        self.default_network = default_network
-        self.image = image
-        self.path = path
-        self.modules_path = modules_path
-
-
-
 
     def serve(self,
                 module='api', 
                 image='commune:latest', 
-                working_dir='/app', 
-                cwd=None,
+                cwd='/app', 
                 port=None, 
                 daemon=True, 
                 remote = None,
@@ -51,18 +36,17 @@ class PM:
                 env=None,
                 **params):
 
-        """
-        serve a module with commune server as a docker container.
-        """
-
-
-        daemon = remote if remote != None else daemon
+        if remote is not None:
+            daemon = remote
+        if d is not None:
+            daemon = d
         module = module or 'module'
-        port = port or c.free_port() 
+        port = port or c.free_port()
+        # params['remote'] = 0
         params['port'] = port
         params_cmd = self.params2cmd(params)
         cmd = f"c server/serve {module} {params_cmd}"
-        cwd = c.dirpath(module) 
+
         name = name or module
         if '::' in module:
             name = self.name2process(name)
@@ -72,7 +56,7 @@ class PM:
             'image': image, 
             'port': port,
             'cmd': cmd,
-            'working_dir': cwd, 
+            'cwd': cwd, 
             'daemon': daemon,
         }
         dirpath = c.dirpath(module)
@@ -87,7 +71,7 @@ class PM:
     def run(self,
             name : str = "commune",
             image: str = None,
-            cmd: str = None,
+            cmd: str = "tail -f /dev/null",
             volumes: Dict = None,
             gpus: Union[List, str, bool] = False,
             shm_size: str = '5gb',
@@ -98,24 +82,26 @@ class PM:
             ports: Union[List, Dict[int, int]] = None,
             daemon: bool = True,
             cwd: Optional = None,
-            working_dir = None,
             env: Optional[Dict] = None,
             compose_path: str = '~/.commune/pm/docker-compose.yml',
             restart: str = 'always',
-            verbose = False,
-            **kwargs
+            verbose = False
             ) -> Dict:
         """
         Generate and run a Docker container using docker-compose.
         """
+        import yaml
 
         compose_path = os.path.expanduser(compose_path)
         image = image or self.image
         name = name or image.split('::')[0].replace('/', '_')
         
-        # Build the servic
-        service_config = {}
-        service_config['restart'] = restart or 'always'
+        # Build the service configuration
+        service_config = {
+            'image': image,
+            'container_name': name,
+            'restart': restart
+        }
         
         # Handle command
         if cmd:
@@ -127,6 +113,9 @@ class PM:
         
         # Handle GPU configuration
         if gpus:
+
+            
+
             service_config['deploy'] = {
                 'resources': {
                     'reservations': {
@@ -161,10 +150,10 @@ class PM:
                     'count': 'all',
                     'capabilities': ['gpu']
                 })
-
-        # handle networking (which ports to open)
+        
         if port != None:
             ports = {port: port}
+        
         if ports:
             if isinstance(ports, list):
                 ports = {port: port for port in ports}
@@ -172,22 +161,10 @@ class PM:
         
         # Handle volume mappings
         if volumes:
-            service_config['volumes'] = [] 
-            if isinstance(volumes, list):
-                for v in volumes:
-                    if ':' in v:
-                        _k, _v = v.split(':')
-                        _k = c.abspath(_k)
-                        service_config['volumes'].append(f'{_k}:{_v}')
-                    else:
-                        service_config['volumes'].append(c.abspath(v))
-            elif isinstance(volumes, dict):
-                service_config['volumes'] = [f'{c.abspath(k)}:{v}' for k, v in volumes.items()]
-            else:
-                raise ValueError("Volumes must be a list or a dictionary")
-
+            assert isinstance(volumes, dict)
+            service_config['volumes'] = [f'{c.abspath(k)}:{v}' for k, v in volumes.items()]
+        
         # Handle environment variables
-        env = env or environment or {}
         if env:
             if isinstance(env, dict):
                 service_config['environment'] = [f'{k}={v}' for k, v in env.items()]
@@ -197,24 +174,9 @@ class PM:
             service_config['environment'] = env
         
         # Set working directory
-        if working_dir:
-            service_config['working_dir'] = working_dir
-
-        service_config['container_name'] = name
-
-        if isinstance(build, dict):
-            service_config['build'] = build
-        elif build:
-            if isinstance(build, str):
-                service_config['build'] = {'context': build}
-            elif isinstance(build, bool) and build:
-                # Default build context is the current working directory
-                service_config['build'] = {'context': cwd}
-            elif isinstance(build, dict):
-                service_config['build'] =  build
-        else:
-            service_config['image'] = image
-
+        if cwd:
+            service_config['working_dir'] = cwd
+        
         # Build the complete docker-compose configuration
         compose_config = {
             'services': {
@@ -229,34 +191,83 @@ class PM:
                     'driver': 'bridge'
                 }
             }
+    
+        # Write the docker-compose file
 
-        c.print(f"Compose configuration for {name}: ", compose_config)
         c.put_yaml(compose_path, compose_config)
-            
+        
+        print(yaml.dump(compose_config, default_flow_style=False, sort_keys=False))
+        
         # Stop existing container if it exists
-        self.kill(name) if self.exists(name) else None
+        if self.exists(name):
+            self.kill(name)
         
         # Run docker-compose
         compose_cmd = []
         if sudo:
             compose_cmd.extent(['sudo'])
-        compose_cmd.extend(['docker-compose', '-f', compose_path, 'up'])
+        compose_cmd.extend(['docker-compose', '-f', compose_path])
+        # Run the container
+        compose_cmd.extend(['docker-compose', '-f', compose_path])
+        compose_cmd.extend(['up'])
         if daemon:
             compose_cmd.append('-d')
+        
         compose_cmd = ' '.join(compose_cmd)
-        print(f"Running command: {compose_cmd}")
-        if cwd is not None:
-            cwd = os.path.abspath(cwd)
-            compose_cmd = f'cd {cwd} && ' + compose_cmd
-        if daemon:
-            os.system(compose_cmd)
-            return {
+        
+        print(f"Running command: {cmd}")
+        os.system(compose_cmd)
+        return {
             'config': compose_config,
             'daemon': daemon,
             'cwd': cwd,
         }
+
+
+
+    def compose2dockerfilecmd(self, compose_data: str) -> str:
+        """
+        comnvert to docker file withotu using docker compose
+        """
+
+        volumes = compose_data.get('volumes', {})
+        ports = compose_data.get('ports', {})
+        env = compose_data.get('environment', {})
+        cmd = f'docker run -it --rm '
+        if self.default_network:
+            cmd += f'--network {self.default_network} '
+        if self.default_shm_size:
+            cmd += f'--shm-size {self.default_shm_size} '
+        if self.image:
+            cmd += f'--image {self.image} ' 
+        if volumes:
+            for host_path, container_path in volumes.items():
+                cmd += f'-v {host_path}:{container_path} '
+        if ports:
+            for host_port, container_port in ports.items():
+                cmd += f'-p {host_port}:{container_port} '
+        if env:
+            for key, value in env.items():
+                cmd += f'-e {key}={value} '
+        cmd += f'{self.image} '
+        
+        if 'command' in compose_data:
+            command = compose_data['command']
+            if isinstance(command, list):
+                command = ' '.join(command)
+            cmd += f'bash -c "{command}"'
         else:
-            return os.system(compose_cmd)
+            cmd += 'tail -f /dev/null'
+        
+        if 'entrypoint' in compose_data:
+            entrypoint = compose_data['entrypoint']
+            if isinstance(entrypoint, list):
+                entrypoint = ' '.join(entrypoint)
+            cmd = f'docker run --entrypoint "{entrypoint}" ' + cmd
+
+        return cmd  
+
+
 
         
 
@@ -732,12 +743,6 @@ class PM:
         
         return self.run(image=image, name=name, **kwargs)
 
-    def container2id(self, name: str = None) -> Dict[str, str]:
-        container2id =  {container: c.cmd(f'docker inspect -f "{{{{.Id}}}}" {self.name2process(container)}').strip() for container in self.servers()}
-        if name:
-            return container2id.get(name, None)
-        return container2id
-
     def stop(self, name: str) -> Dict[str, str]:
         """
         Stop a container without removing it (PM2-like interface).
@@ -770,29 +775,6 @@ class PM:
         except Exception as e:
             return {'status': 'error', 'name': name, 'error': str(e)}
 
-    def dockerfile_path(self, path=None): 
-        path = path or self.path
-        for i in c.ls(path):
-            if i.endswith('Dockerfile'):
-                return os.path.join(path, i)
-        return None
-
-    def dockerfile(self, path=None):
-        return c.text(self.dockerfile_path(path))
-
-            
-
-    def delete(self, name: str) -> Dict[str, str]:
-        """
-        Remove a container (PM2-like interface).
-
-        Args:
-            name (str): The name of the container.
-
-        Returns:
-            Dict[str, str]: Result of the operation.
-        """
-        return self.kill(name)
 
     def list(self, all: bool = False) -> pd.DataFrame:
         """
@@ -982,9 +964,9 @@ class PM:
             c.put(path, namespace)
         return namespace
 
-
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())
+
 
     def which_docker_compose_command(self) -> str:
         """
