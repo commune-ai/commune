@@ -1,6 +1,6 @@
     
 import commune as c
-class Test(c.Module):
+class Test:
     description = """
     i test stuff
     """
@@ -32,17 +32,10 @@ class Test(c.Module):
         """
         Check if the module has a test module
         """
-        try:
-            if self.module_exists(module + '.test'):
-                return True
-            else: 
-                fns = c.fns(module)
-                if 'test' in fns or any([fn.startswith('test_') for fn in fns]):
-                    return True
-        except Exception as e:
-            if verbose:
-                c.print(f'Error checking test {module}: {e}')
-        return False
+        return c.module_exists(module + '.test')
+
+    def has_test_fns(self, module):
+        return bool('test' in c.fns(module))
     def test_module(self, module='module', timeout=50):
         """
         Test the module
@@ -63,7 +56,7 @@ class Test(c.Module):
         if self.has_test_module(module):
             module = module + '.test'
 
-        obj = self.module(module)()
+        obj = c.mod(module)()
         test_fns = []
         for fn in dir(obj):
             if fn.startswith('test_') or fn == 'test':
@@ -74,10 +67,24 @@ class Test(c.Module):
         return test_fns
 
 
+    def has_test(self, module=None, verbose=False):
+        """
+        Check if the module has a test module or test functions
+        """
+        try:
+            return self.has_test_module(module) or self.has_test_fns(module)
+        except Exception as e:
+            if verbose:
+                c.print(f'Error checking tests for {module}: {e}')
+        return False
+
+
     def test_mods(self, search=None, verbose=False, **kwargs):
         test_mods = []
         mods =  c.mods(search=search, **kwargs)
         for m in mods:
-            if self.has_test_module(m, verbose=verbose):
+            if verbose:
+                c.print(f'Checking module: {m}')
+            if self.has_test(m, verbose=verbose):
                 test_mods.append(m)
         return test_mods
