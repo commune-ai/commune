@@ -3,20 +3,24 @@ import os
 
 class App:
 
-    def forward(self, public=True, port=3000):
+    def forward(self, api_public=True, port=3000, api_port=8000):
         return {
-            "api": self.api( port=8000, free_mode=True),
-            "app": self.app(),
+            "api": self.api(port=api_port, free_mode=True),
+            "app": self.app(api_public=api_public),
 
         }
         
-    def app(self, port=3000, public=True, remote=True, build=True):
-        self.api()
-        dirpath = c.dirpath('app')        
+    def app(self, port=3000, public=False, remote=True, build=True, api_port=8000, api_free_mode=True, api_public=True):
+        if not c.exists('api'):
+            print('API not found, please run `commune api` first.')
+            self.api(port=api_port, free_mode=api_free_mode)
+        dirpath = c.dirpath('app')   
+        api_ip = c.ip() if api_public else '0.0.0.0'
+        api_url = f'http://{api_ip}:{api_port}'
         params = {
             'build': True,
             'port':  port,
-            'env': {'API_URL': f'http://localhost:8000'},
+            'env': {'API_URL': api_url},
             'volumes': [f'{dirpath}:/app','/app/node_modules'],
             'name': 'app', 
             'cwd': dirpath,

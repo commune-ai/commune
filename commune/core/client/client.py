@@ -123,10 +123,9 @@ class Client:
             url = url
         elif c.is_int(url):
             url = f'0.0.0.0:{url}'
-        else:
-            if not hasattr(self, 'namespace'):
-                self.namespace = c.namespace()
-            url = self.namespace.get(str(url), url)
+        if not hasattr(self, 'namespace'):
+            self.namespace = c.namespace()
+        url = self.namespace.get(str(url), url)
         if not url.startswith(mode):
             url = f'{mode}://{url}'
         return url

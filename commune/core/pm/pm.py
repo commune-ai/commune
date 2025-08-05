@@ -26,13 +26,16 @@ class PM:
     default_network = 'host',
     image = 'commune:latest',
     path = c.lib_path,
-    modules_path = c.modules_path):
+    working_dir = '/app',
+    modules_path = c.modules_path
+    ):
 
         self.default_shm_size = default_shm_size
         self.default_network = default_network
         self.image = image
         self.path = path
         self.modules_path = modules_path
+        self.working_dir = working_dir
 
 
 
@@ -230,7 +233,6 @@ class PM:
                 }
             }
 
-        c.print(f"Compose configuration for {name}: ", compose_config)
         c.put_yaml(compose_path, compose_config)
             
         # Stop existing container if it exists
@@ -573,7 +575,8 @@ class PM:
             
         stats = c.df(stats)
 
-        stats['name'] = stats['id'].apply(lambda x: self.process2name(x))
+        # stats['name'] = stats['repository'].apply(lambda x: self.process2name(x))
+        return stats
 
     def ps(self) -> List[str]:
         """
@@ -923,8 +926,6 @@ class PM:
             }
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
-
-        
 
     def get_port(self, name: str) -> Dict[int, int]:
         """

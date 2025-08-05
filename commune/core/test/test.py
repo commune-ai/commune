@@ -28,12 +28,20 @@ class Test(c.Module):
             return fn2result
 
 
-    def has_test_module(self, module):
+    def has_test_module(self, module, verbose=False):
         """
         Check if the module has a test module
         """
-        if self.module_exists(module + '.test'):
-            return True
+        try:
+            if self.module_exists(module + '.test'):
+                return True
+            else: 
+                fns = c.fns(module)
+                if 'test' in fns or any([fn.startswith('test_') for fn in fns]):
+                    return True
+        except Exception as e:
+            if verbose:
+                c.print(f'Error checking test {module}: {e}')
         return False
     def test_module(self, module='module', timeout=50):
         """
@@ -64,3 +72,12 @@ class Test(c.Module):
 
                 test_fns.append(fn_obj)
         return test_fns
+
+
+    def test_mods(self, search=None, verbose=False, **kwargs):
+        test_mods = []
+        mods =  c.mods(search=search, **kwargs)
+        for m in mods:
+            if self.has_test_module(m, verbose=verbose):
+                test_mods.append(m)
+        return test_mods
