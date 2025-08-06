@@ -12,7 +12,7 @@ export interface SearchFilters {
   excludeTerms: string[]
 }
 
-interface AdvancedSearchProps {
+interface ModSearchProps {
   onSearch: (filters: SearchFilters) => void
   availableTags?: string[]
   isExpanded: boolean
@@ -23,7 +23,7 @@ interface AdvancedSearchProps {
   onPageChange?: (page: number) => void
 }
 
-export const AdvancedSearch = ({ 
+export const ModSearch = ({ 
   onSearch, 
   availableTags = [], 
   isExpanded,
@@ -31,7 +31,7 @@ export const AdvancedSearch = ({
   currentPage = 1,
   totalPages = 1,
   onPageChange
-}: AdvancedSearchProps) => {
+}: ModSearchProps) => {
   const [filters, setFilters] = useState<SearchFilters>({
     searchTerm: '',
     includeTags: [],
@@ -419,4 +419,4 @@ export const AdvancedSearch = ({
   )
 }
 
-export default AdvancedSearch
+export default ModSearch

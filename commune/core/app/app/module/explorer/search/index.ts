@@ -1,3 +1,3 @@
-export { AdvancedSearch } from './AdvancedSearch'
-export type { SearchFilters } from './AdvancedSearch'
+export { ModSearch } from './ModSearch'
+export type { SearchFilters } from './ModSearch'
 export { filterModules, extractAllTags, getPopularTags, getTagFrequency } from './SearchUtils'

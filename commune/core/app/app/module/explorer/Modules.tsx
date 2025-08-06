@@ -7,7 +7,7 @@ import { Loading } from '@/app/components/Loading'
 import ModuleCard from '@/app/module/explorer/ModuleCard'
 import { CreateModule } from '@/app/module/explorer/ModuleCreate'
 import { ModuleType } from '@/app/types/module'
-import { AdvancedSearch, SearchFilters } from '@/app/module/explorer/search'
+import { ModSearch, SearchFilters } from '@/app/module/explorer/search'
 import { filterModules } from '@/app/module/explorer/search'
 import { ChevronLeft, ChevronRight, Filter, Search, X, Menu } from 'lucide-react'
 
@@ -212,7 +212,7 @@ export default function Modules() {
   const [page, setPage] = useState(1)
   const [pageSize] = useState(9)
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false) // Default to closed
+  const [showModSearch, setShowModSearch] = useState(false) // Default to closed
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     searchTerm: '',
     includeTags: [],
@@ -361,16 +361,16 @@ export default function Modules() {
         <div className='mb-6'>
           {/* Search Bar with Toggle */}
           <div className='mb-4'>
-            <AdvancedSearch
+            <ModSearch
               onSearch={handleSearch}
               availableTags={[]}
-              isExpanded={showAdvancedSearch}
-              onToggleExpanded={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              isExpanded={showModSearch}
+              onToggleExpanded={() => setShowModSearch(!showModSearch)}
             />
           </div>
           
           {/* Quick Stats when search is expanded */}
-          {showAdvancedSearch && (
+          {showModSearch && (
             <div className='bg-black/40 border border-green-500/30 rounded p-4 mb-4'>
               <h3 className='text-green-500 text-sm font-bold mb-3 uppercase'>Module Stats</h3>
               <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-xs'>

@@ -1,5 +1,5 @@
 import { ModuleType } from '@/app/types/module'
-import { SearchFilters } from './AdvancedSearch'
+import { SearchFilters } from './ModSearch'
 
 /**
  * Apply advanced search filters to modules
