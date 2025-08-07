@@ -1413,9 +1413,6 @@ def set_env(key:str, value:str):
 def get_env(key:str):
     return os.environ.get(key)
 
-def cwd():
-    return os.getcwd()
-
 
 
 # import re
@@ -2195,11 +2192,6 @@ def set_env(key:str, value:str):
 
 def get_env(key:str):
     return os.environ.get(key)
-
-def cwd():
-    return os.getcwd()
-
-
 
 def proc(command:str,  *extra_commands, verbose:bool = False, **kwargs):
     process = subprocess.Popen(re.split(command, *extra_commands), 

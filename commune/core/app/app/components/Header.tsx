@@ -1,13 +1,11 @@
 'use client'
 import Link from 'next/link'
-import { useState, FormEvent, useEffect } from 'react'
-import { Key } from '@/app/key'
-import { cryptoWaitReady } from '@polkadot/util-crypto'
+import { useState, FormEvent } from 'react'
 import { RefreshCw, LogOut, User, Search, Copy, Filter } from 'lucide-react'
 import { UserProfile } from '@/app/user/profile/UserProfile'
-import type { User as UserType } from '@/app/types/user'
 import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
+import { useAuth } from '@/app/context/AuthContext'
 
 interface HeaderProps {
   onRefresh?: () => void
@@ -15,67 +13,26 @@ interface HeaderProps {
 
 export const Header = ({ onRefresh }: HeaderProps = {}) => {
   const [password, setPassword] = useState('')
-  const [keyInstance, setKeyInstance] = useState<Key | null>(null)
-  const [user, setUser] = useState<UserType | null>(null)
   const [showProfile, setShowProfile] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const { user, keyInstance, signIn, signOut, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-
-  // Store user session in localStorage to persist across pages
-  useEffect(() => {
-    const initializeUser = async () => {
-      const storedUser = localStorage.getItem('dhub_user')
-      const storedPassword = localStorage.getItem('dhub_password')
-      
-      if (storedUser && storedPassword) {
-        try {
-          await cryptoWaitReady()
-          const userData = JSON.parse(storedUser)
-          const key = new Key(storedPassword)
-          setUser(userData)
-          setKeyInstance(key)
-        } catch (error) {
-          console.error('Failed to restore user session:', error)
-          // Clear invalid session data
-          localStorage.removeItem('dhub_user')
-          localStorage.removeItem('dhub_password')
-        }
-      }
-    }
-    
-    initializeUser()
-  }, [])
 
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      await cryptoWaitReady()
-      const key = new Key(password)
-      setKeyInstance(key)
-      const userData = {
-        address: key.address,
-        crypto_type: key.crypto_type,
-      }
-      setUser(userData)
-      
-      // Store user session with encrypted password
-      localStorage.setItem('dhub_user', JSON.stringify(userData))
-      localStorage.setItem('dhub_password', password)
-      
+      await signIn(password)
       setPassword('')
       setShowProfile(true) // Auto-open profile on login
     } catch (error) {
-      console.error('Failed to create key:', error)
+      console.error('Failed to sign in:', error)
     }
   }
 
   const handleLogout = () => {
-    setKeyInstance(null)
-    setUser(null)
+    signOut()
     setShowProfile(false)
-    localStorage.removeItem('dhub_user')
-    localStorage.removeItem('dhub_password')
   }
 
   const handleRefreshClick = () => {
@@ -91,6 +48,34 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
     navigator.clipboard.writeText(text)
     setCopiedAddress(true)
     setTimeout(() => setCopiedAddress(false), 2000)
+  }
+
+  if (isLoading) {
+    return (
+      <header className="fixed top-0 z-40 w-full bg-black border-b border-green-500 font-mono">
+        <nav className="p-4 px-4 mx-auto max-w-7xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <Link href="/" className="group">
+                <div className="relative w-12 h-12">
+                  <div className="absolute inset-0 animate-spin-slow preserve-3d">
+                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 transform rotate-y-0"></div>
+                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 transform rotate-y-90"></div>
+                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 transform rotate-y-180"></div>
+                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 transform rotate-y-270"></div>
+                  </div>
+                </div>
+              </Link>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-12 px-4 flex items-center text-green-500">
+                Loading...
+              </div>
+            </div>
+          </div>
+        </nav>
+      </header>
+    )
   }
 
   return (

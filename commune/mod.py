@@ -1472,6 +1472,10 @@ class Mod:
         return True
 
 
+    def cwd(self, mod=None):
+        if mod:
+            return self.dirpath(mod)
+        return os.getcwd()
 
 
     def addmod(self, name= None, base_module : str = 'base', update=True):

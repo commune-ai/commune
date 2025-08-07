@@ -1,6 +1,7 @@
 'use client'
 import { Suspense } from 'react'
 import Modules from './module/explorer/Modules'
+import { Header } from './components/Header'
 
 function TerminalLoading() {
   return (
@@ -16,6 +17,7 @@ function TerminalLoading() {
 export default function Home() {
   return (
     <Suspense fallback={<TerminalLoading />}>
+      <Header />
       <Modules />
     </Suspense>
   )

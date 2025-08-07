@@ -10,9 +10,10 @@ class Test:
         """
         if module == None:
             test_results ={}
+            print(f'Testing modules: {modules}')
             for m in modules:
                 print(f'Testing module: {m}')
-                test_results[m] = self.test(module=m, timeout=timeout)
+                test_results[m] = self.forward(module=m, timeout=timeout)
             return test_results
         else:
             fn2result = {}
@@ -24,9 +25,10 @@ class Test:
                     print(f'TestResult({fn_name}): {fn2result[fn_name]}')
                 except Exception as e:
                     c.print(f'TestError({e})')
-                    fn2result[fn_name] = self.detailed_error(e)
+                    fn2result[fn_name] = c.detailed_error(e)
             return fn2result
 
+    test = forward
 
     def has_test_module(self, module, verbose=False):
         """
