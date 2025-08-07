@@ -24,8 +24,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const storedUser = localStorage.getItem('dhub_user')
-        const storedPassword = localStorage.getItem('dhub_password')
+        const storedUser = localStorage.getItem('user_data')
+        const storedPassword = localStorage.getItem('user_password')
         
         if (storedUser && storedPassword) {
           await cryptoWaitReady()
@@ -33,12 +33,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const key = new Key(storedPassword)
           setUser(userData)
           setKeyInstance(key)
+          console.log(key.address, key.crypto_type, 'restored from localStorage')
           setPassword(storedPassword)
         }
       } catch (error) {
         console.error('Failed to restore auth session:', error)
-        localStorage.removeItem('dhub_user')
-        localStorage.removeItem('dhub_password')
+        localStorage.removeItem('user_data')
+        localStorage.removeItem('user_password')
       } finally {
         setIsLoading(false)
       }
@@ -61,8 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPassword(newPassword)
       
       // Persist to localStorage
-      localStorage.setItem('dhub_user', JSON.stringify(userData))
-      localStorage.setItem('dhub_password', newPassword)
+      localStorage.setItem('user_data', JSON.stringify(userData))
+      localStorage.setItem('user_password', newPassword)
     } catch (error) {
       console.error('Failed to sign in:', error)
       throw error
@@ -73,8 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setKeyInstance(null)
     setUser(null)
     setPassword('')
-    localStorage.removeItem('dhub_user')
-    localStorage.removeItem('dhub_password')
+    localStorage.removeItem('user_data')
+    localStorage.removeItem('user_password')
   }
 
   return (

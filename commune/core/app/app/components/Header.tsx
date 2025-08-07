@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState, FormEvent } from 'react'
-import { RefreshCw, LogOut, User, Search, Copy, Filter } from 'lucide-react'
+import { RefreshCw, LogOut, User, Search, Copy, Filter, Key } from 'lucide-react'
 import { UserProfile } from '@/app/user/profile/UserProfile'
 import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
@@ -99,25 +99,29 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
 
             {/* Right side - User Section */}
             <div className="flex items-center gap-3">
-              {user ? (
+              {keyInstance ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowProfile(!showProfile)}
-                    className={`h-12 px-4 border-2 border-green-500 font-mono transition-all uppercase text-base tracking-wider rounded-lg ${
+                    className={`h-12 px-4 pr-2 border-2 border-green-500 font-mono transition-all uppercase text-base tracking-wider rounded-lg flex items-center gap-2 ${
                       showProfile 
                         ? 'bg-green-500 text-black' 
                         : 'text-green-500 hover:bg-green-500 hover:text-black'
                     }`}
-                    title={`Address: ${user.address}`}
+                    title={`Address: ${keyInstance.address}`}
                   >
-                    <span className="font-bold">{user.address.slice(0, 6)}...{user.address.slice(-4)}</span>
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(user.address)}
-                    className="h-12 w-12 flex items-center justify-center border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-black transition-colors rounded-lg"
-                    title={copiedAddress ? 'Copied!' : 'Copy address'}
-                  >
-                    {copiedAddress ? '✓' : <Copy size={20} />}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(user.address);
+                      }}
+                      className="p-1 hover:bg-black/20 rounded transition-colors"
+                      title={copiedAddress ? 'Copied!' : 'Copy address'}
+                    >
+                      {copiedAddress ? '✓' : <Copy size={16} />}
+                    </button>
+                    <span className="font-bold">{keyInstance.address.slice(0, 6)}...{keyInstance.address.slice(-4)}</span>
+                    <Key size={20} />
                   </button>
                 </div>
               ) : (

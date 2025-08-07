@@ -150,7 +150,7 @@ export const UserProfile = ({ user, isOpen, onClose, keyInstance, onLogout }: Us
                 <div>
                   <div className="text-green-400 font-mono text-sm uppercase tracking-wider">USER PROFILE</div>
                   <code className="text-green-500/70 text-xs font-mono">
-                    {user.address.slice(0, 8)}...{user.address.slice(-6)}
+                    {keyInstance.address.slice(0, 8)}...{keyInstance.address.slice(-6)}
                   </code>
                 </div>
               </div>
@@ -220,10 +220,10 @@ export const UserProfile = ({ user, isOpen, onClose, keyInstance, onLogout }: Us
                 </div>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-green-400 font-mono text-sm break-all bg-black/50 p-3 border border-green-500/30 rounded-lg">
-                    {user.address}
+                    {keyInstance.address}
                   </code>
                   <button
-                    onClick={() => copyToClipboard(user.address, 'address')}
+                    onClick={() => copyToClipboard(keyInstance.address, 'address')}
                     className={`p-3 border rounded-lg transition-all ${
                       copiedField === 'address'
                         ? 'border-green-400 bg-green-500/20 text-green-400'
@@ -243,7 +243,7 @@ export const UserProfile = ({ user, isOpen, onClose, keyInstance, onLogout }: Us
                   <span>CRYPTO TYPE</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-green-400 font-mono text-lg">{user.crypto_type || 'sr25519'}</span>
+                  <span className="text-green-400 font-mono text-lg">{keyInstance.crypto_type || 'sr25519'}</span>
                   <Lock size={20} className="text-green-500/50" />
                 </div>
               </div>

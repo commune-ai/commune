@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Client } from '@/app/client/client'
 import { Loading } from '@/app/components/Loading'
 import { ModuleType } from '@/app/types/module'
+import { useAuth } from '@/app/context/AuthContext'
 import {
   CodeBracketIcon,
   ServerIcon,
@@ -22,6 +23,8 @@ import {
   LinkIcon,
   DocumentDuplicateIcon,
   ArrowTrendingUpIcon,
+  LockClosedIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline'
 import { CopyButton } from '@/app/components/CopyButton'
 import { ModuleCode } from './ModuleCode'
@@ -29,183 +32,16 @@ import ModuleSchema from './ModuleSchema'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 
-type TabType = 'code' | 'api' | 'transactions' | 'links'
+// ... (keep all the existing type definitions, interfaces, and helper functions)
 
-interface ModuleClientProps {
-  module_name: string
-  code: boolean
-  api: boolean
-}
-
-const shorten = (str: string): string => {
-  if (!str || str.length <= 12) return str
-  return `${str.slice(0, 8)}...${str.slice(-4)}`
-}
-
-const time2str = (time: number): string => {
-  const d = new Date(time * 1000)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
+export default function ModulePage({ module_name, code, api }: ModulePageProps) {
+  // Access the auth context
+  const { keyInstance, user, isLoading: authLoading } = useAuth()
   
-  if (diff < 60000) return 'just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`
-  
-  return d.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-  })
-}
-
-// Enhanced color generation with better distribution
-const text2color = (text: string): string => {
-  if (!text) return '#00ff00'
-  
-  let hash = 0
-  for (let i = 0; i < text.length; i++) {
-    hash = text.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  
-  // Use golden ratio for better color distribution
-  const golden_ratio = 0.618033988749895
-  const hue = (hash * golden_ratio * 360) % 360
-  const saturation = 65 + (Math.abs(hash >> 8) % 35)
-  const lightness = 50 + (Math.abs(hash >> 16) % 20)
-  
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-}
-
-// Generate dynamic background pattern
-const generatePattern = (color: string, seed: string) => {
-  const svg = `
-    <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${color}" stroke-width="0.5" opacity="0.1"/>
-        </pattern>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
-      <rect width="400" height="400" fill="url(#grid)"/>
-      ${Array.from({ length: 5 }, (_, i) => {
-        const x = (parseInt(seed.slice(i * 2, i * 2 + 2), 16) / 255) * 350 + 25
-        const y = (parseInt(seed.slice(i * 2 + 10, i * 2 + 12), 16) / 255) * 350 + 25
-        const r = 3 + (i % 3) * 2
-        return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="0.6" filter="url(#glow)"/>`
-      }).join('')}
-    </svg>
-  `
-  return `data:image/svg+xml;base64,${btoa(svg)}`
-}
-
-interface HistoryItemProps {
-  version: string
-  date: string
-  changes: string[]
-  color: string
-}
-
-const HistoryItem = ({ version, date, changes, color }: HistoryItemProps) => (
-  <motion.div
-    initial={{ opacity: 0, x: -20 }}
-    animate={{ opacity: 1, x: 0 }}
-    className="relative pl-8 pb-8 group"
-  >
-    {/* Timeline line */}
-    <div className="absolute left-3 top-8 bottom-0 w-0.5 bg-gray-800 group-last:hidden" />
-    
-    {/* Timeline dot */}
-    <div 
-      className="absolute left-1.5 top-2 h-4 w-4 rounded-full border-2 bg-black"
-      style={{ borderColor: color }}
-    >
-      <div 
-        className="absolute inset-0.5 rounded-full animate-pulse"
-        style={{ backgroundColor: color }}
-      />
-    </div>
-    
-    {/* Content */}
-    <div 
-      className="rounded-lg border bg-black/60 p-4 backdrop-blur-sm hover:bg-black/80 transition-all"
-      style={{ borderColor: `${color}33` }}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="font-bold text-white" style={{ color }}>{version}</h4>
-        <span className="text-sm text-gray-400">{date}</span>
-      </div>
-      <ul className="space-y-1">
-        {changes.map((change, i) => (
-          <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
-            <span style={{ color }} className="mt-1">•</span>
-            <span>{change}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </motion.div>
-)
-
-interface LinkedModuleProps {
-  name: string
-  description: string
-  type: 'dependency' | 'dependent' | 'related'
-  color: string
-}
-
-const LinkedModule = ({ name, description, type, color }: LinkedModuleProps) => {
-  const typeColors = {
-    dependency: '#ff6b6b',
-    dependent: '#4ecdc4',
-    related: '#45b7d1'
-  }
-  
-  const typeLabels = {
-    dependency: 'Depends on',
-    dependent: 'Used by',
-    related: 'Related to'
-  }
-  
-  return (
-    <Link href={`/module/${name}`}>
-      <motion.div
-        whileHover={{ scale: 1.02, y: -2 }}
-        className="relative overflow-hidden rounded-lg border bg-black/60 p-4 backdrop-blur-sm cursor-pointer group"
-        style={{ borderColor: `${typeColors[type]}33` }}
-      >
-        <div className="absolute inset-0 opacity-5" 
-             style={{ backgroundImage: `url(${generatePattern(typeColors[type], name)})` }} />
-        
-        <div className="relative z-10">
-          <div className="flex items-start justify-between mb-2">
-            <h4 className="font-bold text-white group-hover:text-opacity-90 transition-colors"
-                style={{ color: typeColors[type] }}>
-              {name}
-            </h4>
-            <span className="text-xs px-2 py-1 rounded-full"
-                  style={{ 
-                    backgroundColor: `${typeColors[type]}20`,
-                    color: typeColors[type]
-                  }}>
-              {typeLabels[type]}
-            </span>
-          </div>
-          <p className="text-sm text-gray-400 line-clamp-2">{description}</p>
-        </div>
-      </motion.div>
-    </Link>
-  )
-}
-
-export default function ModuleClient({ module_name, code, api }: ModuleClientProps) {
-  const client = useMemo(() => new Client(), [])
+  const client = useMemo(() => {
+    // You can pass the key instance to the client if needed
+    return new Client()
+  }, [])
   
   const [module, setModule] = useState<ModuleType | undefined>()
   const [error, setError] = useState<string>('')
@@ -223,7 +59,20 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
         setLoading(true)
       }
       
-      const params = { module: module_name, update: update, code: true }
+      // You can use the keyInstance here if needed for authenticated requests
+      const params = { 
+        module: module_name, 
+        update: update, 
+        code: true,
+        // Add authentication if needed
+        ...(keyInstance && user ? {
+          auth: {
+            address: user.address,
+            signature: await keyInstance.sign(JSON.stringify({ module: module_name, timestamp: Date.now() }))
+          }
+        } : {})
+      }
+      
       const foundModule = await client.call('module', params)
       
       if (foundModule) {
@@ -241,20 +90,21 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
       setLoading(false)
       setSyncing(false)
     }
-  }, [module_name, client])
+  }, [module_name, client, keyInstance, user])
 
   useEffect(() => {
-    if (!hasFetched) {
+    if (!hasFetched && !authLoading) {
       setHasFetched(true)
       fetchModule(false)
     }
-  }, [hasFetched, fetchModule])
+  }, [hasFetched, fetchModule, authLoading])
 
   const handleSync = useCallback(() => {
     fetchModule(true)
   }, [fetchModule])
 
-  if (loading) return <Loading />
+  // Show loading while auth is initializing
+  if (authLoading || loading) return <Loading />
   
   if (error || !module) {
     return (
@@ -283,28 +133,10 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
   const patternBg = generatePattern(moduleColor, module.key || module.name)
 
   const tabs = [
-    // { id: 'history', label: 'HISTORY', icon: ClockIcon },
-    // { id: 'links', label: 'LINKS', icon: LinkIcon },
     { id: 'code', label: 'CODE', icon: CodeBracketIcon },
     { id: 'api', label: 'API', icon: ServerIcon },
     { id: 'transactions', label: 'TRANSACTIONS', icon: ArrowTrendingUpIcon },
   ]
-
-
-  const linkedModules = {
-    dependencies: [
-      { name: 'auth', description: 'Handles user authentication and authorization' },
-      { name: 'database', description: 'Manages data persistence and queries' },
-    ],
-    dependents: [
-      { name: 'dashboard', description: 'Main application dashboard interface' },
-      { name: 'analytics', description: 'Data analytics and visualization module' },
-    ],
-    related: [
-      { name: 'logger', description: 'Centralized logging and monitoring service' },
-      { name: 'cache', description: 'High-performance caching layer' },
-    ]
-  }
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-black via-gray-950 to-black'>
@@ -336,19 +168,37 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
                 <span>All Modules</span>
               </Link>
               
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                className='group flex items-center gap-2 rounded-full border px-4 py-2 transition-all'
-                style={{ 
-                  borderColor: `${moduleColor}4D`,
-                  color: moduleColor,
-                  backgroundColor: syncing ? `${moduleColor}10` : 'transparent'
-                }}
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                <span className='text-sm font-medium'>{syncing ? 'Syncing...' : 'Sync'}</span>
-              </button>
+              <div className='flex items-center gap-4'>
+                {/* Auth Status Indicator */}
+                {user && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className='flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm'
+                    style={{ 
+                      borderColor: `${moduleColor}4D`,
+                      color: moduleColor,
+                    }}
+                  >
+                    <KeyIcon className='h-4 w-4' />
+                    <span className='font-mono'>{shorten(user.address)}</span>
+                  </motion.div>
+                )}
+                
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className='group flex items-center gap-2 rounded-full border px-4 py-2 transition-all'
+                  style={{ 
+                    borderColor: `${moduleColor}4D`,
+                    color: moduleColor,
+                    backgroundColor: syncing ? `${moduleColor}10` : 'transparent'
+                  }}
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                  <span className='text-sm font-medium'>{syncing ? 'Syncing...' : 'Sync'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Module Header */}
@@ -402,7 +252,7 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
               </div>
             </div>
 
-            {/* Key Info Cards */}
+            {/* Key Info Cards - Including Auth Info */}
             <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
               {module.key && (
                 <motion.div
@@ -422,7 +272,8 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
                 </motion.div>
               )}
               
-              {module.cid && (
+              {/* Show if module is owned by current user */}
+              {user && module.key === user.address && (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -430,14 +281,13 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
                   className='flex items-center gap-3 rounded-xl border bg-black/60 p-3 backdrop-blur-sm'
                   style={{ borderColor: `${moduleColor}33` }}
                 >
-                  <CommandLineIcon className='h-5 w-5' style={{ color: moduleColor }} />
+                  <LockClosedIcon className='h-5 w-5' style={{ color: moduleColor }} />
                   <div className='flex-1'>
-                    <p className='text-xs text-gray-400'>Content ID</p>
-                    <p className='font-mono text-sm' style={{ color: moduleColor }}>
-                      {shorten(module.cid)}
+                    <p className='text-xs text-gray-400'>Ownership</p>
+                    <p className='text-sm font-medium' style={{ color: moduleColor }}>
+                      You own this module
                     </p>
                   </div>
-                  <CopyButton code={module.cid} />
                 </motion.div>
               )}
               
@@ -459,7 +309,7 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
             </div>
           </motion.div>
 
-          {/* Main Content */}
+          {/* Main Content - Rest remains the same */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -512,7 +362,6 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
                 transition={{ duration: 0.2 }}
                 className='p-8'
               >
-
                 {activeTab === 'transactions' && (
                   <div className='space-y-4'>
                     <h2 className='text-2xl font-bold mb-4'>Transactions</h2>
@@ -584,4 +433,78 @@ export default function ModuleClient({ module_name, code, api }: ModuleClientPro
       `}</style>
     </div>
   )
+}
+
+// Helper functions remain the same
+const shorten = (str: string): string => {
+  if (!str || str.length <= 12) return str
+  return `${str.slice(0, 8)}...${str.slice(-4)}`
+}
+
+const time2str = (time: number): string => {
+  const d = new Date(time * 1000)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  
+  if (diff < 60000) return 'just now'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`
+  
+  return d.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  })
+}
+
+const text2color = (text: string): string => {
+  if (!text) return '#00ff00'
+  
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  
+  const golden_ratio = 0.618033988749895
+  const hue = (hash * golden_ratio * 360) % 360
+  const saturation = 65 + (Math.abs(hash >> 8) % 35)
+  const lightness = 50 + (Math.abs(hash >> 16) % 20)
+  
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
+}
+
+const generatePattern = (color: string, seed: string) => {
+  const svg = `
+    <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${color}" stroke-width="0.5" opacity="0.1"/>
+        </pattern>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <rect width="400" height="400" fill="url(#grid)"/>
+      ${Array.from({ length: 5 }, (_, i) => {
+        const x = (parseInt(seed.slice(i * 2, i * 2 + 2), 16) / 255) * 350 + 25
+        const y = (parseInt(seed.slice(i * 2 + 10, i * 2 + 12), 16) / 255) * 350 + 25
+        const r = 3 + (i % 3) * 2
+        return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="0.6" filter="url(#glow)"/>`
+      }).join('')}
+    </svg>
+  `
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}
+
+type TabType = 'code' | 'api' | 'transactions'
+
+interface ModulePageProps {
+  module_name: string
+  code: boolean
+  api: boolean
 }
