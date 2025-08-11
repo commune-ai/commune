@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Copy, CheckCircle, FileSignature } from 'lucide-react'
 import { Key } from '@/app/key'
+import { copyToClipboard } from '@/app/utils' // Import the utility function
 
 interface SignVerifyTabProps {
   keyInstance: Key
@@ -15,12 +16,6 @@ export const SignVerifyTab = ({ keyInstance }: SignVerifyTabProps) => {
   const [verifySignature, setVerifySignature] = useState('')
   const [verifyPublicKey, setVerifyPublicKey] = useState('')
   const [verifyResult, setVerifyResult] = useState<boolean | null>(null)
-
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(field)
-    setTimeout(() => setCopiedField(null), 2000)
-  }
 
   const handleSign = async () => {
     if (!signMessage || !keyInstance) return

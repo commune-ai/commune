@@ -1,20 +1,18 @@
 'use client'
 import Link from 'next/link'
-import { useState, FormEvent } from 'react'
-import { RefreshCw, LogOut, User, Search, Copy, Filter, Key } from 'lucide-react'
+import { useState, useRef, FormEvent } from 'react'
+import { Copy, Key } from 'lucide-react'
 import { UserProfile } from '@/app/user/profile/UserProfile'
 import { useRouter, usePathname } from 'next/navigation'
-import Image from 'next/image'
 import { useAuth } from '@/app/context/AuthContext'
+import {copyToClipboard} from '@/app/utils' // Import the utility function
 
-interface HeaderProps {
-  onRefresh?: () => void
-}
-
-export const Header = ({ onRefresh }: HeaderProps = {}) => {
+export const Header = () => {
   const [password, setPassword] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const copyTimerRef = useRef<number | null>(null)
+
   const { user, keyInstance, signIn, signOut, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
@@ -24,7 +22,7 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
     try {
       await signIn(password)
       setPassword('')
-      setShowProfile(true) // Auto-open profile on login
+      setShowProfile(true)
     } catch (error) {
       console.error('Failed to sign in:', error)
     }
@@ -35,19 +33,14 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
     setShowProfile(false)
   }
 
-  const handleRefreshClick = () => {
-    if (onRefresh) {
-      onRefresh()
-    } else if (pathname === '/') {
-      // Trigger refresh via global event
-      window.dispatchEvent(new CustomEvent('refreshModules'))
-    }
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedAddress(true)
-    setTimeout(() => setCopiedAddress(false), 2000)
+  const handleCopyAddress = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const addr = user?.address ?? keyInstance?.address
+    if (!addr) return
+    const ok = await copyToClipboard(addr)
+    setCopiedAddress(ok)
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = window.setTimeout(() => setCopiedAddress(false), 2000)
   }
 
   if (isLoading) {
@@ -59,10 +52,10 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
               <Link href="/" className="group">
                 <div className="relative w-12 h-12">
                   <div className="absolute inset-0 animate-spin-slow preserve-3d">
-                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 transform rotate-y-0"></div>
-                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 transform rotate-y-90"></div>
-                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 transform rotate-y-180"></div>
-                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 transform rotate-y-270"></div>
+                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 rotate-y-0"></div>
+                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 rotate-y-90"></div>
+                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 rotate-y-180"></div>
+                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 rotate-y-270"></div>
                   </div>
                 </div>
               </Link>
@@ -88,10 +81,10 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
               <Link href="/" className="group">
                 <div className="relative w-12 h-12">
                   <div className="absolute inset-0 animate-spin-slow preserve-3d">
-                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 transform rotate-y-0"></div>
-                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 transform rotate-y-90"></div>
-                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 transform rotate-y-180"></div>
-                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 transform rotate-y-270"></div>
+                    <div className="absolute inset-0 bg-green-500 border-2 border-green-400 rotate-y-0"></div>
+                    <div className="absolute inset-0 bg-green-600 border-2 border-green-400 rotate-y-90"></div>
+                    <div className="absolute inset-0 bg-green-700 border-2 border-green-400 rotate-y-180"></div>
+                    <div className="absolute inset-0 bg-green-800 border-2 border-green-400 rotate-y-270"></div>
                   </div>
                 </div>
               </Link>
@@ -101,28 +94,31 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
             <div className="flex items-center gap-3">
               {keyInstance ? (
                 <div className="flex items-center gap-2">
-                  <button
+                  {/* Wrapper is a div, not a button (prevents nested button issue) */}
+                  <div
                     onClick={() => setShowProfile(!showProfile)}
-                    className={`h-12 px-4 pr-2 border-2 border-green-500 font-mono transition-all uppercase text-base tracking-wider rounded-lg flex items-center gap-2 ${
+                    className={`cursor-pointer select-none h-12 px-4 pr-2 border-2 border-green-500 font-mono transition-all uppercase text-base tracking-wider rounded-lg flex items-center gap-2 ${
                       showProfile 
                         ? 'bg-green-500 text-black' 
                         : 'text-green-500 hover:bg-green-500 hover:text-black'
                     }`}
                     title={`Address: ${keyInstance.address}`}
+                    role="button"
+                    aria-pressed={showProfile}
                   >
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(user.address);
-                      }}
+                      onClick={handleCopyAddress}
                       className="p-1 hover:bg-black/20 rounded transition-colors"
                       title={copiedAddress ? 'Copied!' : 'Copy address'}
+                      type="button"
                     >
                       {copiedAddress ? '✓' : <Copy size={16} />}
                     </button>
-                    <span className="font-bold">{keyInstance.address.slice(0, 6)}...{keyInstance.address.slice(-4)}</span>
+                    <span className="font-bold">
+                      {keyInstance.address.slice(0, 6)}...{keyInstance.address.slice(-4)}
+                    </span>
                     <Key size={20} />
-                  </button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSignIn} className="flex gap-3">
@@ -145,7 +141,7 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
           </div>
         </nav>
       </header>
-      
+
       {/* User Profile Sidebar - Right side */}
       {user && keyInstance && (
         <UserProfile
@@ -156,35 +152,6 @@ export const Header = ({ onRefresh }: HeaderProps = {}) => {
           onLogout={handleLogout}
         />
       )}
-
-      <style jsx>{`
-        .preserve-3d {
-          transform-style: preserve-3d;
-        }
-        .rotate-y-0 {
-          transform: rotateY(0deg);
-        }
-        .rotate-y-90 {
-          transform: rotateY(90deg);
-        }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
-        .rotate-y-270 {
-          transform: rotateY(270deg);
-        }
-        @keyframes spin-slow {
-          from {
-            transform: rotateY(0deg);
-          }
-          to {
-            transform: rotateY(360deg);
-          }
-        }
-        .animate-spin-slow {
-          animation: spin-slow 4s linear infinite;
-        }
-      `}</style>
     </>
   )
 }

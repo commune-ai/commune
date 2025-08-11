@@ -2,28 +2,23 @@
 import { useState } from 'react'
 import { Send, Copy, CheckCircle, Terminal, Zap, AlertCircle } from 'lucide-react'
 import { Key } from '@/app/key'
-import { Auth } from '@/app/auth/auth'
-import type { AuthHeaders } from '@/app/auth/auth'
+import { Auth, AuthHeaders } from '@/app/key/auth'
+import { Client } from '@/app/client'
+import { copyToClipboard } from '@/app/utils' // Import the utility function
 
 interface ModuleCallerProps {
   keyInstance: Key
 }
 
-export const  = ({ keyInstance }: ModuleCallerProps) => {
-  const [moduleUrl, setModuleUrl] = useState('')
-  const [functionName, setFunctionName] = useState('')
-  const [functionParams, setFunctionParams] = useState('')
+export const ModuleCaller = ({ keyInstance }: ModuleCallerProps) => {
+  const [moduleUrl, setModuleUrl] = useState('0.0.0.0:8000')
+  const [functionName, setFunctionName] = useState('info')
+  const [functionParams, setFunctionParams] = useState('{}')
   const [authHeaders, setAuthHeaders] = useState<AuthHeaders | null>(null)
   const [response, setResponse] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(field)
-    setTimeout(() => setCopiedField(null), 2000)
-  }
 
   const generateAuthAndCall = async () => {
     if (!moduleUrl || !functionName || !keyInstance) return
@@ -44,34 +39,26 @@ export const  = ({ keyInstance }: ModuleCallerProps) => {
       }
 
       // Create auth instance
-      const auth = new Auth(keyInstance, 'sr25519', 'sha256', 60)
+      const auth = new Auth(keyInstance, 'sha256', 60)
       
       // Create the function call data
       const functionData = {
         fn: functionName,
         params: params,
-        timestamp: Date.now()
       }
 
       // Generate auth headers
-      const headers = auth.generate(functionData)
+      let headers = auth.generate(functionData)
+      headers.verified = auth.verify(headers)
       setAuthHeaders(headers)
 
+      const client = new Client(moduleUrl, 'http', keyInstance)
       // Make the API call
-      const apiResponse = await fetch(moduleUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Data': headers.data,
-          'X-Auth-Time': headers.time,
-          'X-Auth-Key': headers.key,
-          'X-Auth-Signature': headers.signature,
-          ...(headers.crypto_type && { 'X-Auth-Crypto-Type': headers.crypto_type })
-        },
-        body: JSON.stringify(functionData)
-      })
+      const apiResponse = await client.call(functionName, params, headers)
+
 
       const responseData = await apiResponse.json()
+      console.log('API Response:', responseData)
       setResponse(responseData)
       
       if (!apiResponse.ok) {
@@ -84,20 +71,20 @@ export const  = ({ keyInstance }: ModuleCallerProps) => {
     }
   }
 
+  const authHeadersString: string = authHeaders ? JSON.stringify(authHeaders, null, 2) : ''
   const getCurlCommand = () => {
     if (!authHeaders || !moduleUrl || !functionName) return ''
-    
-    return `curl -X POST ${moduleUrl} \\
-  -H "Content-Type: application/json" \\
-  -H "X-Auth-Data: ${authHeaders.data}" \\
-  -H "X-Auth-Time: ${authHeaders.time}" \\
-  -H "X-Auth-Key: ${authHeaders.key}" \\
-  -H "X-Auth-Signature: ${authHeaders.signature}" \\
-  ${authHeaders.crypto_type ? `-H "X-Auth-Crypto-Type: ${authHeaders.crypto_type}" \\` : ''}
-  -d '{"fn": "${functionName}", "params": ${functionParams || '{}'}}'
+    return `curl -X POST ${moduleUrl}/${functionName} \\
+  -H "time: ${authHeaders.time}" \
+  -H "key: ${authHeaders.key}" \\
+  -H "signature: ${authHeaders.signature}" \\
+  -H "crypto_type: ${authHeaders.crypto_type || ''}" \\
+  -H "hash_type: ${authHeaders.hash_type || ''}" \\
+  -H "data: ${authHeaders.data}" \\
+  -d '${functionParams || '{}'}'
 `
-  }
 
+  }
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Module Configuration */}
@@ -153,7 +140,7 @@ export const  = ({ keyInstance }: ModuleCallerProps) => {
             ) : (
               <>
                 <Send size={16} />
-                <span>Call Module</span>
+                <span>Call</span>
               </>
             )}
           </button>
@@ -169,7 +156,8 @@ export const  = ({ keyInstance }: ModuleCallerProps) => {
               <span>Generated Auth Headers</span>
             </div>
             <button
-              onClick={() => copyToClipboard(JSON.stringify(authHeaders, null, 2), 'authHeaders')}
+              onClick={() => 
+                (authHeadersString, 'authHeaders')}
               className={`p-2 border rounded transition-all ${
                 copiedField === 'authHeaders'
                   ? 'border-green-400 bg-green-500/20 text-green-400'
@@ -195,7 +183,8 @@ export const  = ({ keyInstance }: ModuleCallerProps) => {
               <span>CURL Command</span>
             </div>
             <button
-              onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
+              onClick={() => 
+                (getCurlCommand(), 'curl')}
               className={`p-2 border rounded transition-all ${
                 copiedField === 'curl'
                   ? 'border-green-400 bg-green-500/20 text-green-400'

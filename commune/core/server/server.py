@@ -26,6 +26,8 @@ class Server:
                     'public_functions', 
                     'exposed_functions'] # the attributes that can contain the fns
 
+
+
     def __init__(
         self, 
         module: Union[str, object] = 'module',
@@ -75,31 +77,14 @@ class Server:
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
 
-    def info(self):
-        info  = {   
-            "name": self.name,
-            "url": self.url,
-            "key": self.key.ss58_address,
-            "time": c.time(),
-            'free_mode': self.free_mode,
-            "schema": self.schema,
-        }
-        info['signature'] = self.key.sign(info, mode='str')
-        self.verify_info(info) # verify the info
-        return info
-
-    def fleet(self, module='module', n=2, timeout=10):
-        if '::' not in module:
-            module = module + '::'
-        names = [module+str(i) for i in range(n)]
-        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
-
-
     def forward(self, fn:str, request: Request):
         request = self.get_request(fn, request) # get the request
 
         fn = request['fn'] # get the function name
         params = request['params'] # get the params
+
+        print(f'Forwarding request to {fn} with params {params}', color='blue')
+        print('headers:', request['client'])
 
         fn_obj = getattr(self.module, fn) # get the function object from the module
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
@@ -133,6 +118,25 @@ class Server:
                 print('Error occurred while forwarding transaction:', e)
         return result
 
+    def info(self):
+        info  = {   
+            "name": self.name,
+            "url": self.url,
+            "key": self.key.ss58_address,
+            "time": c.time(),
+            'free_mode': self.free_mode,
+            "schema": self.schema,
+        }
+        info['signature'] = self.key.sign(info, mode='str')
+        return info
+
+    def fleet(self, module='module', n=2, timeout=10):
+        if '::' not in module:
+            module = module + '::'
+        names = [module+str(i) for i in range(n)]
+        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
+
+
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
         return  self.tx.txs( *args, **kwargs)
 
@@ -140,20 +144,6 @@ class Server:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
 
-    def verify_info(self, info:dict) -> bool:
-        """
-        verifies the info of the server
-        params:
-            info : dict
-                the info of the server
-        """
-        assert isinstance(info, dict), f'Info must be a dict, not {type(info)}'
-        assert all([k in info for k in ['name', 'url', 'key', 'time', 'signature']]), f'Info must have keys name, url, key, time, signature'
-        signature= info['signature']
-        payload = {k: v for k, v in info.items() if k != 'signature'}
-        print('Verifying info', payload)
-        assert self.key.verify(payload, signature=signature, address=info['key']), f'InvalidSignature({info.keys()})'
-        return True
     
     def set_fns(self, fns:Optional[List[str]]):
         """
@@ -317,7 +307,7 @@ class Server:
         if self.free_mode and self.role2rate['public'] == 0:
             self.role2rate['public'] = 1000
         if 'signature' in headers:
-            headers = self.auth.verify_headers(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
+            self.auth.verify(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
             call_count = self.call_count(user=headers['key'], fn=fn)
             role = self.role(headers['key']) # get the role of the user
             role_rate_limit = self.role2rate.get(role, 0) # admin and owner can call any fn
@@ -492,6 +482,7 @@ class Server:
               **extra_params
               ):
 
+
         params = {**(params or {}), **extra_params}
 
         if remote:
@@ -564,8 +555,6 @@ class Server:
             c.sleep(period)
         return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
 
-    def test_serializer(self):
-        return c.mod('serializer')().test()  
 
     def get_info(self, name:str, timeout:int = 60, interval:int = 1):
         elapsed_seconds = 0
@@ -580,6 +569,10 @@ class Server:
             elapsed_seconds += interval
             print(f'waiting for {name} to be available')
         raise TimeoutError(f"Timeout waiting for {name} to be available after {timeout} seconds")
+
+    def test_serializer(self):
+        return c.mod('serializer')().test()  
+
 
     def test_server(self, 
                     server = 'module::test_serving', 

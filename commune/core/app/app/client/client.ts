@@ -1,7 +1,6 @@
 
 import config from '@/config.json';
-import Key from '@/app/key';
-
+import {Key, Auth, AuthHeaders} from '@/app/key';
 
 export class Client {
   public url: string;
@@ -13,59 +12,26 @@ export class Client {
    * @param mode - The protocol mode ('http' or 'https', default: 'http').
    * @param key - An optional key for authentication or other purposes.
    */
-  constructor(url: string = config.url, mode: string = 'http', key: Key) {
-    if (!url.startsWith(`${mode}://`)) {
-      url = `${mode}://${url}`;
-    }
-    // if {HOST} is present in the URL, replace it with the actual host
-    if (url.includes('{HOST}')) {
-      const host = process.env.HOST || 'localhost';
-      url = url.replace('{HOST}', host);
-    }
-    this.url = url;
+  constructor(url?: string , key?: Key, mode: string = 'http' ) {
+
+    this.url = this.getUrl(url);
     this.key = key;
-  }
+    this.auth = new Auth(key);
 
-  /**
-   * Calls an API function with optional parameters and headers.
-   * @param fn - The function name to be called (default: 'info').
-   * @param params - The request parameters as a key-value object.
-   * @param headers - Additional headers for the request.
-   * @returns A promise resolving to the API response.
-   */
-  public async call(
-    fn: string = 'info',
-    params: Record<string, any> = {},
-  ): Promise<any> {
-    try {
-      return await this.async_call(fn, params);
-    } catch (error) {
-      console.error('Error in call method:', error);
-      throw error;
-    }
+    console.log(`Client initialized with URL: ${this.url} and key: ${this.key ? this.key.public_key : 'No key provided'}`);
+
+
   }
 
 
-  public sync_call(
-    fn: string = 'info',
-    params: Record<string, any> = {},
-  ): any {
-    let future = this.async_call(fn, params);
-    let result: any;
-    future.then((res) => {
-      result = res;
+  public getUrl(url: string, mode: string = 'http'): string {
+    url = url || '0.0.0.0:8000';
+    if (!url.startsWith(mode + '://')) {
+      url = mode + '://' + url ;
     }
-    ).catch((error) => {
-      console.error('Error in sync_call method:', error);
-      throw error;
-    }
-    );
-    while (result === undefined) {
-      // Wait for the promise to resolve
-      // This is a blocking call, use with caution
-    }
-    return result;
+    return url;
   }
+
 
   /**
    * Sends an asynchronous HTTP POST request to the specified function endpoint.
@@ -75,17 +41,17 @@ export class Client {
    * @param headers - Additional headers for the request.
    * @returns A promise resolving to the API response.
    */
-  private async async_call(
+  private async call(
     fn: string = 'info',
     params: Record<string, any> | FormData = {},
+    headers: Record<string, string> = {}
   ): Promise<any> {
-    let headers: Record<string, string> = {'Content-Type': 'application/json',   };
     let body: string | FormData;
 
     let timestamp = new Date().getTime() / 1000; // Current timestamp in seconds
     headers['time'] = timestamp.toString(); // Adds a timestamp to the headers
     
-    console.log(`Calling function: ${fn} with params:`, headers.time);
+    console.log(`Calling function: ${fn} with params:`, params);
 
     if (params instanceof FormData) {
       body = params; // FormData should not have Content-Type manually set
@@ -104,7 +70,16 @@ export class Client {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Handle HTTP errors
+        if (response.status === 401) {
+          throw new Error('Unauthorized access - please check your authentication credentials.');
+        } else if (response.status === 404) {
+          throw new Error('Resource not found - please check the URL or function name.');
+        } else if (response.status === 500) {
+          throw new Error('Internal server error - please try again later.');
+        } else {
+          throw new Error(`Unexpected error - status code: ${response.status}`);
+        }
       }
 
       const contentType = response.headers.get('Content-Type');
@@ -137,6 +112,7 @@ export class Client {
       console.log(decoder.decode(value)); // Process streaming data as needed
     }
   }
+
+
 }
 
-export default Client;

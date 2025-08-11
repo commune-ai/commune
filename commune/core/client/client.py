@@ -1,5 +1,4 @@
 
-
 from typing import *
 import asyncio
 import json
@@ -32,6 +31,7 @@ class Client:
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
                 url = None,
+                headers = None,  # additional headers to pass to the request
                 # stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
@@ -55,8 +55,9 @@ class Client:
         # step 3: get the params
         params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
 
-        # step 4: get the headers/auth
-        headers = self.auth.forward({'fn': fn, 'params': params}, key=key)
+        # step 4: get the headers/auth if it is not provided
+        if headers == None:
+            headers = self.auth.forward({'fn': fn, 'params': params}, key=key)
 
         result = self.post(
             url=url, 

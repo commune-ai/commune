@@ -249,10 +249,18 @@ export default function Modules() {
     
     try {
       // Fetch all modules for client-side filtering
-      const [modulesData, totalCount] = await Promise.all([
-        client.call('modules', { page_size: 1000 }), // Get more modules for better filtering
-        client.call('n', {})
-      ])
+      const modulesData = await client.call('modules', { page_size: pageSize, page: page })
+      
+      if (!Array.isArray(modulesData)) {
+        const moduleDataString = JSON.stringify(modulesData)
+        throw new Error(`Invalid response format: ${moduleDataString}`)
+      }
+      const totalCount = await client.call('n')
+      if (typeof totalCount !== 'number') {
+        throw new Error('Invalid total count format')
+      }
+
+      console.log('Fetched modules:', modulesData, 'Total count:', totalCount)
       
       if (!Array.isArray(modulesData)) {
         throw new Error('Invalid response format')

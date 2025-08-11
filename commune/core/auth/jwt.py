@@ -11,7 +11,7 @@ class AuthJWT:
     def __init__(self, key=None):
         self.key = c.get_key(key)
 
-    def get_headers(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
+    def header(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
         """
         Generate the headers with the JWT token
         """

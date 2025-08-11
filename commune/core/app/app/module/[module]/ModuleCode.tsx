@@ -290,7 +290,6 @@ export const ModuleCode: React.FC<ModuleCodeProps> = ({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [searchResults, setSearchResults] = useState<{path: string; lineNumbers: number[]}[]>([])
   const codeRefs = useRef<Record<string, HTMLDivElement>>({});
-  console.log(files)
   // Build file tree on mount or when files change
   useEffect(() => {
     const tree = buildFileTree(files)

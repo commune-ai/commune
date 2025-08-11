@@ -20,6 +20,7 @@ class Api:
                 background:bool = False, 
                 path='~/.commune/api', **kwargs):
         self.store = c.mod('store')(path)
+        self.chain = c.mod('chain')()
 
     def paths(self):
         return self.ls(self.modules_path)
@@ -206,4 +207,8 @@ class Api:
             self.modules(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
         return {"message": f"Synced {n} modules in {pages} pages with page size {page_size}"}
 
+
+    def balance(self, address):
+           
+        return self.chain.balance(address)
 

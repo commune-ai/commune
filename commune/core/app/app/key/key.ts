@@ -2,6 +2,7 @@ import {
     blake2AsHex,
     sr25519PairFromSeed,
     encodeAddress,
+    decodeAddress,
     sr25519Sign,
     sr25519Verify,
   } from '@polkadot/util-crypto'
@@ -47,6 +48,8 @@ import {
      * @param crypto_type - The cryptographic algorithm (default: 'sr25519').
      * @returns A WalletType object containing address, public_key, and private_key.
      */
+
+
     private fromPassword(
       password: string,
       crypto_type: signature_t = 'sr25519'
@@ -93,10 +96,26 @@ import {
      * @param message - The message to sign.
      * @returns A signature string in hex format.
      */
-    public async sign(message: string): Promise<string> {
+
+    private resolvePublicKey(public_key: string): string {
+      // Check if the public key is in SS58 format and convert it to hex if necessary
+      if ((public_key.startsWith('5') || public_key.startsWith('H')) && public_key.length === 48) {
+        // Convert SS58 address to public key bytes
+        const publicKeyBytes = decodeAddress(public_key, false, 42);
+        return u8aToHex(publicKeyBytes);
+      } else if (public_key.startsWith('0x')) {
+        // If the public key is already in hex format, return it as is
+        return public_key;
+      } else {
+        throw new Error('Invalid public key format')
+      }
+    }
+
+    public sign(message: string): Promise<string> {
       if (!message) {
         throw new Error('Empty message cannot be signed')
       }
+
       const messageBytes = new TextEncoder().encode(message)
   
       if (this.crypto_type === 'sr25519') {
@@ -124,17 +143,22 @@ import {
      * @param public_key - The public key corresponding to the private key used for signing (in hex format).
      * @returns A boolean indicating whether the signature is valid.
      */
-    public async verify(
+    public verify(
       message: string,
       signature: string,
       public_key: string
-    ): Promise<boolean> {
+    ): boolean {
       if (!message || !signature || !public_key) {
-        throw new Error('Invalid verification parameters')
+        throw new Error(`Invalid verification `)
       }
+      
       const sigType = this.crypto_type
+
+
       const messageBytes = new TextEncoder().encode(message)
-  
+
+      public_key = this.resolvePublicKey(public_key)
+      
       if (sigType === 'sr25519') {
         return sr25519Verify(
           messageBytes,

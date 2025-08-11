@@ -33,7 +33,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const key = new Key(storedPassword)
           setUser(userData)
           setKeyInstance(key)
-          console.log(key.address, key.crypto_type, 'restored from localStorage')
           setPassword(storedPassword)
         }
       } catch (error) {

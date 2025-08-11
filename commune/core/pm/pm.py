@@ -154,7 +154,7 @@ class PM:
             ports: Union[List, Dict[int, int]] = None,
             daemon: bool = True,
             remote: bool = False,
-            cwd: Optional = None,
+            cwd: Optional = None, entrypoint: Optional[str] = None,
             env: Optional[Dict] = None,
             working_dir = '/app',
             compose_file: str = '~/.commune/pm/docker-compose.yml',
@@ -227,6 +227,8 @@ class PM:
             service_config['shm_size'] = shm_size
         
         # Handle port mappings
+        if self.server_exists(name):
+            self.kill(name)
         if port:
             assert not c.port_used(port), f'Port {port} is already in use'
             ports = {port: port}
@@ -280,10 +282,8 @@ class PM:
         c.put_yaml(compose_file, compose_config)
         
         print(f'Generated docker-compose file: {compose_file}')
-        print(yaml.dump(compose_config, default_flow_style=False, sort_keys=False))
-        
-        # Stop existing container if it exists
-        self.kill(name)
+        c.print(compose_config)
+    
         
         # Run docker-compose
         compose_cmd = ['sudo'] if sudo else []
@@ -301,7 +301,8 @@ class PM:
         if cwd:
             command_str = f'cd {cwd} && ' + command_str
         print(f'Running command: {command_str}')
-        return os.system(command_str)
+        os.system(command_str)
+        return compose_config['services'][name]
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'

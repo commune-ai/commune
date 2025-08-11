@@ -24,7 +24,6 @@ class Mod:
         """
         self.sync(config=config)
 
-
     def sync(self, mod=None, verbose=False, config = None):
 
         self.root_path =os.path.dirname(__file__)
@@ -45,9 +44,6 @@ class Mod:
             print(f'Syncing module {mod}')
             return self.fn(f'{mod}/sync')()
 
-        """
-        SYNC UTILS
-        """
         routes = self.routes()
         for module, fns in routes.items():
             module = self.import_module(module)
@@ -62,7 +58,6 @@ class Mod:
                     setattr(self, fn, fn_obj)
 
         self.sync_mods()
-
 
         return {'success': True, 'msg': 'synced modules and utils'}
 
@@ -314,6 +309,9 @@ class Mod:
             lib_path = self.lib_path
         return self.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
     
+
+
+
     def run_fn(self,fn:str, params:Optional[dict]=None, args=None, kwargs=None, module='module') -> Any:
         """
         get a fucntion from a strings
@@ -990,9 +988,13 @@ class Mod:
             code=False,
             update: bool =False, 
             key=None,
+            ai_describe: bool = False,
             **kwargs):
+        """
+        Get the info of a module, including its schema, key, cid, and code if specified.
+        """
             
-        path = self.get_path('info/' + str(name)) 
+        path = self.get_path('info/' + str(module)) 
         
         info = self.get(path, None, max_age=max_age, update=update)
         if info == None:
@@ -1010,6 +1012,14 @@ class Mod:
             if code:
                 info['code'] = self.code_map(module)
             info['signature'] = self.sign(info)
+            if 'desc' not in info and ai_describe:
+                prompt = 'given decribe this module in a few sentences, the module is a python module with the following schema: ' + json.dumps(info['schema'])
+
+                desc = ''
+                for ch in self.ask(prompt):
+                    print(ch, end='', flush=True)
+                    desc += ch
+                info['desc'] = desc
             self.put(path, info)
             assert self.verify_info(info), f'Invalid signature {info["signature"]}'
         return  info
@@ -1041,9 +1051,6 @@ class Mod:
         fn = self.fn(fn)
         return isinstance(fn, property)
 
-    def sand(self):
-        import commune as c
-        return c.wait( [c.submit(c.call, ['module']) for i in range(5)])
 
     def tools(self):
         return self.fn('dev/tools')()
@@ -1296,7 +1303,6 @@ class Mod:
             objs = [f for f in objs if search in f]
         return objs
 
-
     ensure_syspath_flag = False
 
     def ensure_syspath(self):
@@ -1311,9 +1317,6 @@ class Mod:
                     sys.path.append(path)
         return {'paths': sys.path, 'success': True}
             
-
-
-
     obj_cache = {}
     def obj(self, key:str, **kwargs)-> Any:
         # add pwd to the sys.path if it is not already there
@@ -1471,12 +1474,10 @@ class Mod:
             return False
         return True
 
-
     def cwd(self, mod=None):
         if mod:
             return self.dirpath(mod)
         return os.getcwd()
-
 
     def addmod(self, name= None, base_module : str = 'base', update=True):
         """
@@ -1552,7 +1553,6 @@ class Mod:
 
     def namespace(self, *args, **kwargs):
         return self.fn('pm/namespace')(*args, **kwargs)
-
 
     def epoch(self, *args, **kwargs):
         return self.fn('vali/epoch')(*args, **kwargs)
@@ -1707,8 +1707,7 @@ class Mod:
             self.cmd(f'git pull {module} {name}')
         return {'success': True, 'msg': 'pushed module'}
 
-
-    def cp_mod(self, from_module:str = 'dev', to_module:str = 'dev2'):
+    def cpmod(self, from_module:str = 'dev', to_module:str = 'dev2'):
         """
         Copy the module to the git repository
         """
@@ -1797,7 +1796,6 @@ class Mod:
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
 
-
     def main(self, *args, **kwargs):
         """
         Main function to run the module
@@ -1818,6 +1816,19 @@ class Mod:
 
     def txs(self, *args, **kwargs) -> 'Callable':
         return self.fn('server/txs')( *args, **kwargs)
+
+    def sand(self):
+        auth = self.mod('auth')()
+        data = {
+            'fn': 'sand',
+            'params': {
+                'module': self.name,
+                'args': [],
+                'kwargs': {}
+            }
+        }
+        token = auth.generate(data)
+        return auth.verify(token)
 
 if __name__ == "__main__":
     Mod().run()

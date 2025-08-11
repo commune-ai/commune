@@ -90,7 +90,7 @@ export const MobileLoginModal = ({ isOpen, onClose, onLogin, defaultPassword }: 
               disabled={isLoading || !password}
               className="w-full px-4 py-3 bg-green-900/20 text-green-400 border border-green-500/30 rounded hover:bg-green-900/30 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'connecting...' : '$ connect wallet'}
+              {isLoading ? 'connecting...' : '$ connect key'}
             </button>
           </form>
           

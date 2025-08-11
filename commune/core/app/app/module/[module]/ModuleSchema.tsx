@@ -24,7 +24,6 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
   const [error, setError] = useState<string>('')
   const [showDescription, setShowDescription] = useState<boolean>(false)
   
-  console.log('ModuleSchema props:', mod)
   let schema: Record<string, SchemaType> = mod.schema || {}
   
   // Filter out 'self', 'cls' methods and parameters

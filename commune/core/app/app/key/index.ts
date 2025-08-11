@@ -1,4 +1,5 @@
 import {Key} from "./key";
+import {Auth, AuthHeaders} from "./auth";
 
-export {Key}
+export {Key, Auth, AuthHeaders}
 

@@ -2,6 +2,7 @@
 
 import { DocumentDuplicateIcon, CheckIcon } from '@heroicons/react/20/solid'
 import { useState } from 'react'
+import { copyToClipboard } from '@/app/utils' // Import the utility function
 
 type TCodeComponentProps = { code: string }
 
@@ -10,6 +11,7 @@ export const CopyButton = (props: TCodeComponentProps) => {
   const [copied, setCopied] = useState(false)
 
   async function copyTextToClipboard(text: string) {
+    copyToClipboard(text)
     setCopied(true)
     setTimeout(() => {
       setCopied(false)

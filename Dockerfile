@@ -17,13 +17,12 @@ RUN npm install -g pm2
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:$PATH"
 
-# DOCKER
+# DOCKER AND DOCKER-COMPOSE
 RUN apt-get update && apt-get install -y \
     docker.io \
     && systemctl enable docker \
     && usermod -aG docker root
 
-# Install Docker Compose
 RUN curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose && \
     chmod +x /usr/local/bin/docker-compose
 

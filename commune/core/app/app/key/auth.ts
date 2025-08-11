@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import Key from '@/app/key';
+import Key from './key';
 
 export interface AuthHeaders {
   data: string;
@@ -7,11 +7,12 @@ export interface AuthHeaders {
   key: string;
   signature: string;
   crypto_type?: string;
+  hash_type?: string;
+  data_hash?: string; // Optional, used for data verification
 }
 
 export class Auth {
   private key: Key;
-  private cryptoType: string;
   private hashType: string;
   private maxStaleness: number;
   private signatureKeys: string[];
@@ -19,20 +20,17 @@ export class Auth {
   /**
    * Initialize the Auth class
    * @param key - The key to use for signing
-   * @param cryptoType - The crypto type to use for signing
    * @param hashType - The hash type to use for signing
    * @param maxStaleness - Maximum staleness allowed for timestamps (in seconds)
    * @param signatureKeys - The keys to use for signing
    */
   constructor(
     key: Key,
-    cryptoType: string = 'sr25519',
     hashType: string = 'sha256',
     maxStaleness: number = 60,
     signatureKeys: string[] = ['data', 'time']
   ) {
     this.key = key;
-    this.cryptoType = cryptoType;
     this.hashType = hashType;
     this.maxStaleness = maxStaleness;
     this.signatureKeys = signatureKeys;
@@ -42,43 +40,48 @@ export class Auth {
    * Generate authentication headers with signature
    * @param data - The data to sign
    * @param key - Optional key override
-   * @param cryptoType - Optional crypto type override
+   * @param crypto_type - Optional crypto type override
    * @returns Authentication headers with signature
    */
-  public generate(data: any, key?: Key, cryptoType?: string): AuthHeaders {
+  public generate(data: any, key?: Key): AuthHeaders {
     const authKey = key || this.key;
-    const authCryptoType = cryptoType || this.cryptoType;
-
-    const result: AuthHeaders = {
+    const headers: AuthHeaders = {
       data: this.hash(data),
-      time: String(Date.now() / 1000), // Unix timestamp in seconds
+      time: String(this.time()), // Unix timestamp in seconds
       key: authKey.address,
-      signature: ''
+      signature: '',
+      hash_type: this.hashType,
+      crypto_type: authKey.crypto_type
     };
 
+    
     // Create signature data object with only the specified keys
-    const signatureData: Record<string, string> = {};
+    let signatureData: Record<string, string> = {};
     this.signatureKeys.forEach(k => {
-      if (k in result) {
-        signatureData[k] = result[k as keyof AuthHeaders] as string;
+      if (k in headers) {
+        signatureData[k] = headers[k as keyof AuthHeaders] as string;
       }
     });
 
+
     // Sign the data
-    result.signature = authKey.sign(signatureData, 'string');
-    
-    if (authCryptoType !== this.cryptoType) {
-      result.crypto_type = authCryptoType;
+    let signatureDataString = JSON.stringify(signatureData); // Ensure it's a plain object
+    headers.signature = authKey.sign(signatureDataString)
+    headers.data_hash = this.hash(headers.data); // Optional data hash for verification
+      // Verify the signature
+    const verified = this.key.verify( signatureDataString, headers.signature, headers.key);
+    if (!verified) {
+      throw new Error('Signature verification failed');
     }
 
-    return result;
+    return headers;
   }
 
   /**
    * Alias for generate method
    */
-  public headers(data: any, key?: Key, cryptoType?: string): AuthHeaders {
-    return this.generate(data, key, cryptoType);
+  public headers(data: any, key?: Key): AuthHeaders {
+    return this.generate(data, key);
   }
 
   /**
@@ -88,9 +91,13 @@ export class Auth {
    * @returns The verified headers
    * @throws Error if verification fails
    */
+  public time(): number {
+    return Date.now() / 1000; // Returns current timestamp in seconds
+  }
+
   public verify(headers: AuthHeaders, data?: any): AuthHeaders {
     // Check staleness
-    const currentTime = Date.now() / 1000;
+    const currentTime = this.time()
     const headerTime = parseFloat(headers.time);
     const staleness = Math.abs(currentTime - headerTime);
     
@@ -102,6 +109,8 @@ export class Auth {
       throw new Error('Missing signature');
     }
 
+    // if signature is 0x prefix string, remove it
+
     // Create signature data object for verification
     const signatureData: Record<string, string> = {};
     this.signatureKeys.forEach(k => {
@@ -110,28 +119,30 @@ export class Auth {
       }
     });
 
-    // Verify the signature
-    const cryptoType = headers.crypto_type || this.cryptoType;
-    const verified = this.key.verify(
-      signatureData,
-      headers.signature,
-      headers.key,
-      cryptoType
-    );
+    const signatureDataString = JSON.stringify(signatureData); // Ensure it's a plain object
 
-    if (!verified) {
-      throw new Error('Invalid signature');
-    }
+
+    let params = {
+      message: signatureDataString,
+      signature: headers.signature,
+      public_key: headers.key,
+    };
+    console.log('params', params);
+
+    let verified = this.key.verify(params.message, params.signature, params.public_key);
+
+    // get boolean value of verified
+    verified = Boolean(verified);
 
     // Verify data hash if provided
-    if (data !== undefined) {
+    if (data) {
       const rehashData = this.hash(data);
       if (headers.data !== rehashData) {
         throw new Error(`Invalid data hash: ${headers.data} !== ${rehashData}`);
       }
     }
 
-    return headers;
+    return verified;
   }
 
   /**
@@ -147,10 +158,9 @@ export class Auth {
    * @returns The hash string
    */
   private hash(data: any): string {
-    if (this.hashType !== 'sha256') {
-      throw new Error(`Invalid hash type: ${this.hashType}`);
-    }
 
+
+    
     let dataToHash: string;
     if (typeof data === 'string') {
       dataToHash = data;
@@ -160,60 +170,27 @@ export class Auth {
       dataToHash = String(data);
     }
 
-    return createHash('sha256').update(dataToHash).digest('hex');
+    if (this.hashType == 'sha256') {
+      return createHash('sha256').update(dataToHash).digest('hex');
+    } else {
+     throw new Error(`Invalid hash type: ${this.hashType}`);
+    }
+
   }
 
-  /**
-   * Get the crypto type with fallback to instance default
-   * @param cryptoType - Optional crypto type override
-   * @returns The crypto type to use
-   */
-  private getCryptoType(cryptoType?: string): string {
-    const type = cryptoType || this.cryptoType;
-    if (!['sr25519', 'ed25519'].includes(type)) {
-      throw new Error(`Invalid crypto type: ${type}`);
-    }
-    return type;
-  }
-
-  /**
-   * Get the key with fallback to instance default
-   * @param key - Optional key override
-   * @param cryptoType - Optional crypto type for key creation
-   * @returns The key to use
-   */
-  private getKey(key?: Key | string, cryptoType?: string): Key {
-    const authCryptoType = this.getCryptoType(cryptoType);
-    
-    if (!key) {
-      return this.key;
-    }
-
-    if (typeof key === 'string') {
-      // Assuming Key has a static method to get key by name
-      // This would need to be implemented in the Key class
-      throw new Error('String key lookup not implemented');
-    }
-
-    if (!key.address) {
-      throw new Error(`Invalid key: missing address`);
-    }
-
-    return key;
-  }
 
   /**
    * Test the authentication flow
    * @param keyName - Name of the test key
-   * @param cryptoType - Crypto type to test with
+   * @param crypto_type - Crypto type to test with
    * @returns Test results
    */
   public static async test(
     key: Key,
-    cryptoType: string = 'sr25519'
+    crypto_type: string = 'sr25519'
   ): Promise<{ headers: AuthHeaders; verified: boolean }> {
     const data = { fn: 'test', params: { a: 1, b: 2 } };
-    const auth = new Auth(key, cryptoType);
+    const auth = new Auth(key, crypto_type);
     
     // Generate headers
     const headers = auth.headers(data);

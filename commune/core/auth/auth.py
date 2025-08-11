@@ -10,7 +10,7 @@ class Auth:
     def __init__(self, key=None, 
                 crypto_type='sr25519', 
                 hash_type='sha256',    
-                max_staleness=60, 
+                max_age=60, 
                 signature_keys = ['data', 'time']):
         
         """
@@ -26,7 +26,7 @@ class Auth:
         self.hash_type = hash_type
         self.crypto_type = crypto_type
         self.signature_keys = signature_keys
-        self.max_staleness = max_staleness
+        self.max_age = max_age
 
     def forward(self,  data: Any,  key=None, crypto_type=None) -> dict:
         """
@@ -41,26 +41,29 @@ class Auth:
         result['signature'] = key.sign({k: result[k] for k in self.signature_keys}, mode='str')
         return result
 
-    get_headers = headers = generate = forward
+    headers = generate = forward
 
-    def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
+    def verify(self, headers: str, data:Optional[Any]=None, max_age=1000) -> bool:
         """
         Verify and decode a JWT token
         provide the data if you want to verify the data hash
         """
 
-        # check staleness 
+        # check age 
         crypto_type = headers.get('crypto_type', self.crypto_type)
-        staleness = abs(time.time() - float(headers['time']))
-        assert staleness < self.max_staleness, f'Token is stale {staleness} > {self.max_staleness}'
+        age = abs(time.time() - float(headers['time']))
+        max_age = max_age or self.max_age
+        print(f'Age: {age}, Max Age: {max_age}')
+        assert age < max_age, f'Token is stale {age} > {max_age}'
         assert 'signature' in headers, 'Missing signature'
-        sig_data = {k: headers[k] for k in self.signature_keys}
+        assert all(k in headers for k in self.signature_keys), f'Missing keys in headers {headers}'
+        sig_data = json.dumps({k: headers[k] for k in self.signature_keys})
         verified = self.key.verify(sig_data, signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)
-        assert verified, 'Invalid signature'
+        assert verified, f'Invalid signature {headers}'
         if data != None:
             rehash_data = self.hash(data)
             assert headers['data'] == rehash_data, f'Invalid data {headers["data"]} != {rehash_data}'
-        return headers
+        return verified
 
     verify_headers = verify
 
@@ -74,6 +77,8 @@ class Auth:
             elif isinstance(data, dict):
                 data = json.dumps(data)
             return c.hash(data)
+        elif self.hash_type in ['identity', None, 'none']:
+            return json.dumps(data) 
         else: 
             raise ValueError(f'Invalid hash type {self.hash_type}')
 
