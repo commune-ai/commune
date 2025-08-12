@@ -20,7 +20,7 @@ interface ModSearchProps {
   isExpanded: boolean
   onToggleExpanded: () => void
   // Pagination props
-  currentPage?: number
+  page?: number
   totalPages?: number
   onPageChange?: (page: number) => void
 }
@@ -30,7 +30,7 @@ export const ModSearch = ({
   availableTags = [], 
   isExpanded,
   onToggleExpanded,
-  currentPage = 1,
+  page = 1,
   totalPages = 1,
   onPageChange
 }: ModSearchProps) => {
@@ -145,8 +145,8 @@ export const ModSearch = ({
         {onPageChange && totalPages > 1 && (
           <nav className="flex items-center gap-1 font-mono text-sm border-2 border-green-500 bg-black px-1 py-1">
             <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1}
               className="p-1.5 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               aria-label="Previous page"
             >
@@ -154,12 +154,12 @@ export const ModSearch = ({
             </button>
             
             <span className="px-3 text-green-500 min-w-[80px] text-center">
-              {currentPage}/{totalPages}
+              {page}/{totalPages}
             </span>
             
             <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages}
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages}
               className="p-1.5 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               aria-label="Next page"
             >

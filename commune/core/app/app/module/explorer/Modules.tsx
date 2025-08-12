@@ -19,7 +19,7 @@ interface ModulesState {
 export default function Modules() {
   const client = new Client()
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(9)
+  const  pageSize = 10
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showModSearch, setShowModSearch] = useState(false) // Default to closed
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
@@ -38,25 +38,20 @@ export default function Modules() {
 
   // Pagination calculations
   const totalPages = Math.ceil(state.n / pageSize)
-  const hasNextPage = page < totalPages
-  const hasPrevPage = page > 1
 
   const fetchModules = async () => {
     setState(prev => ({ ...prev, loading: true, error: null }))
     
     try {
       // Fetch modules for current page
-      const modulesData = await client.call('modules', { page_size: pageSize, page: page , search: searchFilters.searchTerm })
-
-      // only call 'n' once to get total count
-      console.log(`Modules on page ${page}:`, modulesData)
-      let n : number = state.n
-      if (n === 0) {
-        n = await client.call('n')
+      const n : number = await client.call('n', { search: searchFilters.searchTerm })
+      let modulesData: ModuleType[] = []
+      if (n > 0 ) {
+         modulesData = await client.call('modules', { page_size: pageSize, page: page , search: searchFilters.searchTerm })
       }
       setState({
         modules: modulesData,
-        n: n,
+        n,
         loading: false,
         error: null
       })
@@ -71,7 +66,7 @@ export default function Modules() {
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPages) return
+    if (newPage < 1 || newPage > state.totalPages) return
     setPage(newPage)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -82,7 +77,6 @@ export default function Modules() {
   }, [])
 
   const handleCreateSuccess = () => {
-    fetchModules()
     setShowCreateForm(false)
     setState(prev => ({ ...prev, error: null }))
   }
@@ -90,32 +84,6 @@ export default function Modules() {
   useEffect(() => {
     fetchModules()
   }, [page, searchFilters])
-
-  const PaginationControls = () => (
-    <nav className='flex items-center gap-2 font-mono text-sm' aria-label='Pagination'>
-      <button
-        onClick={() => handlePageChange(page - 1)}
-        disabled={!hasPrevPage || state.loading}
-        className='px-3 py-1 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed uppercase transition-none'
-        aria-label='Previous page'
-      >
-        [PREV]
-      </button>
-      
-      <span className='px-3 text-green-500'>
-        PAGE {page}/{totalPages || 1}
-      </span>
-      
-      <button
-        onClick={() => handlePageChange(page + 1)}
-        disabled={!hasNextPage || state.loading}
-        className='px-3 py-1 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed uppercase transition-none'
-        aria-label='Next page'
-      >
-        [NEXT]
-      </button>
-    </nav>
-  )
 
   return (
     <div className='min-h-screen bg-black text-green-500 font-mono'>
@@ -157,40 +125,13 @@ export default function Modules() {
                 availableTags={[]}
                 isExpanded={showModSearch}
                 onToggleExpanded={() => setShowModSearch(!showModSearch)}
-                totalModules={state.n}
+                page={page}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
               />
             </div>
-            
-            {/* Pagination Controls beside search */}
-            {!state.loading && state.n > 0 && (
-              <PaginationControls />
-            )}
           </div>
           
-          {/* Quick Stats when search is expanded */}
-          {showModSearch && (
-            <div className='bg-black/40 border border-green-500/30 rounded p-4 mb-4'>
-              <h3 className='text-green-500 text-sm font-bold mb-3 uppercase'>Module Stats</h3>
-              <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-xs'>
-                <div>
-                  <span className='text-green-500/70'>Total Modules:</span>
-                  <span className='text-green-500 ml-2'>{state.n}</span>
-                </div>
-                <div>
-                  <span className='text-green-500/70'>Filtered:</span>
-                  <span className='text-green-500 ml-2'>{state.modules.length}</span>
-                </div>
-                <div>
-                  <span className='text-green-500/70'>Showing:</span>
-                  <span className='text-green-500 ml-2'>{state.modules.length}</span>
-                </div>
-                <div>
-                  <span className='text-green-500/70'>Page:</span>
-                  <span className='text-green-500 ml-2'>{page}/{totalPages || 1}</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         
         {/* Empty State */}
@@ -201,13 +142,6 @@ export default function Modules() {
               : 'NO MODULES AVAILABLE.'}
           </div>
         )}
-
-        {/* Modules Grid
-        {state.loading && (
-          <div className='flex items-center justify-center h-64'>
-            <Loading/>
-          </div>
-        )} */}
 
         {/* Modules List */}
         {!state.loading && state.modules.length > 0 && 

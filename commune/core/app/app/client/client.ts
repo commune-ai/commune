@@ -18,9 +18,6 @@ export class Client {
     this.key = key;
     this.auth = new Auth(key);
 
-    console.log(`Client initialized with URL: ${this.url} and key: ${this.key ? this.key.public_key : 'No key provided'}`);
-
-
   }
 
 
