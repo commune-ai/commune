@@ -36,7 +36,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 export default function ModulePage({ module_name, code, api }: ModulePageProps) {
   // Access the auth context
-  const { keyInstance, user, isLoading: authLoading } = useAuth()
+  const { keyInstance, user, authLoading } = useAuth()
   
   const client = useMemo(() => {
     // You can pass the key instance to the client if needed

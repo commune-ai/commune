@@ -78,9 +78,19 @@ class Auth:
                 data = json.dumps(data)
             return c.hash(data)
         elif self.hash_type in ['identity', None, 'none']:
-            return json.dumps(data) 
+            return json.dumps(data)
         else: 
             raise ValueError(f'Invalid hash type {self.hash_type}')
+
+    def reverse_hash(self, data: str) -> Any:
+        """
+        Reverse the hash to get the original data
+        This is not possible for sha256, so we return the data as is
+        """
+        if self.hash_type in ['identity', None, 'none']:
+            return json.loads(data)
+        else:
+            raise ValueError(f'Reverse hash not supported for {self.hash_type}')
 
     def get_key(self, key=None, crypto_type=None):
         crypto_type =  crypto_type or self.crypto_type

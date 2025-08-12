@@ -77,14 +77,26 @@ class Server:
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
 
+
+    def print_request(self, request: Request):
+        """
+        Print the request details
+        """
+        def print_value_row(key, value, color=None):
+            divider = '-' * 50
+            color = color or c.random_color()
+            print(divider, color=color)
+            print(f'{key}: {value}', color=color)
+        print_value_row('fn', request['fn'])
+        print_value_row('params', request['params'])
+        print_value_row('client', request['client'])
+        
+            
     def forward(self, fn:str, request: Request):
         request = self.get_request(fn, request) # get the request
-
+        self.print_request(request) # print the request details
         fn = request['fn'] # get the function name
         params = request['params'] # get the params
-
-        print(f'Forwarding request to {fn} with params {params}', color='blue')
-        print('headers:', request['client'])
 
         fn_obj = getattr(self.module, fn) # get the function object from the module
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj

@@ -159,7 +159,7 @@ class AuthJWT:
 
     def test_headers(self, key='test.jwt', crypto_type='ecdsa'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
-        headers = self.get_headers(data, key=key, crypto_type=crypto_type)
+        headers = self.headers(data, key=key, crypto_type=crypto_type)
         verified = self.verify_headers(headers)
         verified = self.verify_headers(headers, data=data)
         return {'headers': headers, 'verified': verified}

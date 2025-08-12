@@ -126,7 +126,7 @@ class Vali:
         module['score'] =  result.get('score', 0) if isinstance(result, dict) else result
         module['time'] = c.time()
         module['duration'] = c.time() - t0
-        module['proof'] = self.auth.get_headers(module, key=self.key)
+        module['proof'] = self.auth.headers(module, key=self.key)
         self.save_result(module) # save the module interaction
         return module
 
@@ -175,7 +175,10 @@ class Vali:
         self.vote(results)
         if len(results) > 0:
             df = c.df(results)
-            return c.df(results)[result_features].sort_values(by='score', ascending=False)
+            try:
+                return df[result_features].sort_values(by='score', ascending=False)
+            except Exception as e:
+                print(f'Error sorting DataFrame: {e}')
         else:
             epoch_info = {
                 'epochs' : self.epochs,

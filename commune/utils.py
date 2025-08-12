@@ -442,6 +442,9 @@ def random_color():
             'bright_magenta', 'bright_cyan', 
             'bright_white']
     return random.choice(colors)
+
+def color():
+    return random_color()
     
 
 def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:

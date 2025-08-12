@@ -4,7 +4,7 @@ import { X, Copy, LogOut, Key as KeyIcon, Shield, Globe, FileSignature, CheckCir
 import { Key } from '@/app/key'
 import type { User } from '@/app/types/user'
 import { TransactionsTab } from './tabs/TransactionsTab'
-import { ModuleCaller } from '@/app/user/profile/tabs/ModuleCaller'
+import { ModuleCaller } from '@/app/user/tabs/ModuleCaller'
 import { SignVerifyTab } from './tabs/SignVerifyTab'
 
 import { InfoTab } from './tabs/InfoTab'

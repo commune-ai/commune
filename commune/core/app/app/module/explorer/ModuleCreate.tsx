@@ -136,6 +136,23 @@ export const CreateModule = ({ onClose, onSuccess }: CreateModuleProps) => {
           <p className="text-xs text-gray-500">This is the only required field. We'll figure out the rest!</p>
         </div>
 
+        <div className="space-y-2">
+          <label htmlFor="module-name" className="text-green-400 text-sm font-medium">
+            Key <span className="text-red-400">*</span>
+          </label>
+          <input
+            id="module-name"
+            placeholder="Enter your module name (e.g., my-awesome-module)"
+            value={newModule.key || ''}
+            onChange={(e) => handleFormChange('key', e.target.value)}
+            className="w-full px-4 py-2 bg-black/90 text-green-400 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/50 border border-green-500/30 rounded"
+            autoFocus
+            required
+          />
+          <p className="text-xs text-gray-500">This is the only required field. We'll figure out the rest!</p>
+        </div>
+
+
         {/* Toggle Optional Fields */}
         <button
           type="button"

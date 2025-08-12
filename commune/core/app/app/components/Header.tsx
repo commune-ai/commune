@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useState, useRef, FormEvent } from 'react'
 import { Copy, Key } from 'lucide-react'
-import { UserProfile } from '@/app/user/profile/UserProfile'
+import { UserProfile } from '@/app/user/UserProfile'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/app/context/AuthContext'
 import {copyToClipboard} from '@/app/utils' // Import the utility function
