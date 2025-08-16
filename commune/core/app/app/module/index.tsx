@@ -1,6 +1,6 @@
 import ModuleSchema from "./page/ModuleSchema";
-import ModuleCard from "./explorer/ModuleCard";
-import { CreateModule } from "./explorer/ModuleCreate";
-import Modules from "./explorer/Modules";
+import ModuleCard from "./modules/ModuleCard";
+import { CreateModule } from "./modules/ModuleCreate";
+import Modules from "./modules/page";
 
 export { ModuleSchema, ModuleCard, CreateModule, Modules };

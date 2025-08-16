@@ -108,14 +108,14 @@ class Api:
                 info = c.info(module, max_age=max_age, update=update)
                 module_path = self.module_path(module)
                 info = load_json(module_path)["data"]
-                info['code'] = c.code_map(info['name'])
+                info["code"] = c.code_map(info['name'])
                 self.store.put(module, info)
             
         except Exception as e:
 
             print(f"Error({module} error:{e})")
         if not code:
-            info.pop('code', None)
+            info.pop("code", None)
         return info
 
 

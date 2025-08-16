@@ -191,7 +191,7 @@ export const CreateModule = ({ onClose, onSuccess }: CreateModuleProps) => {
                 id="module-code"
                 placeholder="github.com/username/repo (or IPFS/S3/Arweave link)"
                 value={newModule.code || ''}
-                onChange={(e) => handleFormChange('code', e.target.value)}
+                onChange={(e) => handleFormChange("code", e.target.value)}
                 className="w-full px-4 py-2 bg-black/90 text-green-400 border focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/50 border-green-500/30 rounded"
               />
               <p className="text-xs text-gray-500">Link to your module's source code</p>

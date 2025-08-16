@@ -86,7 +86,11 @@ class Store:
         if not os.path.exists(path):
             return default
         data = self.get_text(path)
-        data = json.loads(data.strip())
+        try:
+            data = json.loads(data.strip())
+        except json.JSONDecodeError:
+            print(f'Failed to decode json from {path}, returning default value')
+            return default
         data = self.process_data_options(data)
 
         if not update:

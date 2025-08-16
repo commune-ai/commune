@@ -107,7 +107,7 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
       {/* Left Panel - Function Selection */}
       <div className="w-80 space-y-4 p-6 rounded" style={{ backgroundColor: ibmColors.surface, borderColor: ibmColors.border, borderWidth: '1px', borderStyle: 'solid' }}>
         <h2 className="text-xl font-semibold" style={{ color: ibmColors.text, borderBottom: `1px solid ${ibmColors.border}`, paddingBottom: '8px' }}>
-          Available Functions
+          functions
         </h2>
         
         <div className="space-y-2">

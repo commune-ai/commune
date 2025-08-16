@@ -54,9 +54,9 @@ export class Client {
       body = params; // FormData should not have Content-Type manually set
     } else {
       body = JSON.stringify(params);
-      headers['Content-Type'] = '';
     }
     
+    headers['Content-Type'] = 'application/json'; // Set Content-Type for JSON payload
     const url: string = `${this.url}/${fn}`;
     
     try {
@@ -77,6 +77,7 @@ export class Client {
         } else {
           throw new Error(`Unexpected error - status code: ${response.status}`);
         }
+        return { error: `HTTP error! status: ${response.status}` };
       }
 
       const contentType = response.headers.get('Content-Type');

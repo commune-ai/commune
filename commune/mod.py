@@ -33,13 +33,13 @@ class Mod:
         self.modules_path = self.mp =  self.modspath = self.root_path + '/modules'
         self.home_path = self.homepath = os.path.expanduser('~')
 
-
         self.set_config(config)
         self.name  = self.config['name']
         self.storage_path = f'{self.home_path}/.{self.name}'
         self.port_range = self.config['port_range']
-        self.expose = self.config['expose']
+        self.expose = self.endpoints = self.config['expose']
         self.shortcuts = self.config['shortcuts']
+        
         if mod is not None:
             print(f'Syncing module {mod}')
             return self.fn(f'{mod}/sync')()
@@ -117,9 +117,9 @@ class Mod:
         return obj
 
     get_module  = mod = module
-    def forward(self, fn:str='info', params:dict=None, signature=None) -> Any:
+    def forward(self, fn:str='info', params:dict=None, auth=None) -> Any:
         params = params or {}
-        assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
+        # assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
         if hasattr(self, fn):
             fn_obj = getattr(self, fn)
         else:
@@ -275,7 +275,9 @@ class Mod:
     def verify_token(self, token:str = None,  module='auth.jwt',  *args, **kwargs) -> str:
         return self.module(module)().verify_token(token=token, *args, **kwargs)
 
-    def run(self, fn:str='info', params: Union[str, dict]="{}", **_kwargs) -> Any: 
+    def run(self, fn:str='info', params: Union[str, dict]="{}", auth=None, **_kwargs) -> Any: 
+        if isinstance(signature, str):
+            signature = self.verify(auth)
         module = 'module'
         if '/' in fn:
             module, fn = fn.split('/')
@@ -668,7 +670,7 @@ class Mod:
             file.write(text)
         # get size
         return {'success': True, 'path': f'{path}', 'size': len(text)*8}
-    path = get_path
+    path = write =  get_path
     
     def ls(self, path:str = './', 
            search = None,
@@ -832,7 +834,7 @@ class Mod:
                              'start': sourcelines[1], 
                              'length': len(sourcelines[0]),
                              'path': inspect.getfile(obj).replace(self.home_path, '~'),
-                             'code': source if code else None,
+                             "code": source if code else None,
                              'hash': self.hash(source),
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
@@ -1010,7 +1012,7 @@ class Mod:
             except Exception as e:
                 self.print(f'Error getting schema for {module}: {e}', color='red', verbose=False)
             if code:
-                info['code'] = self.code_map(module)
+                info["code"] = self.code_map(module)
             info['signature'] = self.sign(info)
             if 'desc' not in info and ai_describe:
                 prompt = 'given decribe this module in a few sentences, the module is a python module with the following schema: ' + json.dumps(info['schema'])
@@ -1106,6 +1108,9 @@ class Mod:
                 fn_obj = getattr(module, fn)
             elif self.object_exists(fn):
                 fn_obj =  self.obj(fn)
+            elif self.module_exists(fn):
+                fn_obj = self.module(fn)().forward
+
         else:
             return fn
         if params:
@@ -1678,7 +1683,7 @@ class Mod:
             url = url + gitsuffix
         return url
     
-    def links(self, module:str = 'datura', expected_features = ['api', 'app', 'code']):
+    def links(self, module:str = 'datura', expected_features = ['api', 'app', "code"]):
         return self.config['links']
 
     def push(self, path = None, comment=None):

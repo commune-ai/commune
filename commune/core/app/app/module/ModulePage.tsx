@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Client } from '@/app/client/client'
 import { Loading } from '@/app/components/Loading'
 import { ModuleType } from '@/app/types/module'
-import { useAuth } from '@/app/context/AuthContext'
+import { useUserContext } from '@/app/context/UserContext'
 import {
   CodeBracketIcon,
   ServerIcon,
@@ -28,7 +28,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { CopyButton } from '@/app/components/CopyButton'
 import { ModuleCode } from './ModuleCode'
-import ModuleSchema from './ModuleSchema'
+import ModuleSchema from './ModuleApi'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -36,7 +36,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 export default function ModulePage({ module_name, code, api }: ModulePageProps) {
   // Access the auth context
-  const { keyInstance, user, authLoading } = useAuth()
+  const { keyInstance, user, authLoading } = useUserContext()
   
   const client = useMemo(() => {
     // You can pass the key instance to the client if needed
@@ -48,7 +48,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
   const [loading, setLoading] = useState<boolean>(true)
   const [syncing, setSyncing] = useState<boolean>(false)
   const [codeMap, setCodeMap] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<TabType>('code')
+  const [activeTab, setActiveTab] = useState<TabType>("code")
   const [hasFetched, setHasFetched] = useState(false)
 
   const fetchModule = useCallback(async (update = false) => {
@@ -58,23 +58,18 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
       } else {
         setLoading(true)
       }
+
       
       // You can use the keyInstance here if needed for authenticated requests
       const params = { 
         module: module_name, 
         update: update, 
         code: true,
-        // Add authentication if needed
-        ...(keyInstance && user ? {
-          auth: {
-            address: user.address,
-            signature: await keyInstance.sign(JSON.stringify({ module: module_name, timestamp: Date.now() }))
-          }
-        } : {})
       }
+
       
       const foundModule = await client.call('module', params)
-      
+
       if (foundModule) {
         setModule(foundModule)
         if (foundModule.code && typeof foundModule.code === 'object') {
@@ -133,7 +128,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
   const patternBg = generatePattern(moduleColor, module.key || module.name)
 
   const tabs = [
-    { id: 'code', label: 'CODE', icon: CodeBracketIcon },
+    { id: "code", label: 'CODE', icon: CodeBracketIcon },
     { id: 'api', label: 'API', icon: ServerIcon },
     { id: 'transactions', label: 'TRANSACTIONS', icon: ArrowTrendingUpIcon },
   ]
@@ -159,47 +154,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
             className='space-y-4 px-6 pt-4 pb-6'
           >
             {/* Top Navigation */}
-            <div className='flex items-center justify-between'>
-              <Link
-                href='/'
-                className='group flex items-center gap-2 text-gray-400 hover:text-white transition-colors'
-              >
-                <ArrowLeftIcon className='h-4 w-4 group-hover:-translate-x-1 transition-transform' />
-                <span>All Modules</span>
-              </Link>
-              
-              <div className='flex items-center gap-4'>
-                {/* Auth Status Indicator */}
-                {user && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className='flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm'
-                    style={{ 
-                      borderColor: `${moduleColor}4D`,
-                      color: moduleColor,
-                    }}
-                  >
-                    <KeyIcon className='h-4 w-4' />
-                    <span className='font-mono'>{shorten(user.address)}</span>
-                  </motion.div>
-                )}
-                
-                <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className='group flex items-center gap-2 rounded-full border px-4 py-2 transition-all'
-                  style={{ 
-                    borderColor: `${moduleColor}4D`,
-                    color: moduleColor,
-                    backgroundColor: syncing ? `${moduleColor}10` : 'transparent'
-                  }}
-                >
-                  <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                  <span className='text-sm font-medium'>{syncing ? 'Syncing...' : 'Sync'}</span>
-                </button>
-              </div>
-            </div>
+
 
             {/* Module Header */}
             <div className='flex items-start gap-4'>
@@ -227,6 +182,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
                   {module.desc || 'A powerful module in the Commune ecosystem'}
                 </p>
                 
+                
                 {/* Tags */}
                 {module.tags?.length > 0 && (
                   <div className='flex flex-wrap gap-2'>
@@ -249,7 +205,21 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
                     ))}
                   </div>
                 )}
+
+                {/* Module URL */}
               </div>
+                  <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className='group flex items-center gap-2 rounded-full border px-4 py-2 transition-all'
+                  style={{ 
+                    borderColor: `${moduleColor}4D`,
+                    color: moduleColor,
+                    backgroundColor: syncing ? `${moduleColor}10` : 'transparent'
+                  }}
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                </button>
             </div>
 
             {/* Key Info Cards - Including Auth Info */}
@@ -368,7 +338,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
                     <p className='text-gray-400'>No transactions available for this module.</p>
                   </div>
                 )}
-                {activeTab === 'code' && (
+                {activeTab === "code" && (
                   <ModuleCode
                     files={codeMap}
                     title='Source Code'
@@ -501,7 +471,7 @@ const generatePattern = (color: string, seed: string) => {
   return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
-type TabType = 'code' | 'api' | 'transactions'
+type TabType = "code" | 'api' | 'transactions'
 
 interface ModulePageProps {
   module_name: string

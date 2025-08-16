@@ -73,17 +73,17 @@ Module creation form with:
 
 ```tsx
 // Basic usage
-import { Modules } from '@/app/module/explorer'
+import { Modules } from '@/app/search'
 
 <Modules />
 
 // Module card with custom props
-import ModuleCard from '@/app/module/explorer/ModuleCard'
+import ModuleCard from '@/app/search/ModuleCard'
 
 <ModuleCard module={moduleData} />
 
 // Create module with callbacks
-import { CreateModule } from '@/app/module/explorer/ModuleCreate'
+import { CreateModule } from '@/app/search/ModuleCreate'
 
 <CreateModule 
   onClose={() => setShowCreate(false)}

@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { Key } from '@/app/key'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 
-interface AuthContextType {
+interface UserContextType {
   keyInstance: Key | null
   user: { address: string; crypto_type: string } | null
   password: string
@@ -12,9 +12,9 @@ interface AuthContextType {
   isLoading: boolean
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const UserContext = createContext<UserContextType | undefined>(undefined)
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [keyInstance, setKeyInstance] = useState<Key | null>(null)
   const [user, setUser] = useState<{ address: string; crypto_type: string } | null>(null)
   const [password, setPassword] = useState('')
@@ -78,16 +78,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ keyInstance, user, password, signIn, signOut, isLoading }}>
+    <UserContext.Provider value={{ keyInstance, user, password, signIn, signOut, isLoading }}>
       {children}
-    </AuthContext.Provider>
+    </UserContext.Provider>
   )
 }
 
-export const useAuth = () => {
-  const context = useContext(AuthContext)
+export const useUserContext = () => {
+  const context = useContext(UserContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useUserContext must be used within an UserProvider')
   }
   return context
 }
