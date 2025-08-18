@@ -9,9 +9,8 @@ import commune as c
 
 class Api:
 
+    url = '0.0.0.0:8000'
     tempo = 600
-    app_name =  __file__.split('/')[-3] + '_app' 
-    model='anthropic/claude-3.5-sonnet'
     endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
     modules_path = os.path.expanduser('~/.commune/api/modules')
 
@@ -99,6 +98,7 @@ class Api:
             results = [m['name'] for m in results]
         return results
 
+    mods = modules
     def module(self, module:str, max_age=None, update=False, code=False, **kwargs):
 
         try:
@@ -116,10 +116,14 @@ class Api:
             print(f"Error({module} error:{e})")
         if not code:
             info.pop("code", None)
+        
         return info
 
-
+    mod = module
     allowed_functions = ['chain/events', 'chain/forward', 'chain/stream', 'chain/stream_forward', 'schema']
+
+    def servers(self):
+        return c.servers()
 
     def call(self, fn, params={"text": "hey"}, **kwargs):
         assert fn in self.allowed_functions, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
@@ -127,6 +131,7 @@ class Api:
 
     def ask(self, text, **kwargs):
         return c.ask(text, **kwargs)
+
     def check_module_data(self, module) -> bool:
         if not isinstance(module, dict):
             return False
@@ -181,7 +186,6 @@ class Api:
                    app = None,
                    **kwargs ):
         
-        
         module = { "name": name, "url": url, "key": key, "code": code,  **kwargs }
         self.save_module(module)
         result =  {"message": f"Module {module['name']} added successfully", "module": module}
@@ -196,7 +200,6 @@ class Api:
     def module_exists(self, module: str):
         return os.path.exists(self.module_path(module))
 
-
     def sync(self, max_age=10000, page_size=32, threads=8):
 
         n = self.n()
@@ -207,8 +210,53 @@ class Api:
             self.modules(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
         return {"message": f"Synced {n} modules in {pages} pages with page size {page_size}"}
 
-
     def balance(self, address):
-           
         return self.chain.balance(address)
+
+    def add_host(self, host='0.0.0.0', port=8000, **kwargs):
+        """
+        Add a host to the commune
+        """
+        ip = f"{host}:{port}"
+        path = 'api/hosts.json'
+        hosts = self.store.get(path, [self.url])
+        hosts = list(set(hosts))
+        assert isinstance(hosts, list), "Hosts should be a list"
+        assert ip not in hosts, f"Host {ip} already exists in the list"
+        self.store.put('api/hosts', path)
+        return {"message": f"Host {host}:{port} added successfully"}
+
+    def remove_host(self, host='0.0.0.0', port=8000, **kwargs):
+        """
+        Remove a host from the commune
+        """
+        ip = f"{host}:{port}"
+        path = 'api/hosts.json'
+        hosts = self.store.get(path, [self.url])
+        if ip in hosts:
+            hosts.remove(ip)
+            self.store.put('api/hosts', path)
+            return {"message": f"Host {host}:{port} removed successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Host {ip} not found in the list")
+
+    def hosts(self, update=False):
+        """
+        Get the list of hosts
+        """
+        path = 'api/hosts.json'
+        hosts = self.store.get(path, [self.url], update=update)
+        return hosts
+
+    def clear_hosts(self):
+        """
+        Clear the list of hosts
+        """
+        path = 'api/hosts.json'
+        self.store.put('api/hosts', path, [])
+        return {"message": "Hosts cleared successfully"}
+
+
+
+
 

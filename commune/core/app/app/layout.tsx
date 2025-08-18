@@ -4,7 +4,7 @@ import './globals.css'
 import { Header } from './header/Header'
 import { UserProvider } from './context/UserContext'
 import { SearchProvider } from './context/SearchContext'
-import { Sidebar } from './components/Sidebar'
+import { Sidebar } from './sidebar/Sidebar'
 import "react-responsive-modal/styles.css"
 import "@/app/globals.css"
 

@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Footer } from '@/app/components'
 import { Client } from '@/app/client/client'
 import { Loading } from '@/app/components/Loading'
 import ModuleCard from '@/app/search/ModuleCard'
 import { CreateModule } from '@/app/search/ModuleCreate'
 import { ModuleType } from '@/app/types/module'
+import {Footer} from '@/app/components/Footer'
 import { useSearchContext } from '@/app/context/SearchContext'
 interface ModulesState {
   modules: ModuleType[]

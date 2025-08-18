@@ -558,7 +558,7 @@ class Mod:
         self.put_text(path, data)
         return path
 
-    def env(self):
+    def env(self, key=None):
         """
         Get the environment variables
         """
@@ -566,6 +566,8 @@ class Mod:
         env = {}
         for k,v in os.environ.items():
             env[k] = v
+        if key != None:
+            return env.get(key, None)
         return env
 
     def rm(self, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/', './']):
@@ -887,12 +889,14 @@ class Mod:
         code_map = {k[len(dirpath+'/'): ]:v for k,v in code_map.items()}
         # ignore if .modules. is in the path
         code_map = {k:v for k,v in code_map.items() if not any(['/'+f+'/' in k for f in ignore_folders])}
+        
         return code_map
 
     codemap = code_map
 
     def code_hash_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
-        return {k:self.hash(str(v)) for k,v in self.code_map(module=module, search=search,**kwargs).items()}
+        hash_map =  {k:self.hash(str(v)) for k,v in self.code_map(module=module, search=search,**kwargs).items()}
+        return dict(sorted(hash_map.items()))  # sort by key
 
     def code_file_map(self, module , search=None, *args, **kwargs) ->  Dict[str, str]:
         return list(self.code_map(module=module, search=search,**kwargs).keys())
@@ -996,7 +1000,8 @@ class Mod:
         Get the info of a module, including its schema, key, cid, and code if specified.
         """
             
-        path = self.get_path('info/' + str(module)) 
+        cid = self.cid(module)
+        path = self.get_path('info/' + str(cid)) 
         
         info = self.get(path, None, max_age=max_age, update=update)
         if info == None:
@@ -1004,7 +1009,7 @@ class Mod:
                     'schema': {}, 
                     'name': module, 
                     'key': self.get_key(key or module).key_address,  
-                    'cid': self.cid(module),
+                    'cid': cid,
                     'time': time.time()
                     }
             try:

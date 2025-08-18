@@ -627,3 +627,5 @@ class Server:
         self.unblacklist_user(key, max_age=max_age, update=update)
         assert key not in self.blacklist(max_age=max_age, update=update), f"Failed to remove {key} from blacklist"
         return {'blacklist': True, 'user': key , 'blacklist': self.blacklist(max_age=max_age, update=update)}
+
+

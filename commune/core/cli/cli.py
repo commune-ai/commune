@@ -59,6 +59,7 @@ class Cli:
                 c.print(f'Error getting schema for {module}/{fn}: {e}', color='red')
             schema = {}
         return  schema
+
     def get_params(self, params:dict, schema:dict):
         if 'args' and 'kwargs' in params:
             args = params['args']
@@ -72,20 +73,17 @@ class Cli:
         params = {**params, **kwargs}  # merge args and kwargs
         return params
 
-
     def shorten(self, x:str, n=12):
         if len(x) > n:
             return x[:n] +  '...' + x[-n:]
         return x
 
-    
     def get_argv(self, argv=None):
         """
         Get the arguments passed to the script
         """
         argv = argv or sys.argv[1:] # remove the first argument (the script name)
         return argv
-
 
     def is_generator(self, obj):
         """
@@ -122,32 +120,40 @@ class Cli:
     def get_module_fn(self, module:str, fn:str, argv):
         
         module_obj = c.mod(module)()
+
+        print(f"Using {argv} as function")
+
         if len(argv) == 0:
             # scenario 1: no arguments, use the default function
             fn = self.default_fn
-        elif len(argv) > 0 and hasattr(module_obj, argv[0]):
-            fn = argv.pop(0)
-        elif argv[0].endswith('/'):
-            # scenario 4: the fn name is of another module so we will look it up in the fn2module
-            module = argv.pop(0)[:-1]
-        elif argv[0].startswith('/'):
-            # scenario 5: the fn name is of another module so we will look it up in the fn2module
-            fn = argv.pop(0)[1:]
-        elif len(argv[0].split('/')) == 2:
-            # scenario 6: first argument is a path to a function c module/fn *args **kwargs
-            module, fn = argv.pop(0).split('/')
-        elif len(argv) >= 2 and c.module_exists(argv[0]):
-            # scenario 7: first argument is the module name c module fn *args **kwargs
-            module = argv.pop(0)
-            fn = argv.pop(0)
+        elif len(argv) > 0 :
+            if hasattr(module_obj, argv[0]):
+                fn = argv.pop(0)
+            elif argv[0].endswith('/'):
+                # scenario 4: the fn name is of another module so we will look it up in the fn2module
+                module = argv.pop(0)[:-1]
+            elif argv[0].startswith('/'):
+                # scenario 5: the fn name is of another module so we will look it up in the fn2module
+                fn = argv.pop(0)[1:]
+            elif len(argv[0].split('/')) > 1:
+                # scenario 6: first argument is a path to a function c module/fn *args **kwargs
+                module = '/'.join((argv[0].split('/')[:-1]))
+                fn = argv.pop(0).split('/')[-1]
+            elif len(argv) >= 2 and c.module_exists(argv[0]):
+                # scenario 7: first argument is the module name c module fn *args **kwargs
+                module = argv.pop(0)
+                fn = argv.pop(0)
+            else:
+                # scenario 8: the fn name is of another module so we will look it up in the fn2module
+                # and then get the function from the module
+                fn = argv.pop(0)
+                fn2module = c.fn2module()
+                if not fn in fn2module:
+                    raise ValueError(f'Function {fn} not found in module {module}')
+                module = fn2module[fn]
         else:
-            # scenario 8: the fn name is of another module so we will look it up in the fn2module
-            # and then get the function from the module
-            fn = argv.pop(0)
-            fn2module = c.fn2module()
-            if not fn in fn2module:
-                raise ValueError(f'Function {fn} not found in module {module}')
-            module = fn2module[fn]
+            # scenario 2: no arguments, use the default function
+            fn = self.default_fn
         return argv, module, fn
 
     def get_params_from_args(self, args:List[str],kwargs:List[str], schema:dict):
