@@ -53,7 +53,7 @@ Individual module card with:
 - Keyboard navigation support
 - Improved tag display with overflow handling
 
-### ModulePage.tsx
+### Module.tsx
 Detailed module view with:
 - Tab navigation for code/schema views
 - Sync functionality with loading states

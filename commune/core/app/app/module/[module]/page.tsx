@@ -1,5 +1,5 @@
 
-import ModulesClient from '../ModulePage'
+import ModulesClient from '../Module'
 
 export default async function ModulesPage({ params, searchParams }: { params : { module: string }, searchParams: { [key: string]: string | string[] | undefined } }) {
   const module = params.module

@@ -34,7 +34,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 // ... (keep all the existing type definitions, interfaces, and helper functions)
 
-export default function ModulePage({ module_name, code, api }: ModulePageProps) {
+export default function Module({ module_name, code, api }: ModuleProps) {
   // Access the auth context
   const { keyInstance, user, authLoading } = useUserContext()
   
@@ -47,8 +47,7 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(true)
   const [syncing, setSyncing] = useState<boolean>(false)
-  const [codeMap, setCodeMap] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<TabType>("code")
+  const [activeTab, setActiveTab] = useState<TabType>("api")
   const [hasFetched, setHasFetched] = useState(false)
 
   const fetchModule = useCallback(async (update = false) => {
@@ -72,9 +71,6 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
 
       if (foundModule) {
         setModule(foundModule)
-        if (foundModule.code && typeof foundModule.code === 'object') {
-          setCodeMap(foundModule.code as Record<string, string>)
-        }
         setError('')
       } else {
         setError(`Module ${module_name} not found`)
@@ -340,10 +336,9 @@ export default function ModulePage({ module_name, code, api }: ModulePageProps) 
                 )}
                 {activeTab === "code" && (
                   <ModuleCode
-                    files={codeMap}
+                    files={module.code}
                     title='Source Code'
                     showSearch={true}
-                    showFileTree={Object.keys(codeMap).length > 3}
                     compactMode={false}
                   />
                 )}
@@ -473,7 +468,7 @@ const generatePattern = (color: string, seed: string) => {
 
 type TabType = "code" | 'api' | 'transactions'
 
-interface ModulePageProps {
+interface ModuleProps {
   module_name: string
   code: boolean
   api: boolean

@@ -110,7 +110,7 @@ export default function Modules() {
       )}
 
       {/* Main Content */}
-      <main className='p-6 pt-20' role='main'>
+      <main className='p-2 pt-1' role='main'>
         {/* Header Info */}
         <div className='mb-6 flex items-center justify-between'>
             <p className='text-green-500/70'>

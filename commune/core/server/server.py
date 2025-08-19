@@ -17,17 +17,6 @@ print = c.print
 class Server:
 
     helper_fns  = ['info', 'forward'] # the helper fns
-    fn_attributes =['endpoints', 
-                    'fns',
-                    'expose', 
-                    "exposed_fns",'server_fns', 
-                    'public_fns', 
-                    'pubfns',  
-                    'public_functions', 
-                    'exposed_functions'] # the attributes that can contain the fns
-
-
-
     def __init__(
         self, 
         module: Union[str, object] = 'module',
@@ -155,15 +144,25 @@ class Server:
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
-
-    
-    def set_fns(self, fns:Optional[List[str]]):
+    def set_fns(self, 
+                fns:Optional[List[str]], 
+                fn_attributes =['endpoints', 
+                        'fns',
+                        'expose', 
+                        "exposed_fns",
+                        'server_fns', 
+                        'public_fns', 
+                        'pubfns',  
+                        'public_functions', 
+                        'exposed_functions'] # the attributes that can contain the fns
+        ):
         """
         sets the fns of the server
         """
+
         fns =  fns or []
         if len(fns) == 0:
-            for fa in self.fn_attributes:
+            for fa in fn_attributes:
                 if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
                     fns = getattr(self.module, fa) 
                     break

@@ -2,7 +2,7 @@
 
 import { useState, memo, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { ModuleType } from '../../types/module'
+import { ModuleType } from '@app/types/module'
 import { CopyButton } from '@/app/components/CopyButton'
 import Link from 'next/link'
 

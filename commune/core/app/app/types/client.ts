@@ -1,1 +1,0 @@
-export type NetworkType = 'local' | 'testnet' | 'mainnet';

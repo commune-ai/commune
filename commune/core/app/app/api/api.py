@@ -120,13 +120,21 @@ class Api:
         return info
 
     mod = module
-    allowed_functions = ['chain/events', 'chain/forward', 'chain/stream', 'chain/stream_forward', 'schema']
 
     def servers(self):
         return c.servers()
 
-    def call(self, fn, params={"text": "hey"}, **kwargs):
-        assert fn in self.allowed_functions, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
+    def call(self, fn, 
+                  params={}, 
+                  fns = ['chain/events', 
+                         'chain/forward', 
+                         'chain/stream', 
+                         'chain/stream_forward', 
+                         'schema'],
+                          **kwargs):
+
+        
+        assert fn in fns, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
         return c.fn(fn)(**params, **kwargs)
 
     def ask(self, text, **kwargs):

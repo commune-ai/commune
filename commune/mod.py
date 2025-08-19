@@ -64,6 +64,9 @@ class Mod:
     def sync_mods(self):
         modules_url = self.code_link(self.config['links']['modules'])
         modules_exist = os.path.exists(self.modules_path)
+
+        if not modules_exist:
+            os.makedirs(self.modules_path, exist_ok=True)
         update_modules =  len(os.listdir(self.modules_path)) == 0
         if update_modules:
             # os.makedirs(self.modules_path, exist_ok=True)

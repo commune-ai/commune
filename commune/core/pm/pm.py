@@ -98,6 +98,64 @@ class PM:
         return ' '.join([f"{k}={v}" for k, v in params.items() if v is not None])
 
 
+    def dockerfiles(self, mod='mod'):
+        """
+        List all Dockerfiles in the specified path.
+        
+        Args:
+            path (str): Path to search for Dockerfiles. Defaults to current directory.
+            
+        Returns:
+            List[str]: List of Dockerfile paths.
+        """
+        dockerfiles = []
+        path = c.dp(mod)
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                if file.lower() == 'dockerfile':
+                    dockerfiles.append(os.path.join(root, file))
+        return dockerfiles
+
+    def has_dockerfile(self, mod='mod'):
+        """
+        Check if a Dockerfile exists in the specified module path.
+        
+        Args:
+            mod (str): Module name or path to check for Dockerfile.
+            
+        Returns:
+            bool: True if a Dockerfile exists, False otherwise.
+        """
+        dockerfiles = self.dockerfiles(mod)
+        return len(dockerfiles) > 0
+
+    def dockerfile_path(self, mod='mod'):
+        """
+        Get the path to the Dockerfile in the specified module.
+        
+        Args:
+            mod (str): Module name or path to check for Dockerfile.
+            
+        Returns:
+            str: Path to the Dockerfile if it exists, otherwise None.
+        """
+        dockerfiles = self.dockerfiles(mod)
+        # choose the shortest dockerfile path
+        if len(dockerfiles) == 0:
+            print(f'No Dockerfile found in {mod}')
+            return None
+        else: 
+            print(f'Found {len(dockerfiles)} Dockerfiles in {mod}')
+        dockerfiles = sorted(dockerfiles, key=len)
+        return dockerfiles[0] if len(dockerfiles) > 0 else None
+
+
+    def dockerfile(self, mod='mod'):
+        return c.get_text(self.dockerfile_path(mod))
+
+    def fork(self,  from_mod='mod', to_mod='mod'):
+        return self.forward(f'make sure the source can have a docker container that has the contents of the current dockerfile --> {dockerfile}', src=src)
+
 
     def build(self,
               path: Optional[str] = None,
@@ -131,7 +189,7 @@ class PM:
             else:
                 path = os.path.join(path, 'Dockerfile')
         assert os.path.exists(path), f"Dockerfile not found at {path}"
-        tag = name or tag or path.split('/')[2]
+        tag = name or tag or path.split('/')[-1]
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
@@ -704,6 +762,8 @@ class PM:
             Dict[str, str]: Result of the operation.
         """
         return self.kill(name)
+
+    
 
     def list(self, all: bool = False) -> pd.DataFrame:
         """

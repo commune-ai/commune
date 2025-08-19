@@ -11,14 +11,14 @@ export const SearchHeader = () => {
   const pathname = usePathname()
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    updateSearchFilters({ searchTerm: localSearchTerm })
+    updateSearchFilters({ searchTerm: localSearchTerm})
     if (pathname !== '/') {
       router.push(`/`)
     }
   }
 
   const handleSearchChange = (value: string) => {
-    setLocalSearchTerm(value)
+    setLocalSearchTerm(value.trim().toLowerCase())
   }
 
   return (
