@@ -28,7 +28,7 @@ type SchemaType = {
   hash?: string
 }
 
-type TabType = 'playground' | 'code'
+type TabType = 'run' | 'code'
 
 export const ModuleSchema = ({mod}: Record<string, any>) => {
   const [selectedFunction, setSelectedFunction] = useState<string>('')
@@ -39,7 +39,7 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
   const [authHeaders, setAuthHeaders] = useState<any>(null)
   const [urlParams, setUrlParams] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<TabType>('playground')
+  const [activeTab, setActiveTab] = useState<TabType>('run')
   
   let schema: Record<string, SchemaType> = mod.schema || {}
   
@@ -129,18 +129,6 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
     }
   }
 
-  // Get function description
-  const getFunctionDescription = (fnName: string) => {
-    const fn = filteredSchema[fnName]
-    if (!fn) return 'No description available.'
-    
-    const details = []
-    if (fn.hash) details.push(`Hash: ${fn.hash.substring(0, 12)}...`)
-    details.push(`Returns: ${fn.output.type}`)
-    details.push(`Parameters: ${Object.keys(fn.input).length}`)
-    
-    return details.join(' | ')
-  }
 
   // Modern dark theme colors
   const colors = {
@@ -170,13 +158,7 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
         borderStyle: 'solid',
         boxShadow: `0 0 20px ${colors.primary}20`
       }}>
-        <h2 className="text-xl font-bold uppercase tracking-wider flex items-center gap-2" style={{ 
-          color: colors.text,
-          textShadow: `0 0 10px ${colors.primary}`
-        }}>
-          <CommandLineIcon className="w-6 h-6" />
-          FUNCTIONS
-        </h2>
+
         
         {/* Search Bar */}
         <div className="relative">
@@ -230,7 +212,7 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
                   setError('')
                   setAuthHeaders(null)
                   setUrlParams('')
-                  setActiveTab('playground')
+                  setActiveTab('run')
                 }}
                 className="p-3 rounded cursor-pointer transition-all group"
                 style={{
@@ -248,9 +230,11 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
                   <span className="font-bold text-sm">{fn}</span>
                   <ChevronRightIcon className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <p className="text-xs mt-1 opacity-70">
-                  {Object.keys(filteredSchema[fn].input).length} params | {filteredSchema[fn].output.type}
-                </p>
+                {filteredSchema[fn].input && (
+                  <p className="text-xs mt-1 opacity-70">
+                    {Object.keys(filteredSchema[fn].input).length} params | {filteredSchema[fn].output.type}
+                  </p>
+                )}
               </motion.div>
             ))
           ) : (
@@ -290,24 +274,21 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
               }}>
                 {selectedFunction}
               </h2>
-              <p className="text-sm mb-4" style={{ color: colors.textMuted }}>
-                {getFunctionDescription(selectedFunction)}
-              </p>
-              
+
               {/* Tabs */}
               <div className="flex gap-2 border-b" style={{ borderColor: colors.border }}>
                 <button
-                  onClick={() => setActiveTab('playground')}
+                  onClick={() => setActiveTab('run')}
                   className="px-4 py-2 font-medium text-sm transition-all relative"
                   style={{
-                    color: activeTab === 'playground' ? colors.text : colors.textMuted,
-                    borderBottom: activeTab === 'playground' ? `2px solid ${colors.primary}` : 'none',
+                    color: activeTab === 'run' ? colors.text : colors.textMuted,
+                    borderBottom: activeTab === 'run' ? `2px solid ${colors.primary}` : 'none',
                     marginBottom: '-2px'
                   }}
                 >
                   <div className="flex items-center gap-2">
                     <PlayIcon className="w-4 h-4" />
-                    Playground
+                    run
                   </div>
                 </button>
                 {filteredSchema[selectedFunction].code && (
@@ -331,65 +312,17 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
 
             {/* Tab Content */}
             <AnimatePresence mode="wait">
-              {activeTab === 'playground' ? (
+              {activeTab === 'run' ? (
                 <motion.div
-                  key="playground"
+                  key="run"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   className="flex-1 flex flex-col space-y-4"
                 >
-                  {/* Execute Button at Top */}
-                  <button
-                    onClick={executeFunction}
-                    disabled={loading}
-                    className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-                    style={{
-                      backgroundColor: loading ? colors.secondary : colors.primary,
-                      color: colors.background,
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                      border: `2px solid ${loading ? colors.secondary : colors.primary}`,
-                      boxShadow: loading ? 'none' : `0 0 20px ${colors.primary}60`,
-                      textShadow: `0 0 5px ${colors.background}`
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!loading) {
-                        e.currentTarget.style.backgroundColor = colors.accent
-                        e.currentTarget.style.borderColor = colors.accent
-                        e.currentTarget.style.boxShadow = `0 0 30px ${colors.accent}80`
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!loading) {
-                        e.currentTarget.style.backgroundColor = colors.primary
-                        e.currentTarget.style.borderColor = colors.primary
-                        e.currentTarget.style.boxShadow = `0 0 20px ${colors.primary}60`
-                      }
-                    }}
-                  >
-                    <PlayIcon className="w-5 h-5" />
-                    {loading ? 'EXECUTING...' : 'EXECUTE FUNCTION'}
-                  </button>
 
                   {/* Input Parameters */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: colors.accent }}>
-                      <DocumentTextIcon className="w-5 h-5" />
-                      PARAMETERS
-                    </h3>
-                    
-                    {/* URL Parameters Display */}
-                    {urlParams && (
-                      <div className="p-3 rounded" style={{
-                        backgroundColor: colors.codeBg,
-                        border: `1px solid ${colors.border}`
-                      }}>
-                        <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>URL PARAMS:</p>
-                        <code className="text-xs" style={{ color: colors.text }}>?{urlParams}</code>
-                      </div>
-                    )}
-                    
                     {/* Parameter Inputs */}
                     <div className="space-y-3">
                       {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
@@ -426,24 +359,82 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
                       ))}
                     </div>
 
-                    {/* Auth Headers Display */}
-                    {authHeaders && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-bold text-sm" style={{ color: colors.textSecondary }}>HEADERS</h4>
-                          <CopyButton code={JSON.stringify(authHeaders, null, 2)} />
-                        </div>
-                        <pre className="p-3 rounded overflow-x-auto max-h-24 text-xs" style={{
-                          backgroundColor: colors.codeBg,
-                          border: `1px solid ${colors.border}`,
-                          color: colors.textSecondary
-                        }}>
-                          <code>{JSON.stringify(authHeaders, null, 2)}</code>
-                        </pre>
-                      </div>
-                    )}
+
                   </div>
 
+                  {/* Execute Button at Top */}
+                  <button
+                    onClick={executeFunction}
+                    disabled={loading}
+                    className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                    style={{
+                      backgroundColor: loading ? colors.secondary : colors.primary,
+                      color: colors.background,
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      opacity: loading ? 0.7 : 1,
+                      border: `2px solid ${loading ? colors.secondary : colors.primary}`,
+                      boxShadow: loading ? 'none' : `0 0 20px ${colors.primary}60`,
+                      textShadow: `0 0 5px ${colors.background}`
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading) {
+                        e.currentTarget.style.backgroundColor = colors.accent
+                        e.currentTarget.style.borderColor = colors.accent
+                        e.currentTarget.style.boxShadow = `0 0 30px ${colors.accent}80`
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!loading) {
+                        e.currentTarget.style.backgroundColor = colors.primary
+                        e.currentTarget.style.borderColor = colors.primary
+                        e.currentTarget.style.boxShadow = `0 0 20px ${colors.primary}60`
+                      }
+                    }}
+                  >
+                    <PlayIcon className="w-5 h-5" />
+                    {loading ? 'EXECUTING...' : 'RUN'}
+                  </button>
+
+
+                  <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
+
+
+
+
+                  
+                  {(
+                    <div className="p-3 rounded" style={{
+                      backgroundColor: colors.codeBg, 
+                      border: `1px solid ${colors.border}`
+                    }}>
+                      <h4 className="text-sm font-bold mb-2" style={{ color: colors.text }}>PARAMS</h4>
+                      <pre className="p-2 rounded overflow-x-auto" style={{
+                        backgroundColor: colors.codeBg,
+                        border: `1px solid ${colors.border}`
+                      }}>
+                        <code className="text-xs" style={{ color: colors.text }}>
+                          {JSON.stringify(params, null, 2)}
+                        </code>
+                      </pre>
+                    </div>
+                  )}                  
+                  
+                  {authHeaders && (
+                    <div className="p-3 rounded" style={{
+                      backgroundColor: colors.codeBg, 
+                      border: `1px solid ${colors.border}`
+                    }}>
+                      <h4 className="text-sm font-bold mb-2" style={{ color: colors.text }}>HEADERS</h4>
+                      <pre className="p-2 rounded overflow-x-auto" style={{
+                        backgroundColor: colors.codeBg,
+                        border: `1px solid ${colors.border}`
+                      }}>
+                        <code className="text-xs" style={{ color: colors.text }}>
+                          {JSON.stringify(authHeaders, null, 2)}
+                        </code>
+                      </pre>
+                    </div>
+                  )}
                   {/* Output Section */}
                   {(response || error) && (
                     <div className="space-y-4">
@@ -482,7 +473,6 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
                     border: `2px solid ${colors.border}`
                   }}>
                     <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
-                      <h3 className="font-bold text-sm" style={{ color: colors.text }}>FUNCTION CODE</h3>
                       <CopyButton code={filteredSchema[selectedFunction].code || ''} />
                     </div>
                     <pre className="p-4 overflow-auto h-full">

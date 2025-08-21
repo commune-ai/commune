@@ -99,15 +99,13 @@ class Api:
         return results
 
     mods = modules
-    def module(self, module:str, max_age=None, update=False, code=False, **kwargs):
+    def module(self, module:str,  update=False, max_age=None, code=False, **kwargs):
 
         try:
-            path = self.store.get_path(f'modules/{module}.json')
-            info = c.get(path, None,  max_age=max_age, update=update)
+            path = f'modules/{module}.json'
+            info = self.store.get(path, None,  max_age=max_age, update=update)
             if info == None:
                 info = c.info(module, max_age=max_age, update=update)
-                module_path = self.module_path(module)
-                info = load_json(module_path)["data"]
                 info["code"] = c.code_map(info['name'])
                 self.store.put(module, info)
             

@@ -8,7 +8,6 @@ export interface AuthHeaders {
   signature: string;
   crypto_type?: string;
   hash_type?: string;
-  data_hash?: string; // Optional, used for data verification
 }
 
 export class Auth {
@@ -67,7 +66,6 @@ export class Auth {
     // Sign the data
     let signatureDataString = JSON.stringify(signatureData); // Ensure it's a plain object
     headers.signature = authKey.sign(signatureDataString)
-    headers.data_hash = this.hash(headers.data); // Optional data hash for verification
       // Verify the signature
     const verified = this.key.verify( signatureDataString, headers.signature, headers.key);
     if (!verified) {

@@ -106,12 +106,14 @@ class Mod:
             tree = self.tree(update=True)
             tree_options = [v for k,v in tree.items() if module in k]
             if any([v == module for v in tree_options]):
-                module = [v for v in tree_options if v == module][0]
-                obj = self.obj(module)
+                obj = [v for v in tree_options if v == module][0]
+            elif any([all([part in v for part in module.split('.')]) for v in tree_options]):
+                obj = [v for v in tree_options if all([part in v for part in module.split('.')])][0]
             elif len(tree_options) == 1:
-                obj = self.obj(tree_options[0])
+                obj = tree_options[0]
             else:
                 raise e
+            obj = self.obj(obj)
         if params != None:
             if isinstance(params, dict):
                 obj = obj(**params)
@@ -1064,6 +1066,8 @@ class Mod:
 
     def tools(self):
         return self.fn('dev/tools')()
+    def tool(self, tool_name:str):
+        return self.fn(f'dev/tool')(tool_name)
     
     _executors = {}
     def submit(self, 

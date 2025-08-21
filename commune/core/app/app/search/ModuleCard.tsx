@@ -4,7 +4,6 @@ import { useState, memo, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ModuleType } from '@app/types/module'
 import { CopyButton } from '@/app/components/CopyButton'
-import Link from 'next/link'
 
 // Helper functions
 const shorten = (key: string, length = 6): string => {
@@ -124,9 +123,8 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
   const handleCardClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
     setIsLoading(true)
-    await router.push(`module/${module.name}?color=${encodeURIComponent(moduleColor)}`)
-  }, [router, module.name, moduleColor])
-
+    await router.push(`${module.name}`)
+  }, [router, module.name])
 
 
   return (
