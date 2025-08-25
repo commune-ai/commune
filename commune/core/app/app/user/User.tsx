@@ -3,12 +3,11 @@ import { useState, useEffect } from 'react'
 import { X, Copy, LogOut, Key as KeyIcon, Shield, Globe, FileSignature, CheckCircle, History, Package, User, Terminal, Lock, Zap } from 'lucide-react'
 import { Key } from '@/app/key'
 import type { User } from '@/app/types/user'
-import { TransactionsTab } from './tabs/TransactionsTab'
 import { ModuleCaller } from '@/app/user/tabs/ModuleCaller'
 import { SignVerifyTab } from './tabs/SignVerifyTab'
+import { CopyButton } from '@/app/components/CopyButton'
 
 import { InfoTab } from './tabs/InfoTab'
-import { copyToClipboard } from '@/app/utils' // Import the utility function
 
 interface UserProfileProps {
   user: User
@@ -118,16 +117,7 @@ export const UserProfile = ({ user, isOpen, onClose, keyInstance, onLogout }: Us
               <div className="flex items-center gap-3">
 
                 <div>
-                    <button
-                      onClick={() => copyToClipboard(keyInstance.address)}
-                      className={`ml-2 p-1 rounded transition-all ${
-                        copiedField === 'address'
-                          ? 'bg-green-500/20 text-green-400 border-green-400'
-                          : 'bg-transparent text-green-500 hover:bg-green-500/10 border border-green-500/30 hover:border-green-500'
-                      }`}
-                    >
-                      {copiedField === 'address' ? <CheckCircle size={16} /> : <Copy size={16} />}
-                    </button>
+                  <CopyButton code={keyInstance.address as string} />
                   <code className="text-green-500/70 text-s font-mono">
                     {keyInstance.address.slice(0, 8)}...{keyInstance.address.slice(-6)}
 

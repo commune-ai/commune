@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Copy, LogOut, Key as KeyIcon, Shield, Globe, FileSignature, CheckCircle, History, Package, User, Terminal, Lock, Zap } from 'lucide-react'
 import { Key } from '@/app/key'
 import type { User } from '@/app/types/user'
-import  { copyToClipboard } from '@/app/utils' // Import the utility function
+import { CopyButton } from '@/app/components/CopyButton'
 
 
 const shortenAddress = (address: string, length: number=10) => {
@@ -28,17 +28,9 @@ return (
                   <code className="flex-1 text-green-400 font-mono text-sm break-all bg-black/50 p-3 border border-green-500/30 rounded-lg">
                     {shortenAddress(keyInstance.address)}
                   </code>
-                  <button
-                    onClick={() => copyToClipboard(keyInstance.address)}
-                    className={`p-3 border rounded-lg transition-all ${
-                      copiedField === 'address'
-                        ? 'border-green-400 bg-green-500/20 text-green-400'
-                        : 'border-green-500/30 text-green-500 hover:bg-green-500/10 hover:border-green-500'
-                    }`}
-                    title="Copy address"
-                  >
-                    {copiedField === 'address' ? <CheckCircle size={16} /> : <Copy size={16} />}
-                  </button>
+                  <CopyButton
+                    code={keyInstance.address as string}
+                  />
                 </div>
               </div>
               {/* Public Key Section */}
@@ -52,17 +44,11 @@ return (
                     <code className="flex-1 text-green-400 font-mono text-xs break-all bg-black/50 p-3 border border-green-500/30 rounded-lg">
                       {shortenAddress(keyInstance.public_key)}
                     </code>
-                    <button
-                      onClick={() => copyToClipboard(keyInstance.public_key)}
-                      className={`p-3 border rounded-lg transition-all ${
-                        copiedField === 'publicKey'
-                          ? 'border-green-400 bg-green-500/20 text-green-400'
-                          : 'border-green-500/30 text-green-500 hover:bg-green-500/10 hover:border-green-500'
-                      }`}
-                      title="Copy public key"
-                    >
-                      {copiedField === 'publicKey' ? <CheckCircle size={16} /> : <Copy size={16} />}
-                    </button>
+                    <CopyButton
+                      code={keyInstance.public_key as string}
+
+                    />
+
                   </div>
                 </div>
               )}

@@ -1,15 +1,14 @@
 'use client'
 import { useState, useRef } from 'react'
 import { Copy, Key } from 'lucide-react'
-import { UserProfile } from '@/app/user/UserProfile'
+import { UserProfile } from '@/app/user/User'
 import { useUserContext } from '@/app/context/UserContext'
-import { copyToClipboard } from '@/app/utils'
+import { CopyButton } from '@/app/components/CopyButton'
 
 export const UserHeader = () => {
   const [password, setPassword] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState(false)
-  const copyTimerRef = useRef<number | null>(null)
 
   const { user, keyInstance, signIn, signOut, isLoading } = useUserContext()
 
@@ -36,15 +35,6 @@ export const UserHeader = () => {
     setShowProfile(false)
   }
 
-  const handleCopyAddress = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const addr = user?.address ?? keyInstance?.address
-    if (!addr) return
-    const ok = await copyToClipboard(addr)
-    setCopiedAddress(ok)
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    copyTimerRef.current = window.setTimeout(() => setCopiedAddress(false), 2000)
-  }
 
   if (isLoading) {
     return (
@@ -70,18 +60,10 @@ export const UserHeader = () => {
               role="button"
               aria-pressed={showProfile}
             >
-              <button
-                onClick={handleCopyAddress}
-                className="p-1 hover:bg-black/20 rounded transition-colors"
-                title={copiedAddress ? 'Copied!' : 'Copy address'}
-                type="button"
-              >
-                {copiedAddress ? '✓' : <Copy size={16} />}
-              </button>
               <span className="font-bold">
                 {keyInstance.address.slice(0, 6)}...{keyInstance.address.slice(-4)}
               </span>
-              <Key size={20} />
+              <CopyButton code={keyInstance.address as string} />
             </div>
           </div>
         ) : (

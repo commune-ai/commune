@@ -10,6 +10,7 @@
                     "ch" :  "chain",
                     "chain": "chain", 
                     "local": "server",
+                    "mc" : "modchain",
                     "serv": "server", 
                     "tweet": "x",
                     "d": "pm.docker",

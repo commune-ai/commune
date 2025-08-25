@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ModSearch, SearchFilters } from './ModSearch'
-import { CreateModule } from './ModuleCreate'
+import { CreateModule } from '../module/ModuleCreate'
 import { Client } from '@/app/client/client'
 import { ModuleType } from '@/app/types/module'
 import { Plus, Search, Terminal, Code, Globe, Tag } from 'lucide-react'

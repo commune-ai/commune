@@ -5,6 +5,7 @@ import { Key } from '@/app/key'
 import { Auth, AuthHeaders } from '@/app/key/auth'
 import { Client } from '@/app/client'
 import { copyToClipboard } from '@/app/utils' // Import the utility function
+import { CopyButton } from '@/app/components'
 
 interface ModuleCallerProps {
   keyInstance: Key
@@ -155,18 +156,7 @@ export const ModuleCaller = ({ keyInstance }: ModuleCallerProps) => {
               <Zap size={16} />
               <span>Generated Auth Headers</span>
             </div>
-            <button
-              onClick={() => 
-                (authHeadersString, 'authHeaders')}
-              className={`p-2 border rounded transition-all ${
-                copiedField === 'authHeaders'
-                  ? 'border-green-400 bg-green-500/20 text-green-400'
-                  : 'border-green-500/30 text-green-500 hover:bg-green-500/10 hover:border-green-500'
-              }`}
-              title="Copy auth headers"
-            >
-              {copiedField === 'authHeaders' ? <CheckCircle size={14} /> : <Copy size={14} />}
-            </button>
+            <CopyButton  code={JSON.stringify(authHeaders, null, 2)}/>
           </div>
           <pre className="text-green-400 font-mono text-xs overflow-x-auto bg-black/50 p-3 rounded border border-green-500/20">
             {JSON.stringify(authHeaders, null, 2)}

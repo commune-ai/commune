@@ -11,7 +11,7 @@ export const SearchHeader = () => {
   const pathname = usePathname()
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    updateSearchFilters({ searchTerm: localSearchTerm})
+    updateSearchFilters({ searchTerm: localSearchTerm, page: 1 })
     if (pathname !== '/') {
       router.push(`/`)
     }

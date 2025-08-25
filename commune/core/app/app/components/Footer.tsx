@@ -46,7 +46,7 @@ export const Footer = () => {
           ))}
         </div>
         <div className="mt-4 text-green-500 font-mono text-xs">
-          SYSTEM READY | COMMUNE-AI © {new Date().getFullYear()}
+          © 
         </div>
       </div>
     </footer>

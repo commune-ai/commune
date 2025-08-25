@@ -185,9 +185,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
                       {shorten(module.cid, 4)}
                     </code>
                   </div>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <CopyButton code={module.cid} />
-                  </div>
+                  <CopyButton code={module.cid} />
                 </div>
               )}
               
@@ -199,6 +197,7 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
                     {time2str(module.time)}
                   </span>
                 </div>
+                <CopyButton code={time2str(module.time)}/>
               </div>
             </div>
             
@@ -217,14 +216,6 @@ const ModuleCard = memo(({ module, viewMode = 'grid' }: ModuleCardProps) => {
           </div>
         </div>
 
-        {/* Description section */}
-        {module.desc && (
-          <div className='flex-1 flex flex-col justify-center mb-4'>
-            <p className='text-2xl leading-relaxed line-clamp-2 text-white/70'>
-              {module.desc}
-            </p>
-          </div>
-        )}
 
         {/* Bottom section with tags */}
         <div className='mt-auto'>

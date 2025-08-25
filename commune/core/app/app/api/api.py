@@ -103,7 +103,7 @@ class Api:
 
         try:
             path = f'modules/{module}.json'
-            info = self.store.get(path, None,  max_age=max_age, update=update)
+            info = self.store.get(path, None, update=update)
             if info == None:
                 info = c.info(module, max_age=max_age, update=update)
                 info["code"] = c.code_map(info['name'])

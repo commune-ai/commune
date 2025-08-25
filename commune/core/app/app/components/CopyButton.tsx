@@ -6,9 +6,17 @@ import { copyToClipboard } from '@/app/utils' // Import the utility function
 
 type TCodeComponentProps = { code: string }
 
-export const CopyButton = (props: TCodeComponentProps) => {
+export const CopyButton = (props: TCodeComponentProps, className=null) => {
   const { code } = props
   const [copied, setCopied] = useState(false)
+  if (!className) {
+  
+    // make this a simple button with rounded corners
+
+    className = "p-1 hover:bg-black/20 rounded transition-colors flex items-center justify-center"
+
+
+  }
 
   async function copyTextToClipboard(text: string) {
     copyToClipboard(text)
@@ -25,13 +33,19 @@ export const CopyButton = (props: TCodeComponentProps) => {
   }
 
   return (
+
+    
+    // stop propagation on button click
+    <div onClick={(e) => e.stopPropagation()}>
     <button
-      className={`h-8 px-2 border ${copied ? 'border-green-400 bg-green-500/10' : 'border-green-500 hover:bg-green-500 hover:text-black'} text-green-400 transition-colors`}
+      className={className}
       onClick={() => copyTextToClipboard(code)}
       title={copied ? 'Copied!' : 'Copy'}
     >
       {!copied && <DocumentDuplicateIcon height={16} />}
       {copied && <CheckIcon height={16} />}
     </button>
+    </div>
   )
+
 }

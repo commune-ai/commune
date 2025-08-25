@@ -295,9 +295,7 @@ export default function Module({ module_name }: ModuleProps) {
                 >
                   <KeyIcon className='h-5 w-5' style={{ color: moduleColor }} />
                   <div className='flex-1'>
-                    <p className='font-mono text-sm' style={{ color: moduleColor }}>
                       {shorten(module.key)}
-                    </p>
                   </div>
                   <CopyButton code={module.key} />
                 </motion.div>
@@ -313,11 +311,10 @@ export default function Module({ module_name }: ModuleProps) {
               >
                 <ClockIcon className='h-5 w-5' style={{ color: moduleColor }} />
                 <div className='flex-1'>
-                  <p className='text-xs text-gray-400'>time</p>
-                  <p className='text-sm' style={{ color: moduleColor }}>
                     {time2str(module.time)}
-                  </p>
                 </div>
+                                                      <CopyButton code={time2str(module.time)}/>
+
               </motion.div>
             </div>
           </motion.div>

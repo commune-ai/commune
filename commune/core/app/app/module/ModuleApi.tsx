@@ -64,6 +64,21 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
     return acc
   }, {} as Record<string, SchemaType>)
 
+  // if none then choose the first function
+  if (!selectedFunction && Object.keys(filteredSchema).length > 0) {
+    setSelectedFunction(Object.keys(filteredSchema)[0])
+    // initialize params
+    const firstFn = filteredSchema[Object.keys(filteredSchema)[0]]
+    if (firstFn && firstFn.input) {
+      const defaultParams: Record<string, any> = {}
+      Object.entries(firstFn.input).forEach(([param, details]) => {
+        if (details.value !== '_empty' && details.value !== undefined) {
+          defaultParams[param] = details.value
+        }
+      })
+      setParams(defaultParams)
+    }
+  }
   // Filter functions based on search term
   const searchedFunctions = useMemo(() => {
     if (!searchTerm) return Object.keys(filteredSchema)
@@ -131,43 +146,38 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
 
 
   // Modern dark theme colors
-  const colors = {
-    primary: '#00ff41',
-    secondary: '#008f11',
-    accent: '#00d9ff',
-    danger: '#ff0040',
-    warning: '#ffaa00',
-    background: '#000000',
-    surface: '#0a0a0a',
-    surfaceHover: '#141414',
-    border: '#1a1a1a',
-    borderActive: '#00ff41',
-    text: '#00ff41',
-    textSecondary: '#008f11',
-    textMuted: '#666666',
-    codeBg: '#050505'
-  }
+  
+const colors = {
+  primary: '#39ff14',       // neon green glow
+  secondary: '#00ffaa',     // teal-green accent
+  accent: '#00eaff',        // neon cyan
+  danger: '#ff0055',        // hot magenta-red
+  warning: '#ffb400',       // deep amber
+  background: '#000000',    // pure black
+  surface: '#0d0d0d',       // slightly lifted dark
+  surfaceHover: '#1a1a1a',  // hover contrast
+  border: '#262626',        // subtle border
+  borderActive: '#39ff14',  // glowing active border
+  text: '#e6ffe6',          // pale neon-green text
+  textSecondary: '#39ff14', // main neon highlight
+  textMuted: '#666666',     // muted gray
+  codeBg: '#050505',        // near-black code block
+  glow: '#00ffaa44',        // translucent neon aura
+  runButtonBg: '#39ff14', // glowing run button
+};
+
 
   return (
-    <div className="flex gap-6 h-full font-mono" style={{ backgroundColor: colors.background }}>
-      {/* Left Panel - Function List with Search */}
-      <div className="w-96 flex flex-col space-y-4 p-6 rounded-lg" style={{ 
-        backgroundColor: colors.surface, 
-        borderColor: colors.border, 
-        borderWidth: '2px', 
-        borderStyle: 'solid',
-        boxShadow: `0 0 20px ${colors.primary}20`
-      }}>
-
-        
-        {/* Search Bar */}
+    <div className="flex flex-col h-full font-mono" style={{ backgroundColor: colors.background }}>
+      {/* Search Bar at the very top */}
+      <div className="p-6 pb-0">
         <div className="relative">
           <input
             type="text"
             placeholder="Search functions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 pl-10 rounded font-mono text-sm"
+            className="w-full px-4 py-3 pl-10 rounded-lg font-mono text-sm"
             style={{
               backgroundColor: colors.codeBg,
               color: colors.text,
@@ -183,28 +193,29 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
               e.currentTarget.style.boxShadow = 'none'
             }}
           />
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: colors.textMuted }} />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
               className="absolute right-3 top-1/2 -translate-y-1/2"
             >
-              <XMarkIcon className="w-4 h-4" style={{ color: colors.textMuted }} />
+              <XMarkIcon className="w-5 h-5" style={{ color: colors.textMuted }} />
             </button>
           )}
         </div>
-        
-        {/* Function List */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-2" style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: `${colors.border} ${colors.background}`
-        }}>
+      </div>
+
+      {/* Function Tags */}
+      <div className="p-6 pt-4">
+        <div className="flex flex-wrap gap-2">
           {searchedFunctions.length > 0 ? (
             searchedFunctions.map(fn => (
-              <motion.div
+              <motion.button
                 key={fn}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setSelectedFunction(fn)
                   initializeParams(fn)
@@ -214,282 +225,208 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
                   setUrlParams('')
                   setActiveTab('run')
                 }}
-                className="p-3 rounded cursor-pointer transition-all group"
+                className="px-4 py-2 rounded-full font-medium text-sm transition-all"
                 style={{
-                  backgroundColor: selectedFunction === fn ? colors.surfaceHover : colors.background,
-                  border: `2px solid ${selectedFunction === fn ? colors.borderActive : colors.border}`,
-                  color: selectedFunction === fn ? colors.text : colors.textSecondary,
+                  backgroundColor: selectedFunction === fn ? colors.primary : colors.surface,
+                  color: selectedFunction === fn ? colors.background : colors.text,
+                  border: `2px solid ${selectedFunction === fn ? colors.primary : colors.border}`,
                   boxShadow: selectedFunction === fn ? `0 0 15px ${colors.primary}40` : 'none'
                 }}
-                whileHover={{
-                  scale: 1.02,
-                  transition: { duration: 0.2 }
-                }}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm">{fn}</span>
-                  <ChevronRightIcon className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                {filteredSchema[fn].input && (
-                  <p className="text-xs mt-1 opacity-70">
-                    {Object.keys(filteredSchema[fn].input).length} params | {filteredSchema[fn].output.type}
-                  </p>
-                )}
-              </motion.div>
+                {fn}
+              </motion.button>
             ))
           ) : (
-            <div className="text-center py-8" style={{ color: colors.textMuted }}>
+            <div className="text-center py-4 w-full" style={{ color: colors.textMuted }}>
               {searchTerm ? 'No functions match your search' : 'No functions available'}
             </div>
           )}
         </div>
-        
-        {/* Module Info */}
-        {mod.name && (
-          <div className="pt-4" style={{ borderTop: `2px solid ${colors.border}` }}>
-            <h3 className="text-sm font-bold mb-2" style={{ color: colors.accent }}>MODULE INFO</h3>
-            <p className="text-sm" style={{ color: colors.text }}>{mod.name}</p>
-            {mod.description && (
-              <p className="text-xs mt-1" style={{ color: colors.textMuted }}>{mod.description}</p>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Right Panel - Function Details */}
-      <div className="flex-1 flex flex-col space-y-4 p-6 rounded-lg" style={{ 
-        backgroundColor: colors.surface, 
-        borderColor: colors.border, 
-        borderWidth: '2px', 
-        borderStyle: 'solid',
-        boxShadow: `0 0 20px ${colors.accent}20`
-      }}>
+      {/* Main Content Area */}
+      <div className="flex-1 px-6 pb-6">
         {selectedFunction ? (
-          <>
-            {/* Function Header with Tabs */}
-            <div>
-              <h2 className="text-xl font-bold uppercase tracking-wider mb-2" style={{ 
-                color: colors.text,
-                textShadow: `0 0 10px ${colors.accent}`
-              }}>
-                {selectedFunction}
-              </h2>
-
-              {/* Tabs */}
-              <div className="flex gap-2 border-b" style={{ borderColor: colors.border }}>
-                <button
-                  onClick={() => setActiveTab('run')}
-                  className="px-4 py-2 font-medium text-sm transition-all relative"
-                  style={{
-                    color: activeTab === 'run' ? colors.text : colors.textMuted,
-                    borderBottom: activeTab === 'run' ? `2px solid ${colors.primary}` : 'none',
-                    marginBottom: '-2px'
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <PlayIcon className="w-4 h-4" />
-                    run
-                  </div>
-                </button>
-                {filteredSchema[selectedFunction].code && (
-                  <button
-                    onClick={() => setActiveTab('code')}
-                    className="px-4 py-2 font-medium text-sm transition-all relative"
-                    style={{
-                      color: activeTab === 'code' ? colors.text : colors.textMuted,
-                      borderBottom: activeTab === 'code' ? `2px solid ${colors.primary}` : 'none',
-                      marginBottom: '-2px'
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CodeBracketIcon className="w-4 h-4" />
-                      Code
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
+          <div className="h-full flex flex-col rounded-lg" style={{ 
+            backgroundColor: colors.surface, 
+            borderColor: colors.border, 
+            borderWidth: '2px', 
+            borderStyle: 'solid',
+            boxShadow: `0 0 20px ${colors.accent}20`
+          }}>
             {/* Tab Content */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'run' ? (
-                <motion.div
-                  key="run"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex-1 flex flex-col space-y-4"
-                >
-
-                  {/* Input Parameters */}
-                  <div className="space-y-4">
-                    {/* Parameter Inputs */}
-                    <div className="space-y-3">
-                      {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
-                        <div key={param} className="space-y-2">
-                          <label className="block text-sm font-bold" style={{ color: colors.text }}>
-                            {param}
-                            <span className="ml-2 font-normal" style={{ color: colors.accent }}>[{details.type}]</span>
-                          </label>
-                          {details.value !== '_empty' && details.value !== undefined && (
-                            <p className="text-xs" style={{ color: colors.textMuted }}>Default: {String(details.value)}</p>
-                          )}
-                          <input
-                            type="text"
-                            value={params[param] !== undefined ? params[param] : ''}
-                            onChange={(e) => handleParamChange(param, e.target.value)}
-                            placeholder={details.value !== '_empty' && details.value !== undefined ? `Default: ${details.value}` : `Enter ${param}`}
-                            className="w-full px-4 py-2 rounded font-mono text-sm"
-                            style={{
-                              backgroundColor: colors.codeBg,
-                              color: colors.text,
-                              border: `2px solid ${colors.border}`,
-                              outline: 'none'
-                            }}
-                            onFocus={(e) => {
-                              e.currentTarget.style.borderColor = colors.borderActive
-                              e.currentTarget.style.boxShadow = `0 0 10px ${colors.primary}40`
-                            }}
-                            onBlur={(e) => {
-                              e.currentTarget.style.borderColor = colors.border
-                              e.currentTarget.style.boxShadow = 'none'
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-
-                  </div>
-
-                  {/* Execute Button at Top */}
-                  <button
-                    onClick={executeFunction}
-                    disabled={loading}
-                    className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-                    style={{
-                      backgroundColor: loading ? colors.secondary : colors.primary,
-                      color: colors.background,
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                      border: `2px solid ${loading ? colors.secondary : colors.primary}`,
-                      boxShadow: loading ? 'none' : `0 0 20px ${colors.primary}60`,
-                      textShadow: `0 0 5px ${colors.background}`
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!loading) {
-                        e.currentTarget.style.backgroundColor = colors.accent
-                        e.currentTarget.style.borderColor = colors.accent
-                        e.currentTarget.style.boxShadow = `0 0 30px ${colors.accent}80`
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!loading) {
-                        e.currentTarget.style.backgroundColor = colors.primary
-                        e.currentTarget.style.borderColor = colors.primary
-                        e.currentTarget.style.boxShadow = `0 0 20px ${colors.primary}60`
-                      }
-                    }}
+            <div className="flex-1 overflow-auto">
+              <AnimatePresence mode="wait">
+                {activeTab === 'run' ? (
+                  <motion.div
+                    key="run"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="p-6 space-y-4"
                   >
-                    <PlayIcon className="w-5 h-5" />
-                    {loading ? 'EXECUTING...' : 'RUN'}
-                  </button>
 
 
-                  <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
-
-
-
-
-                  
-                  {(
-                    <div className="p-3 rounded" style={{
-                      backgroundColor: colors.codeBg, 
-                      border: `1px solid ${colors.border}`
-                    }}>
-                      <h4 className="text-sm font-bold mb-2" style={{ color: colors.text }}>PARAMS</h4>
-                      <pre className="p-2 rounded overflow-x-auto" style={{
-                        backgroundColor: colors.codeBg,
-                        border: `1px solid ${colors.border}`
-                      }}>
-                        <code className="text-xs" style={{ color: colors.text }}>
-                          {JSON.stringify(params, null, 2)}
-                        </code>
-                      </pre>
-                    </div>
-                  )}                  
-                  
-                  {authHeaders && (
-                    <div className="p-3 rounded" style={{
-                      backgroundColor: colors.codeBg, 
-                      border: `1px solid ${colors.border}`
-                    }}>
-                      <h4 className="text-sm font-bold mb-2" style={{ color: colors.text }}>HEADERS</h4>
-                      <pre className="p-2 rounded overflow-x-auto" style={{
-                        backgroundColor: colors.codeBg,
-                        border: `1px solid ${colors.border}`
-                      }}>
-                        <code className="text-xs" style={{ color: colors.text }}>
-                          {JSON.stringify(authHeaders, null, 2)}
-                        </code>
-                      </pre>
-                    </div>
-                  )}
-                  {/* Output Section */}
-                  {(response || error) && (
+                    {/* Input Parameters */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-bold" style={{ color: colors.accent }}>OUTPUT</h3>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-bold text-sm" style={{ color: error ? colors.danger : colors.textSecondary }}>
-                            {error ? 'ERROR' : 'RESPONSE'}
-                          </h4>
-                          <CopyButton code={JSON.stringify(response || error, null, 2)} />
-                        </div>
-                        <pre className="p-4 rounded overflow-x-auto max-h-64" style={{
-                          backgroundColor: colors.codeBg,
-                          border: `2px solid ${error ? colors.danger : colors.accent}`,
-                          boxShadow: error ? `0 0 15px ${colors.danger}40` : `0 0 15px ${colors.accent}40`
-                        }}>
-                          <code className="text-sm" style={{ color: error ? colors.danger : colors.text }}>
-                            {JSON.stringify(response || error, null, 2)}
-                          </code>
-                        </pre>
+                      <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
+                      <div className="space-y-3">
+                        {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
+                          <div key={param} className="space-y-2">
+                            <label className="block text-sm font-bold" style={{ color: colors.text }}>
+                              {param}
+                              <span className="ml-2 font-normal" style={{ color: colors.accent }}>[{details.type}]</span>
+                            </label>
+                            {details.value !== '_empty' && details.value !== undefined && (
+                              <p className="text-xs" style={{ color: colors.textMuted }}>Default: {String(details.value)}</p>
+                            )}
+                            <input
+                              type="text"
+                              value={params[param] !== undefined ? params[param] : ''}
+                              onChange={(e) => handleParamChange(param, e.target.value)}
+                              placeholder={details.value !== '_empty' && details.value !== undefined ? `Default: ${details.value}` : `Enter ${param}`}
+                              className="w-full px-4 py-2 rounded font-mono text-sm"
+                              style={{
+                                backgroundColor: colors.codeBg,
+                                color: colors.text,
+                                border: `2px solid ${colors.border}`,
+                                outline: 'none'
+                              }}
+                              onFocus={(e) => {
+                                e.currentTarget.style.borderColor = colors.borderActive
+                                e.currentTarget.style.boxShadow = `0 0 10px ${colors.primary}40`
+                              }}
+                              onBlur={(e) => {
+                                e.currentTarget.style.borderColor = colors.border
+                                e.currentTarget.style.boxShadow = 'none'
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="code"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex-1"
-                >
-                  <div className="h-full rounded overflow-hidden" style={{
-                    backgroundColor: colors.codeBg,
-                    border: `2px solid ${colors.border}`
-                  }}>
-                    <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
-                      <CopyButton code={filteredSchema[selectedFunction].code || ''} />
+
+                    {/* Execute Button */}
+                    <button
+                      onClick={executeFunction}
+                      disabled={loading}
+                      className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                      style={{
+                        backgroundColor: loading ? colors.secondary : colors.primary,
+                        color: colors.background,
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        opacity: loading ? 0.7 : 1,
+                        border: `2px solid ${loading ? colors.secondary : colors.primary}`,
+                        boxShadow: loading ? 'none' : `0 0 20px ${colors.primary}60`,
+                        textShadow: `0 0 5px ${colors.background}`
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!loading) {
+                          e.currentTarget.style.backgroundColor = colors.accent
+                          e.currentTarget.style.borderColor = colors.accent
+                          e.currentTarget.style.boxShadow = `0 0 30px ${colors.accent}80`
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!loading) {
+                          e.currentTarget.style.backgroundColor = colors.primary
+                          e.currentTarget.style.borderColor = colors.primary
+                          e.currentTarget.style.boxShadow = `0 0 20px ${colors.primary}60`
+                        }
+                      }}
+                    >
+                      <PlayIcon className="w-5 h-5" />
+                      {loading ? 'EXECUTING...' : 'RUN'}
+                    </button>
+                    {/* Output Section */}
+                    {(response || error) && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold" style={{ color: colors.accent }}>OUTPUT</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-sm" style={{ color: error ? colors.danger : colors.textSecondary }}>
+                              {error ? 'ERROR' : 'RESPONSE'}
+                            </h4>
+                            <CopyButton code={JSON.stringify(response || error, null, 2)} />
+                          </div>
+                          <pre className="p-4 rounded overflow-x-auto max-h-64" style={{
+                            backgroundColor: colors.codeBg,
+                            border: `2px solid ${error ? colors.danger : colors.accent}`,
+                            boxShadow: error ? `0 0 15px ${colors.danger}40` : `0 0 15px ${colors.accent}40`
+                          }}>
+                            <code className="text-sm" style={{ color: error ? colors.danger : colors.text }}>
+                              {JSON.stringify(response || error, null, 2)}
+                            </code>
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="code"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="h-full"
+                  >
+                    <div className="h-full rounded overflow-hidden" style={{
+                      backgroundColor: colors.codeBg,
+                      border: `2px solid ${colors.border}`
+                    }}>
+                      <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
+                        <CopyButton code={filteredSchema[selectedFunction].code || ''} />
+                      </div>
+                      <pre className="p-4 overflow-auto h-full">
+                        <code className="text-sm" style={{ color: colors.text }}>
+                          {filteredSchema[selectedFunction].code || 'No code available'}
+                        </code>
+                      </pre>
                     </div>
-                    <pre className="p-4 overflow-auto h-full">
-                      <code className="text-sm" style={{ color: colors.text }}>
-                        {filteredSchema[selectedFunction].code || 'No code available'}
-                      </code>
-                    </pre>
-                  </div>
-                </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Tabs at the bottom */}
+            <div className="flex border-t" style={{ borderColor: colors.border }}>
+              <button
+                onClick={() => setActiveTab('run')}
+                className="flex-1 px-4 py-3 font-medium text-sm transition-all flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: activeTab === 'run' ? `${colors.primary}20` : 'transparent',
+                  color: activeTab === 'run' ? colors.text : colors.textMuted,
+                  borderRight: `1px solid ${colors.border}`
+                }}
+              >
+                <PlayIcon className="w-4 h-4" />
+                Run
+              </button>
+              {filteredSchema[selectedFunction].code && (
+                <button
+                  onClick={() => setActiveTab('code')}
+                  className="flex-1 px-4 py-3 font-medium text-sm transition-all flex items-center justify-center gap-2"
+                  style={{
+                    backgroundColor: activeTab === 'code' ? `${colors.primary}20` : 'transparent',
+                    color: activeTab === 'code' ? colors.text : colors.textMuted
+                  }}
+                >
+                  <CodeBracketIcon className="w-4 h-4" />
+                  Code
+                </button>
               )}
-            </AnimatePresence>
-          </>
+            </div>
+          </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="h-full flex items-center justify-center rounded-lg" style={{ 
+            backgroundColor: colors.surface, 
+            borderColor: colors.border, 
+            borderWidth: '2px', 
+            borderStyle: 'solid'
+          }}>
             <div className="text-center" style={{ color: colors.textMuted }}>
               <CommandLineIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>Select a function from the left panel to get started</p>
+              <p>Select a function to get started</p>
             </div>
           </div>
         )}

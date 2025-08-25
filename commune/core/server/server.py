@@ -347,33 +347,33 @@ class Server:
         """
         get the roles of the addresses
         """
-        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles = self.store.get(f'roles', {}, max_age=max_age, update=update)
         return roles
 
     def add_role(self, address:str, role:str, max_age:int = 60, update:bool = False):
         """
         add a role to the address
         """
-        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles = self.store.get(f'roles', {}, max_age=max_age, update=update)
         roles[address] = role
-        self.store.put(f'roles.json', roles)
+        self.store.put(f'roles', roles)
         return {'roles': roles, 'address': address }
 
     def remove_role(self, address:str, role:str, max_age:int = 60, update:bool = False):
         """
         remove a role from the address
         """
-        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles = self.store.get(f'roles', {}, max_age=max_age, update=update)
         if address in roles:
             del roles[address]
-        self.store.put(f'roles.json', roles)
+        self.store.put(f'roles', roles)
         return {'roles': roles, 'address': address }
 
     def get_role(self, address:str, max_age:int = 60, update:bool = False):
         """
         get the role of the address
         """
-        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles = self.store.get(f'roles', {}, max_age=max_age, update=update)
         if address in roles:
             return roles[address]
         else:
@@ -383,7 +383,7 @@ class Server:
         """
         check if the address has the role
         """
-        roles = self.store.get(f'roles.json', {}, max_age=max_age, update=update)
+        roles = self.store.get(f'roles', {}, max_age=max_age, update=update)
         if address in roles:
             return roles[address] == role
         else:
@@ -393,27 +393,27 @@ class Server:
         """
         check if the address is blacklisted
         """
-        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        blacklist = self.store.get(f'blacklist', [], max_age=max_age, update=update)
         blacklist.append(user)
         blacklist = list(set(blacklist))
-        self.store.put(f'blacklist.json', blacklist)
+        self.store.put(f'blacklist', blacklist)
         return {'blacklist': blacklist, 'user': user }
 
     def unblacklist_user(self, user:str, max_age:int = 60, update:bool = False):
         """
         check if the address is blacklisted
         """
-        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        blacklist = self.store.get(f'blacklist', [], max_age=max_age, update=update)
         blacklist.remove(user)
         blacklist = list(set(blacklist))
-        self.store.put(f'blacklist.json', blacklist)
+        self.store.put(f'blacklist', blacklist)
         return {'blacklist': blacklist, 'user': user }
 
     def blacklist(self,  max_age:int = 60, update:bool = False):
         """
         check if the address is blacklisted
         """
-        blacklist = self.store.get(f'blacklist.json', [], max_age=max_age, update=update)
+        blacklist = self.store.get(f'blacklist', [], max_age=max_age, update=update)
         return blacklist
 
     def is_blacklisted(self, user:str, max_age:int = 60, update:bool = False):
@@ -422,9 +422,6 @@ class Server:
         """
         blacklist = self.blacklist(max_age=max_age, update=update)
         return user in blacklist
-
-
-    
     
     def network_rate(self, user:str, network:str = 'chain', max_age:int = 60, update:bool = False):  
         state = self.network_state(network=network, max_age=60, update=False)
@@ -433,7 +430,6 @@ class Server:
         stake_per_call = state.get('stake_per_call', 1000)
         rate = stake / stake_per_call
         return rate
-
 
     def network_state(self, network:str = 'chain', max_age:int = 360, update:bool = False):
         path = self.store.get_path(f'network_state/{network}.json')
@@ -469,14 +465,14 @@ class Server:
 
     def kill_all(self):
         return self.pm.kill_all()
+
     killall = kill_all
+
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
-        
 
     def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
         return self.pm.namespace(search=search, max_age=max_age, update=update, **kwargs)
-
 
     def serve(self, 
               module: Union[str, 'Module', Any] = None, # the module in either a string
@@ -521,7 +517,6 @@ class Server:
         self.auth = c.mod(auth)()
         self.module.info = self.info()
         self.loop = asyncio.get_event_loop() # get the event loop
-        
         app = FastAPI()
         # app.add_middleware(c.mod(middleware), auth=)
         app.add_middleware(
@@ -542,8 +537,6 @@ class Server:
         c.print(f'Serving(name={name} port={port} free_mode={free_mode} key={self.key.key_address})', color='green')
         uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
         return {'success':True, 'message':f'Set module to {self.name}'}
-
-
 
     def ping(self, server, n=4, period=0.1, timeout=20):
         print(f'Testing server {server} with {n} iterations and period {period}', color='blue')
@@ -566,7 +559,6 @@ class Server:
             c.sleep(period)
         return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
 
-
     def get_info(self, name:str, timeout:int = 60, interval:int = 1):
         elapsed_seconds = 0
         while elapsed_seconds < timeout:
@@ -583,7 +575,6 @@ class Server:
 
     def test_serializer(self):
         return c.mod('serializer')().test()  
-
 
     def test_server(self, 
                     server = 'module::test_serving', 
@@ -614,7 +605,6 @@ class Server:
         self.remove_role(address, role, max_age=max_age, update=update)
         assert self.get_role(address, max_age=max_age, update=update) == 'public', f"Failed to remove {address} from {role}"
         return {'roles': True, 'address': address , 'roles': self.get_role(address, max_age=max_age, update=update)}
-
 
     def test_blacklist(self,  max_age:int = 60, update:bool = False):  
         """

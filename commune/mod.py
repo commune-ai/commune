@@ -803,7 +803,7 @@ class Mod:
 
     fn2cost = {}
 
-    def fn_schema(self, fn:str = '__init__', code=True, **kwargs)->dict:
+    def fn_schema(self, fn:str = '__init__', code=True, source=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''     
@@ -825,11 +825,12 @@ class Mod:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 1 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__ # attribute the cost to the function
         schema['name'] = fn_obj.__name__
-        schema.update(self.source(fn_obj, code=code))
+        if source:
+            schema.update(self.source(fn_obj))
         return schema
 
     fnschema = fn_schema
-    def source(self, obj, code=True):
+    def source(self, obj):
         """
         Get the source code of a function
         """
@@ -841,12 +842,12 @@ class Mod:
                              'start': sourcelines[1], 
                              'length': len(sourcelines[0]),
                              'path': inspect.getfile(obj).replace(self.home_path, '~'),
-                             "code": source if code else None,
+                             "code": source,
                              'hash': self.hash(source),
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None , verbose=False, **kwargs)->dict:
+    def schema(self, obj = None , verbose=False, source=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
@@ -868,7 +869,7 @@ class Mod:
             obj = obj.__class__
         for fn in self.fns(obj):
             try:
-                schema[fn] = self.fn_schema(getattr(obj, fn), **kwargs)
+                schema[fn] = self.fn_schema(getattr(obj, fn), source=source, **kwargs)
             except Exception as e:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
         return schema
@@ -1063,12 +1064,10 @@ class Mod:
         fn = self.fn(fn)
         return isinstance(fn, property)
 
-
     def tools(self):
         return self.fn('dev/tools')()
     def tool(self, tool_name:str):
         return self.fn(f'dev/tool')(tool_name)
-    
     _executors = {}
     def submit(self, 
                 fn, 
@@ -1591,9 +1590,6 @@ class Mod:
                 if search == None or search in r:
                     repo2path[r] = p
         return dict(sorted(repo2path.items(), key=lambda x: x[0]))
-
-    def build_image(self, module:str = 'module'):
-        return os.system(f'docker build -t {self.name} {self.lib_path}')
 
     def repos(self, search=None):
         return list(self.repo2path(search=search).keys())
