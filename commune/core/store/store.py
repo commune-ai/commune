@@ -174,8 +174,8 @@ class Store:
             self.rm(p)
         return paths
 
-    def values(self, search=None, avoid=None, max_age=None):
-        return [self.get(p) for p in self.paths(search=search, avoid=avoid, max_age=max_age)]
+    def values(self, path=None, search=None, avoid=None, max_age=None):
+        return [self.get(p) for p in self.paths(path=None, search=search, avoid=avoid, max_age=max_age)]
     
     def keys(self, search=None, avoid=None, max_age=None):
         """
@@ -216,7 +216,7 @@ class Store:
 
     def paths(self, path=None, search=None, avoid=None, max_age=None):
         import glob
-        path = path or self.folder
+        path = self.get_path(path or self.folder)
         paths = glob.glob(f'{path}/**/*', recursive=True)
         paths = [self.abspath(p) for p in paths if os.path.isfile(p)]
         if search != None:

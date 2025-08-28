@@ -1,6 +1,7 @@
 
 import config from '@/config.json';
-import {Key, Auth, AuthHeaders} from '@/app/key';
+import {Auth, AuthHeaders} from '@/app/client/auth';
+import Key from '@/app/key';
 
 export class Client {
   public url: string;
@@ -12,7 +13,7 @@ export class Client {
    * @param mode - The protocol mode ('http' or 'https', default: 'http').
    * @param key - An optional key for authentication or other purposes.
    */
-  constructor(url?: string , key?: Key, mode: string = 'http' ) {
+  constructor(url?: string , key: Key, mode: string = 'http' ) {
 
     this.url = this.getUrl(url);
     this.key = key;
@@ -38,23 +39,16 @@ export class Client {
    * @param headers - Additional headers for the request.
    * @returns A promise resolving to the API response.
    */
-  private async call(
-    fn: string = 'info',
-    params: Record<string, any> | FormData = {},
-    headers: Record<string, string> = {}
-  ): Promise<any> {
+  private async call(fn: string = 'info',params: Record<string, any> | FormData = {}, cost = 0, headers = {}): Promise<any> {
     let body: string | FormData;
 
-    let timestamp = new Date().getTime() / 1000; // Current timestamp in seconds
-    headers['time'] = timestamp.toString(); // Adds a timestamp to the headers
-    
-    console.log(`Calling function: ${fn} with params:`, params);
 
-    if (params instanceof FormData) {
-      body = params; // FormData should not have Content-Type manually set
-    } else {
-      body = JSON.stringify(params);
-    }
+    let start_time = Date.now();
+    headers = this.auth.generate({'fn': fn, 'params': params}, cost);
+    console.log(`Calling function: ${fn} with params:`, params);
+    console.log(`headers`,  headers)
+    body = JSON.stringify(params);
+
     
     headers['Content-Type'] = 'application/json'; // Set Content-Type for JSON payload
     const url: string = `${this.url}/${fn}`;
@@ -66,8 +60,15 @@ export class Client {
         body: body,
       });
 
+        let delta_seconds = (Date.now() - start_time) / 1000;
+
+        console.log(`response ${this.url}/${fn} generation took ${delta_seconds} seconds`);
+
+      
       if (!response.ok) {
         // Handle HTTP errors
+        // if success field exists and is false, return the error message
+
         if (response.status === 401) {
           throw new Error('Unauthorized access - please check your authentication credentials.');
         } else if (response.status === 404) {
@@ -77,15 +78,18 @@ export class Client {
         } else {
           throw new Error(`Unexpected error - status code: ${response.status}`);
         }
-        return { error: `HTTP error! status: ${response.status}` };
       }
-
       const contentType = response.headers.get('Content-Type');
       if (contentType?.includes('text/event-stream')) {
         return this.handleStream(response);
       }
       if (contentType?.includes('application/json')) {
-        return await response.json();
+        let result =  await response.json();
+        if (result && result.success === false) {
+          let error_msg = JSON.stringify(result);
+          throw new Error(`API Error: ${error_msg}`);
+        }
+        return result;
       }
       return await response.text();
     } catch (error) {

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Send, Copy, CheckCircle, Terminal, Zap, AlertCircle } from 'lucide-react'
 import { Key } from '@/app/key'
-import { Auth, AuthHeaders } from '@/app/key/auth'
+import { Auth, AuthHeaders } from '@/app/client/auth'
 import { Client } from '@/app/client'
 import { copyToClipboard } from '@/app/utils' // Import the utility function
 import { CopyButton } from '@/app/components'
@@ -53,7 +53,7 @@ export const ModuleCaller = ({ keyInstance }: ModuleCallerProps) => {
       headers.verified = auth.verify(headers)
       setAuthHeaders(headers)
 
-      const client = new Client(moduleUrl, 'http', keyInstance)
+      const client = new Client(moduleUrl,keyInstance)
       // Make the API call
       const apiResponse = await client.call(functionName, params, headers)
 

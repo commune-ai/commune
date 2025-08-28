@@ -12,9 +12,12 @@ class Cli:
     def __init__(self, 
                 key=None, 
                 default_fn='go',
+                track_tx=False # if private is False, then track all transactions (module/fn/params/result
                 ):
-
         self.default_fn = default_fn
+        self.track_tx = track_tx
+        if self.track_tx:
+            self.tx = c.mod('tracker')(key=key) 
 
     def forward(self, module='module', fn='forward', argv=None, **kwargs):
         """
@@ -33,10 +36,11 @@ class Cli:
         fn_obj = getattr(c.mod(module)(**init_params), fn)
         # schema = self.get_schema(module, fn)
         c.print(f'[{time_string}] Calling({module}/{fn}, params:{params["kwargs"]})', color='blue')
-
         result = fn_obj(*params["args"], **params["kwargs"]) if callable(fn_obj) else fn_obj
         duration = round(time.time() - time_start, 3)
         c.print(f'Result(duration={duration}s)\n')
+        if self.track_tx:
+            self.tx.forward(module=module, fn=fn, params=params, result=result, **kwargs)
         self.print_result(result)
 
     def print_result(self, result:Any):
@@ -115,7 +119,6 @@ class Cli:
                     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
                     params['args'].append(self.str2python(arg))        
         return argv, params
-
 
     def get_module_fn(self, module:str, fn:str, argv):
         

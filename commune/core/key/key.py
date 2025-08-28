@@ -161,6 +161,7 @@ class Key:
         print(f'moving key from {old_key_path} to {new_key_path}')
         shutil.copytree(old_key_path, new_key_path, dirs_exist_ok=True)
         assert self.key_exists(new_path), f'key does not exist at {new_key_path}'
+        shutil.rmtree(old_key_path)
         assert not self.key_exists(path), f'key still exists at {old_key_path}'
         return {'success': True, 'from': path , 'to': new_path}
         

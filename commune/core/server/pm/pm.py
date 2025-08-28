@@ -13,7 +13,6 @@ import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-
 class PM:
     """
     A module for interacting with Docker.
@@ -22,11 +21,13 @@ class PM:
     default_network = 'host'
     image = 'commune:latest'
     path = os.path.expanduser('~/commune')
-    modules_path = c.modules_path
+    mods_path = c.mods_path
 
-    def serve(self, module='api', 
+    def serve(self, 
+                module='api', 
+                port=None, 
                 image='commune:latest', 
-                working_dir='/app', port=None, 
+                working_dir='/app', 
                 daemon=True, 
                 d = None,
                 name = None,
@@ -50,13 +51,13 @@ class PM:
         dirpath = c.dirpath(module)
         params = {
             'name': name, 'image': image,'port': port,'cmd': cmd,'working_dir': working_dir, 'daemon': daemon,
-            'volumes': { self.path:'/root/commune', dirpath: '/app'},
+            'volumes': { self.path:'/root/commune'},
         }
+        if module not in ['mod', 'module']:
+            params['volumes'][dirpath] = f'/app/{module}'
         if include_storage :
             params['volumes'][c.storage_path] = '/root/.commune'
         return self.run(**params)
-
-
 
     def process2name(self, container):
         return container.replace('__', '::')
@@ -952,7 +953,6 @@ class PM:
                 namespace[container] =  ip + ':'+  str(port)
             c.put(path, namespace)
         return namespace
-
 
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())

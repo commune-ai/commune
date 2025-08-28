@@ -20,18 +20,17 @@ class Client:
         self.store = c.mod('store')(storage_path)
         self.timeout = timeout
 
+        # ensure info from the server is fetched
+        
+
     def forward(self, 
                 fn  = 'info', 
                 params: Optional[Union[list, dict]] = {}, # if you want to pass params as a list or dict
-                # if you want to pass positional arguments to the function, use args 
-                args : Optional[list] = [], 
-                kwargs : Optional[dict] = {},      
-                ## adduitional parameters
                 timeout:int=None,  # the timeout for the request
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
-                url = None,
-                headers = None,  # additional headers to pass to the request
+                cost=0,
+                update_info: bool = False, # whether to update the info from the server
                 # stream: bool = False, # if the response is a stream
                 **extra_kwargs 
     ):
@@ -46,18 +45,15 @@ class Client:
                 fn = 'info'
             else: 
                 url = self.url
-        url = self.get_url(url, mode=mode)
-
         # step 2 : get the key
         key = self.get_key(key)
         c.print(f'Client({url}/{fn} key={key.name})', color='yellow')
-
         # step 3: get the params
-        params = self.get_params(params=params, args=args, kwargs=kwargs, extra_kwargs=extra_kwargs)
-
+        params = params or {}
+        params.update(extra_kwargs)   
+        url = self.get_url(url, mode=mode)
         # step 4: get the headers/auth if it is not provided
-        if headers == None:
-            headers = self.auth.forward({'fn': fn, 'params': params}, key=key)
+        headers = self.auth.forward({'fn': fn, 'params': params}, key=key, cost=cost)
 
         result = self.post(
             url=url, 
@@ -68,6 +64,7 @@ class Client:
             stream=stream
         )
         return result
+
 
     def post(self, url, fn,  params=None, headers=None, timeout=None, stream=False):
         # step 5: make the request
@@ -98,23 +95,6 @@ class Client:
         if isinstance(key, str):
             key = c.get_key(key)
         return key
-
-    def get_params(self, params=None, args=[], kwargs={}, extra_kwargs={}):
-        is_args_kwargs_params = isinstance(params, dict) and ('args' in params or 'kwargs' in params)
-        if not is_args_kwargs_params:
-            params = params or {}
-            args = args or []
-            kwargs = kwargs or {}
-            kwargs.update(extra_kwargs)
-            if params:
-                if isinstance(params, dict):
-                    kwargs = {**kwargs, **params}
-                elif isinstance(params, list):
-                    args = params
-                else:
-                    raise Exception(f'Invalid params {params}')
-            params = {"args": args, "kwargs": kwargs}
-        return params
 
     def get_url(self, url, mode='http'):
         """

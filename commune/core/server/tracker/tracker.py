@@ -15,7 +15,7 @@ class Tx:
                 serializer='serializer',
                 auth = 'auth',
                 private = False,
-                roles = ['client', 'server'],
+                roles = ['client', 'server'], # the roles that need to sign the transaction
                 tx_schema = {
                     'module': str,
                     'fn': str,
@@ -25,7 +25,7 @@ class Tx:
                     'client': dict,  # client auth
                     'server': dict,  # server auth
                     'hash': str
-                },
+                }, # the schema of the transaction
                 key:str = None, 
                  version='v0'):
 
@@ -38,14 +38,16 @@ class Tx:
         self.auth = c.mod(auth)()
         self.roles = roles
 
-
     def forward(self, 
                  module:str = 'module', 
                  fn:str = 'forward', 
+                 bid = None, 
+                 cost = None,
                  params:dict = {}, 
                  result:Any = {}, 
                  schema:dict = {},
                  auths = {},
+                 key = None,
                  client= None,
                  server= None
                  ):
@@ -54,13 +56,15 @@ class Tx:
         create a transaction
         """
         result = self.serializer.forward(result)
-        if client is not None:
-            auths['client'] = client
-        if server is not None:
-            auths['server'] = server
-            
-        auths = auths or self.get_auths(module, fn, params, result)
 
+        if client is None or server is None: 
+            auths = self.get_auths(module, fn, params, result, key=key)
+        else: 
+            if client is not None:
+                auths['client'] = client
+            if server is not None:
+                auths['server'] = server
+            
         tx = {
             'module': module, # the module name (str)
             'fn': fn, # the function name (str)
@@ -72,13 +76,14 @@ class Tx:
         }
         tx['hash'] = c.hash(tx) # the hash of the transaction (str)
         assert self.verify(tx)
-        tx_path = f'{tx["module"]}/{tx["fn"]}/{tx["hash"]}'
-        print('tx_path --> ' + tx_path)
+        # 
+        tx_path = f'{tx["client"]["key"]}/{tx["server"]["key"]}/{fn}_{auths["client"]["time"]}'
         self.store.put(tx_path, tx)
- 
         return tx
 
     create_tx = create = tx = forward
+
+
 
     def verify(self, tx):
         """
@@ -88,7 +93,6 @@ class Tx:
         for role in self.roles:
             assert self.auth.verify(tx[role], data=auth_data[role]), f'{role} auth is invalid'
         return True
-
 
     def paths(self, path=None):
         return self.store.paths(path=path)
@@ -137,11 +141,17 @@ class Tx:
             return params
     def txs(self, 
             search=None,
+            client= None,
+            server= None,
             max_age:float = None, 
             features:list = ['module', 'fn', 'params', 'client', 'cost', 'time', 'duration']):
-        txs = [x for x in self.store.values() if self.is_tx(x)] 
-        if search is not None:
-            txs = [x for x in txs if search in x['module'] or search in x['fn'] or search in json.dumps(x['params'])]
+
+        path = None
+        if client is not None:
+            path = f'{client}/'
+        if server is not None:
+            path = f'*/{server}' if path is not None else f'/{server}/'
+        txs = [x for x in self.store.values(path, search=search) if self.is_tx(x)] 
         txs = c.df(txs)
         current_time = time.time()
         if len(txs) == 0:
@@ -201,12 +211,12 @@ class Tx:
 
         return { 'time': time.time() - t0, 'msg': 'Transaction test passed'}
 
-    def get_auths(self, module:str, fn:str, params:dict, result:Any):
+    def get_auths(self, module:str, fn:str, params:dict, result:Any, key=None):
         """
         Get the auths for the transaction
         """
         auth_data = self.get_role_auth_data_map(module, fn, params, result)
-        return {role : self.auth.headers(auth_data[role]) for role in self.roles}
+        return {role : self.auth.headers(auth_data[role], key=key) for role in self.roles}
 
     def get_role_auth_data_map(self, module:str, fn:str, params:dict, result:Any, **_ignore_params):
         """

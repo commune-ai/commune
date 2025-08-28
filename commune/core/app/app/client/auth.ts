@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import Key from './key';
+import Key from '@/app/key';
 
 export interface AuthHeaders {
   data: string;
@@ -8,6 +8,8 @@ export interface AuthHeaders {
   signature: string;
   crypto_type?: string;
   hash_type?: string;
+  cost?: string;
+  sigData?: string; // Added sigData field
 }
 
 export class Auth {
@@ -27,7 +29,7 @@ export class Auth {
     key: Key,
     hashType: string = 'sha256',
     maxStaleness: number = 60,
-    signatureKeys: string[] = ['data', 'time']
+    signatureKeys: string[] = ['data', 'time', 'cost']
   ) {
     this.key = key;
     this.hashType = hashType;
@@ -42,15 +44,17 @@ export class Auth {
    * @param crypto_type - Optional crypto type override
    * @returns Authentication headers with signature
    */
-  public generate(data: any, key?: Key): AuthHeaders {
-    const authKey = key || this.key;
+  public generate(data: any, cost: number = 10): AuthHeaders {
+
+
     const headers: AuthHeaders = {
       data: this.hash(data),
       time: String(this.time()), // Unix timestamp in seconds
-      key: authKey.address,
+      key: this.key.address,
       signature: '',
       hash_type: this.hashType,
-      crypto_type: authKey.crypto_type
+      crypto_type: this.key.crypto_type,
+      cost: String(cost), 
     };
 
     
@@ -65,7 +69,9 @@ export class Auth {
 
     // Sign the data
     let signatureDataString = JSON.stringify(signatureData); // Ensure it's a plain object
-    headers.signature = authKey.sign(signatureDataString)
+
+    headers.sigData = signatureDataString;
+    headers.signature = this.key.sign(signatureDataString)
       // Verify the signature
     const verified = this.key.verify( signatureDataString, headers.signature, headers.key);
     if (!verified) {
@@ -75,12 +81,6 @@ export class Auth {
     return headers;
   }
 
-  /**
-   * Alias for generate method
-   */
-  public headers(data: any, key?: Key): AuthHeaders {
-    return this.generate(data, key);
-  }
 
   /**
    * Verify and decode authentication headers
@@ -157,19 +157,11 @@ export class Auth {
    */
   private hash(data: any): string {
 
-
-    
-    let dataToHash: string;
-    if (typeof data === 'string') {
-      dataToHash = data;
-    } else if (typeof data === 'object') {
-      dataToHash = JSON.stringify(data);
-    } else {
-      dataToHash = String(data);
-    }
-
     if (this.hashType == 'sha256') {
-      return createHash('sha256').update(dataToHash).digest('hex');
+      let dataToHash = JSON.stringify(data);
+      let hash =  createHash('sha256').update(dataToHash).digest('hex');
+      console.log(`Hashing data: ${dataToHash} to hash: ${hash}`);
+      return hash;
     } else {
      throw new Error(`Invalid hash type: ${this.hashType}`);
     }

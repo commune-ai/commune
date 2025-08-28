@@ -11,12 +11,14 @@ class AuthJWT:
     def __init__(self, key=None):
         self.key = c.get_key(key)
 
-    def header(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
+    def generate(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
         """
         Generate the headers with the JWT token
         """
         headers =  self.get_token(c.hash(data), key=key, crypto_type=crypto_type, mode=mode)
         return headers
+
+    headers = forward = generate
 
     def hash(self, data: Any) -> str:
         """
@@ -28,7 +30,7 @@ class AuthJWT:
             data = json.dumps(data)
         return c.hash(data)
 
-    def verify_headers(self, headers: str, data:Optional[Any]=None) -> Dict:
+    def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
         """
         Verify and decode a JWT token
         """
@@ -159,9 +161,9 @@ class AuthJWT:
 
     def test_headers(self, key='test.jwt', crypto_type='ecdsa'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
-        headers = self.headers(data, key=key, crypto_type=crypto_type)
-        verified = self.verify_headers(headers)
-        verified = self.verify_headers(headers, data=data)
+        headers = self.generate(data, key=key, crypto_type=crypto_type)
+        verified = self.verify(headers)
+        verified = self.verify(headers, data=data)
         return {'headers': headers, 'verified': verified}
 
     def test(self):

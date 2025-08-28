@@ -117,7 +117,7 @@ export default function Module({ module_name }: ModuleProps) {
   
   const client = useMemo(() => {
     // You can pass the key instance to the client if needed
-    return new Client()
+    return new Client(undefined, keyInstance )
   }, [])
   
   const [module, setModule] = useState<ModuleType | undefined>()
@@ -196,7 +196,7 @@ export default function Module({ module_name }: ModuleProps) {
   }
 
   const moduleColor = text2color(module.name)
-  const patternBg = generatePattern(moduleColor, module.key || module.name)
+  const patternBg = generatePattern(moduleColor, module.key || module.name || 'default')
 
   const tabs = [
     { id: 'api', label: 'API', icon: ServerIcon },

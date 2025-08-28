@@ -8,6 +8,8 @@ import { CreateModule } from '@/app/module/ModuleCreate'
 import { ModuleType } from '@/app/types/module'
 import {Footer} from '@/app/components/Footer'
 import { useSearchContext } from '@/app/context/SearchContext'
+import { useUserContext } from '@/app/context/UserContext'
+
 interface ModulesState {
   modules: ModuleType[]
   n: number
@@ -16,7 +18,12 @@ interface ModulesState {
 }
 
 export default function Modules() {
-  const client = new Client()
+
+  const { user, keyInstance, signIn, signOut, isLoading } = useUserContext()
+
+
+  const client = new Client(undefined, keyInstance)
+
   const { searchFilters, updateSearchFilters } = useSearchContext()
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [state, setState] = useState<ModulesState>({
@@ -41,17 +48,17 @@ export default function Modules() {
 
     try {
       // Fetch modules for current page
-      const n: number = await client.call('n', params)
+      console.log('Fetching modules with params:', params)
+      if (!keyInstance) throw new Error('No key instance available')
+        
       let modulesData: ModuleType[] = []
-      if (n > 0) {
-        // add the page and pageSize to params
-        params.page = page
-        params.page_size = pageSize
-        modulesData = await client.call('modules', params)
-      }
+      // add the page and pageSize to params
+      params.page = page
+      params.page_size = pageSize
+      modulesData = await client.call('modules', params)
+      
       setState({
         modules: modulesData,
-        n,
         loading: false,
         error: null
       })
@@ -74,12 +81,14 @@ export default function Modules() {
   const handleCreateSuccess = () => {
     setShowCreateForm(false)
     setState(prev => ({ ...prev, error: null }))
-    fetchModules() // Refresh modules
+    // fetchModules() // Refresh modules
   }
 
   useEffect(() => {
-    fetchModules()
-  }, [searchFilters.searchTerm, page])
+    if (keyInstance) {
+      fetchModules()
+    }
+  }, [searchFilters.searchTerm, page, pageSize, keyInstance])
 
   return (
     <div className='min-h-screen bg-black text-green-500 font-mono'>
@@ -112,36 +121,7 @@ export default function Modules() {
       {/* Main Content */}
       <main className='p-2 pt-1' role='main'>
         {/* Header Info */}
-        <div className='mb-6 flex items-center justify-between'>
-            <p className='text-green-500/70'>
-              {state.n > 0 ? `${state.n} MODULES FOUND` : 'SEARCHING...'}
-              {searchFilters.searchTerm && ` FOR "${searchFilters.searchTerm.toUpperCase()}"`}
-            </p>
-          
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className='flex items-center gap-2'>
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page <= 1}
-                className='px-3 py-1 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed'
-              >
-                PREV
-              </button>
-              <span className='px-3 text-green-500'>
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages}
-                className='px-3 py-1 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed'
-              >
-                NEXT
-              </button>
-            </div>
-          )}
-        </div>
-        
+
         {/* Loading State */}
         {state.loading && (
           <div className='py-8 text-center'>

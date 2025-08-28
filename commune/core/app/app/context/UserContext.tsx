@@ -20,6 +20,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
+
   // Initialize from localStorage on mount
   useEffect(() => {
     const initializeAuth = async () => {

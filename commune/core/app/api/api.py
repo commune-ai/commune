@@ -9,10 +9,12 @@ import commune as c
 
 class Api:
 
+
+    port = 8000
     url = '0.0.0.0:8000'
     tempo = 600
     endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
-    modules_path = os.path.expanduser('~/.commune/api/modules')
+    mods_path = os.path.expanduser('~/.commune/api/modules')
 
     def __init__(self,
                 expose_functions = ['chain/info', 'chain/forward', 'chain/stream', 'chain/stream_forward'],
@@ -22,7 +24,7 @@ class Api:
         self.chain = c.mod('chain')()
 
     def paths(self):
-        return self.ls(self.modules_path)
+        return self.ls(self.mods_path)
 
     def n(self, search=None):
         return len(self.names(search=search))
@@ -86,7 +88,7 @@ class Api:
         else:
 
             for module in modules:
-                result = self.module(module, max_age=max_age, update=update)
+                result = self.mod(module, max_age=max_age, update=update)
                 if self.check_module_data(result):
                     results.append(result)
                 else: 
@@ -99,14 +101,13 @@ class Api:
         return results
 
     mods = modules
-    def module(self, module:str,  update=False, max_age=None, code=False, **kwargs):
+    def mod(self, module:str,  update=False, max_age=None, code=False, **kwargs):
 
         try:
             path = f'modules/{module}.json'
             info = self.store.get(path, None, update=update)
             if info == None:
-                info = c.info(module, max_age=max_age, update=update)
-                info["code"] = c.code_map(info['name'])
+                info = c.info(module, max_age=max_age, update=update, code=code)
                 self.store.put(module, info)
             
         except Exception as e:
@@ -117,7 +118,7 @@ class Api:
         
         return info
 
-    mod = module
+    module = mod
 
     def servers(self):
         return c.servers()
@@ -145,9 +146,9 @@ class Api:
         return all([f in module for f in features])
 
     def module_path(self, module):
-        return f"{self.modules_path}/{module}.json"
+        return f"{self.mods_path}/{module}.json"
 
-    def ls(self, path=modules_path):
+    def ls(self, path=mods_path):
         if not os.path.exists(path):
             print('WARNING IN LS --> Path does not exist:', path)
             return []
@@ -157,7 +158,7 @@ class Api:
     def check_module(self, module):
         features = ['name', 'url', 'key']  
         if isinstance(module, str):
-            module = self.module(module)
+            module = self.mod(module)
         if not isinstance(module, dict):
             return False
         assert all([f in module for f in features]), f"Missing feature in module: {module}"

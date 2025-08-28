@@ -37,18 +37,16 @@ class Server:
         path = '~/.commune/server', # the path to store the server data
 
         # AUTHENTICATION
-        tx = 'tx', # the tx for the server
+        tx = 'tracker', # the tx for the server
         tx_path = '~/.commune/server/tx',
         auth = 'auth', # the auth for the server,
         private = True, # whether the store is private or not
         middleware = 'server.middleware', # the middleware for the server
-        role2rate = {'admin': 1000, 'owner': 1000, 'local': 10, 'public': 0}, # the rate for each role,
+        role2rate = {'admin': 1000, 'owner': 1000, 'local': 10, 'public': 10}, # the rate for each role,
         admin_roles:List[str] = ['admin', 'owner'], # the roles that can call any fn
 
         # PROCESS MANAGER
         pm = 'pm', # the process manager to use
-        free_mode:bool = False, # whether the server is in free mode or not
-
         # MISC
         verbose:bool = True, # whether to print the output
         timeout = 10, # (in seconds) the maximum time to wait for a response
@@ -59,77 +57,96 @@ class Server:
         self.network = network or 'local'
         self.tempo = tempo
         self.verbose = verbose
-        self.tx = c.mod(tx)(tx_path=tx_path)
+        self.tracker = c.mod(tx)(tx_path=tx_path)
         self.role2rate = role2rate
-
         self.admin_roles = admin_roles
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
 
 
-    def print_request(self, request: Request):
-        """
-        Print the request details
-        """
-        def print_value_row(key, value, color=None):
-            divider = '-' * 50
-            color = color or c.random_color()
-            print(divider, color=color)
-            print(f'{key}: {value}', color=color)
-        print_value_row('fn', request['fn'])
-        print_value_row('params', request['params'])
-        print_value_row('client', request['client'])
-        
-            
+
+
+    def get_request(self, fn:str, request) -> float:
+
+        if fn == '':
+            fn = 'info'
+        # params
+        # headers
+        headers = dict(request.headers)    
+        server_cost = float(self.module.info['schema'].get(fn, {}).get('cost', 0))
+        client_cost = float(headers.get('cost', 0))
+        assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
+        self.auth.verify(headers) # verify the headers
+
+        # verify the headers
+        params = self.loop.run_until_complete(request.json())
+        params = json.loads(params) if isinstance(params, str) else params
+        assert self.auth.hash({"fn": fn, "params": params}) == headers['data'], f'Invalid data hash for {params}'
+        role = self.role(headers['key']) # get the role of the user
+        if role not in ['admin', 'owner']:
+            assert fn in self.module.info['schema'], f"Function {fn} not in fns={self.fns}"
+        return {'fn': fn, 'params': params, 'client': headers}
+
+
     def forward(self, fn:str, request: Request):
-        request = self.get_request(fn, request) # get the request
-        self.print_request(request) # print the request details
-        fn = request['fn'] # get the function name
-        params = request['params'] # get the params
 
+        # PROCESS REQUEST
+        request = self.get_request(fn=fn, request=request) # get the request
+        fn = request['fn']
+        params = request['params']
+
+        print(request, color='blue', verbose=self.verbose)
+        # NOW RUN THE FUNCTION
         fn_obj = getattr(self.module, fn) # get the function object from the module
-        result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-
-        # if the result is a generator, wrap it in an EventSourceResponse (SSE) for streaming
+        if callable(fn_obj):
+            if len(params) == 2 and 'args' in params and 'kwargs' in params :
+                kwargs = dict(params.get('kwargs')) 
+                args = list(params.get('args'))
+            else:
+                args = []
+                kwargs = dict(params)
+            result = fn_obj(*args, **kwargs) 
+        else:
+            # if the fn is not callable, return it
+            result = fn_obj
+        fn = request['fn']
         if c.is_generator(result):
-            print('Result is a generator, wrapping in EventSourceResponse', color='yellow')
             def generator_wrapper(generator):
-                output =  ''
+                _gen_result =  ''
                 for item in generator:
                     print(item, end='')
-                    output += str(item)
+                    _gen_result += str(item)
                     yield item
-
-            return EventSourceResponse(generator_wrapper(result))
+                self.tracker.forward(
+                    module=self.module.info['name'],
+                    fn=fn, # 
+                    params=params, # params of the inputes
+                    result=_gen_result,
+                    schema=self.module.info['schema'][fn],
+                    client=request['client'],
+                    server=self.auth.headers(data={'fn': fn, 'params': params, 'result': _gen_result}, key=self.key),
+                    )
+            return  EventSourceResponse(generator_wrapper(result))
         else:
 
             # save the transaction between the headers and server for future auditing
             result = self.serializer.forward(result) # serialize the result
-            try:
-                tx = self.tx.forward(
-                    module=self.name,
-                    fn=request['fn'], # 
-                    params=request['params'], # params of the inputes
-                    result=result,
-                    schema=self.schema.get(fn, {}), # schema of the fn
-                    client=request['client'],
-                    server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key),
-                    )
-            except Exception as e:
-                print('Error occurred while forwarding transaction:', e)
-        return result
+            fn = request['fn']
+            params = request['params']
+            tx = self.tracker.forward(
+                module=self.module.info['name'],
+                fn=fn, # 
+                params=params, # params of the inputes
+                result=result,
+                schema=self.module.info['schema'][fn],
+                client=request['client'],
+                server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key),
+                )
+                
 
-    def info(self):
-        info  = {   
-            "name": self.name,
-            "url": self.url,
-            "key": self.key.ss58_address,
-            "time": c.time(),
-            'free_mode': self.free_mode,
-            "schema": self.schema,
-        }
-        info['signature'] = self.key.sign(info, mode='str')
-        return info
+            return result
+
+
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:
@@ -139,7 +156,7 @@ class Server:
 
 
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
-        return  self.tx.txs( *args, **kwargs)
+        return  self.tracker.txs( *args, **kwargs)
 
     def hash(self, data:dict) -> str:
         return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
@@ -159,7 +176,6 @@ class Server:
         """
         sets the fns of the server
         """
-
         fns =  fns or []
         if len(fns) == 0:
             for fa in fn_attributes:
@@ -168,34 +184,31 @@ class Server:
                     break
         # does not start with _ and is not a private fn
         fns = [fn for fn in sorted(list(set(fns + self.helper_fns))) if not fn.startswith('_')]
-        fn2cost = {} if not hasattr(self.module, 'fn2cost') else self.module.fn2cost
-        self.fn2cost = {fn: fn2cost.get(fn, 1) for fn in fns}
         schema = c.schema(self.module, code=False)
         schema = {fn: schema[fn] for fn in fns if fn in schema}
-        self.schema = schema
-        self.fns = list(schema.keys())
-
-
-        return {'fns': self.fns, 'fn2cost': self.fn2cost}
+        self.fns = fns
+        return {'fns': self.fns}
         
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         if port == None:
             in_port_attribute = any([k for k in port_attributes])
             if in_port_attribute:
                 for k in port_attributes:
-                    if hasattr(self.module, k):
+                    # Check if the attribute exists and is an integer
+                    if hasattr(self.module, k) and isinstance(getattr(self.module, k), int):
                         port = getattr(self.module, k)
+                        print(f'Setting port from attribute {k} to {port}', color='green')
                         break
             else:
                 namespace = self.namespace()
                 if self.name in namespace:
                     port = int(namespace.get(self.name).split('::')[-1])
                     self.kill(self.name)
-        if port == None:
-            port = c.free_port()
+        # if the port is still None, get a free port
+        port = port or c.free_port()
         while c.port_used(port):
             c.kill_port(port)
-            c.sleep(1)
+            c.sleep(0.1)
             print(f'Waiting for port {port} to be free')
         self.module.port = port
         self.url = f'0.0.0.0:{self.module.port}' 
@@ -211,7 +224,7 @@ class Server:
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo}
 
-    modules_path = 'modules.json'
+    mods_path = 'modules.json'
 
     def modules(self, 
                 search=None, 
@@ -227,16 +240,16 @@ class Server:
 
             return isinstance(m, dict) and all(feature in m for feature in features )
             
-        modules = self.store.get(self.modules_path, None, max_age=max_age, update=update)
+        modules = self.store.get(self.mods_path, None, max_age=max_age, update=update)
         if modules == None :
             urls = self.urls(search=search, **kwargs)
-            print(f'Updating modules from {self.modules_path}', color='yellow')
+            print(f'Updating modules from {self.mods_path}', color='yellow')
             
             futures  = [c.submit(c.call, [url + '/info'], timeout=timeout, mode='thread') for url in urls]
             modules =  c.wait(futures, timeout=timeout)
             print(f'Found {len(modules)} modules', color='green')
             modules = list(filter(module_filter, modules))
-            self.store.put(self.modules_path, modules)
+            self.store.put(self.mods_path, modules)
         else:
             modules = list(filter(module_filter, modules))
 
@@ -270,9 +283,7 @@ class Server:
         get the role of the address ( admin, owner, local, public)
         """
         assert not self.is_blacklisted(user), f"Address {user} is blacklisted"
-
         role = 'public'
-
         if c.is_admin(user):
             # can call any fn
             role =  'admin'
@@ -294,54 +305,6 @@ class Server:
                 role = 'public' # default role is public
 
         return role
-
-    def get_request(self, fn:str, request) -> float:
-
-
-        # params
-        params = self.loop.run_until_complete(request.json())
-        params = json.loads(params) if isinstance(params, str) else params
-        if len(params) == 2 and 'args' in params and 'kwargs' in params :
-            kwargs = dict(params.get('kwargs')) 
-            args = list(params.get('args'))
-        else:
-            args = []
-            kwargs = dict(params)
-        params =  {"args": args, "kwargs": kwargs}
-
-        # headers
-        headers = dict(request.headers)
-        headers['key'] = self.key.key_address if 'key' not in headers else headers['key'] # set the key to the key address
-
-        role = 'public'
-        # only valid if the signature is in the headers
-        if self.free_mode and self.role2rate['public'] == 0:
-            self.role2rate['public'] = 1000
-        if 'signature' in headers:
-            self.auth.verify(headers=headers, data={'fn': fn , 'params': params}) # verify the headers
-            call_count = self.call_count(user=headers['key'], fn=fn)
-            role = self.role(headers['key']) # get the role of the user
-            role_rate_limit = self.role2rate.get(role, 0) # admin and owner can call any fn
-            if role_rate_limit == 0:
-                raise Exception(f'Role {role} cannot call function {fn}')
-            key_address_rate_limit = self.role2rate.get(headers['key'], 0) # rate limit for the key address
-            rate_limit = max(role_rate_limit, key_address_rate_limit) # the rate limit for the user
-            
-            if role not in ['admin', 'owner']:
-                assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
-                rate_limit = max(self.network_rate(user=headers['key'], network=self.network) , rate_limit)
-            assert call_count < rate_limit, f'RateLimitExceeded({call_count} > {rate_limit}))'
-
-
-        if self.free_mode and role not in self.admin_roles:
-
-            assert fn in self.fns, f"Function {fn} not in endpoints={self.fns}"
-        else:
-            assert 'signature' in headers, f"Signature not found in headers. Headers={headers} fn={fn} params={params}"
-        
-        print('Call(fn={fn}, params={params}, key={key} )'.format(fn=fn, params=params["kwargs"], key=headers['key']))
-
-        return {'fn': fn, 'params': params, 'client': headers}
 
     def roles(self, max_age:int = 60, update:bool = False):
         """
@@ -474,32 +437,28 @@ class Server:
     def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
         return self.pm.namespace(search=search, max_age=max_age, update=update, **kwargs)
 
-    def serve(self, 
-              module: Union[str, 'Module', Any] = None, # the module in either a string
+
+    @classmethod
+    def serve(cls, module: Union[str, 'Module', Any] = None, # the module in either a string
               params:Optional[dict] = None,  # kwargs for the module
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
               fns = None, # list of fns to serve, if none, it will be the endpoints of the module
               key = None, # the key for the server
-              free_mode:bool = False, # whether the server is in free mode or not
               cwd = None,
               remote = False,
               auth = 'auth',
               serializer = 'serializer',
               **extra_params
               ):
-
-
-        params = {**(params or {}), **extra_params}
-
-        if remote:
-            self.pm.serve(module=module, params=params, name=name)
-
         module = module or 'module'
         name = name or module
+        params = {**(params or {}), **extra_params}
+        if remote:
+            return c.fn('pm/serve')(module=module, params=params, name=name, fns=fns, port=port, key=key, auth=auth, serializer=serializer)
+        self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key)
         if self.exists(name):
             self.kill(name) # kill the server if it exists
-        self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key, serve=True, free_mode=free_mode)
 
         module = module or 'module'
         if isinstance(module, str):
@@ -513,9 +472,11 @@ class Server:
         self.key = c.get_key(key or self.name)
         self.set_fns(fns) 
         self.set_port(port)
-        self.free_mode = bool(free_mode)
         self.auth = c.mod(auth)()
-        self.module.info = self.info()
+
+        info = c.info(module, key=self.key)
+        info['url'] = self.url
+        self.module.info = info
         self.loop = asyncio.get_event_loop() # get the event loop
         app = FastAPI()
         # app.add_middleware(c.mod(middleware), auth=)
@@ -534,7 +495,7 @@ class Server:
                 return c.detailed_error(e)
         app.post("/{fn}")(server_fn)
 
-        c.print(f'Serving(name={name} port={port} free_mode={free_mode} key={self.key.key_address})', color='green')
+        c.print(f'Serving(name={name} port={port} key={self.key.key_address})', color='green')
         uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
         return {'success':True, 'message':f'Set module to {self.name}'}
 
@@ -594,7 +555,6 @@ class Server:
             c.mod(auth)().test()
         return {'success': True, 'msg': 'server test passed', 'auths': auths}
 
-
     def test_role(self, address:str=None, role:str='viber', max_age:int = 60, update:bool = False):
         """
         test the role of the address
@@ -617,4 +577,15 @@ class Server:
         assert key not in self.blacklist(max_age=max_age, update=update), f"Failed to remove {key} from blacklist"
         return {'blacklist': True, 'user': key , 'blacklist': self.blacklist(max_age=max_age, update=update)}
 
-
+    def print_request(self, request: Request):
+        """
+        Print the request details
+        """
+        def print_value_row(key, value, color=None):
+            divider = '-' * 50
+            color = color or c.random_color()
+            print(divider, color=color)
+            print(f'{key}: {value}', color=color)
+        print_value_row('fn', request['fn'])
+        print_value_row('params', request['params'])
+        print_value_row('client', request['client'])

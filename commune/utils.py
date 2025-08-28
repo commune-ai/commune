@@ -19,6 +19,9 @@ from loguru import logger
 from typing import Any, Optional, List, Dict, Tuple, Union
 import gc
 import asyncio
+import time
+import threading
+from contextlib import contextmanager
 asyncio.BaseEventLoop.__del__ = lambda self: None
 
 def path_exists(path:str):
@@ -468,8 +471,6 @@ def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
         raise ValueError(f'unknown mode {mode}')
     return  y
 
-
-
 def num_words( text):
     return len(text.split(' '))
 
@@ -485,7 +486,6 @@ def random_word( *args, n=1, seperator='_', **kwargs):
 def chown(path:str, user:str='root', group:str='root'):
     cmd = f'chown {user}:{group} {path}'
     return os.system(cmd)
-
 
 def choice( options:Union[list, dict])->list:
     from copy import deepcopy
@@ -561,7 +561,6 @@ def pip_install(lib:str= None,
         if upgrade:
             cmd += ' --upgrade'
     return c.cmd(cmd, verbose=verbose)
-
 
 # JUPYTER NOTEBOOKS
 def enable_jupyter():
@@ -685,11 +684,6 @@ def time2date(self, x:float=None):
     import datetime
     return datetime.datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
 
-
-import sys
-import time
-import threading
-from contextlib import contextmanager
 
 @contextmanager
 def spinner(message="Working"):

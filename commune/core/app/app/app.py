@@ -8,17 +8,17 @@ class App:
 
     def serve(self, public=False, port=3000, api_port=8000):
         return {
-            "api": self.api(port=api_port, free_mode=True),
+            "api": self.api(port=api_port),
             "app": self.app(public=public),
 
         }
 
     forward = serve  # Alias for serve method
         
-    def app(self, port=3000, public=False, remote=True, build=True, api_port=8000, api_free_mode=True):
+    def app(self, port=3000, public=False, remote=True, build=True, api_port=8000):
         if not c.server_exists('api'):
             print('API not found, please run `commune api` first.')
-            self.api(port=api_port, free_mode=api_free_mode)
+            self.api(port=api_port)
         api_ip = c.ip() if public else '0.0.0.0'
         api_url = f'http://{api_ip}:{api_port}'
         cwd = c.dirpath('app') 
@@ -35,8 +35,8 @@ class App:
         }
         return c.fn('pm/run')(**params)
 
-    def api(self, port=8000, free_mode=True):   
-        return c.serve('api', port=port, free_mode=free_mode)
+    def api(self, port=8000):   
+        return c.serve('api', port=port)
         
 
 

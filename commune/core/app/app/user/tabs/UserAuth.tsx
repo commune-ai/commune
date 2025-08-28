@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Key as KeyIcon, Shield, Copy, CheckCircle, AlertCircle, Zap, Terminal, Lock, RefreshCw } from 'lucide-react'
-import { Auth } from '@/app/key/auth'
+import { Auth } from '@/app/client/auth'
 import { Key } from '@/app/key'
-import type { AuthHeaders } from '@/app/key/auth'
+import type { AuthHeaders } from '@/app/client/auth'
 
 interface UserAuthProps {
   keyInstance: Key

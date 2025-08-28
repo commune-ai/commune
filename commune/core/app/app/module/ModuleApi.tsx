@@ -123,7 +123,7 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
     setError('')
     setAuthHeaders(null)
     try {
-      const client = new Client()
+      const client = new Client(undefined, keyInstance)
       
       // Create auth headers for the request
       const auth = new Auth(keyInstance)
@@ -270,6 +270,7 @@ const colors = {
                     {/* Input Parameters */}
                     <div className="space-y-4">
                       <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
+                      {Object.keys(filteredSchema[selectedFunction].input).length > 0 && (
                       <div className="space-y-3">
                         {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
                           <div key={param} className="space-y-2">
@@ -303,7 +304,7 @@ const colors = {
                             />
                           </div>
                         ))}
-                      </div>
+                      </div>)}
                     </div>
 
                     {/* Execute Button */}

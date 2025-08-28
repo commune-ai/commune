@@ -20,10 +20,6 @@
                 },
 
     "expose" : ["forward", "info"],
-    "port_range": [50050, 50150],
-    "links": {
-        "modules" : "commune-ai/modules"
-        
-    }
+    "port_range": [50050, 50150]
             
 }
