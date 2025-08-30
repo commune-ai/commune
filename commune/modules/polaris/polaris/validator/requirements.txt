@@ -1,0 +1,4 @@
+bittensor==6.7.0
+firebase-admin==6.3.0
+requests==2.31.0
+paramiko==3.3.1 

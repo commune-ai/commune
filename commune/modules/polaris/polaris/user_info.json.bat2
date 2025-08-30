@@ -1,0 +1,16 @@
+{
+    "miner_id": "XOin0YVvjmEDaGxKRz3e",
+    "username": "elon-9539-7ba8caa1",
+    "network_info": {
+        "internal_ip": "102.134.149.117",
+        "ssh": "ssh://HP@102.134.149.117:11000",
+        "open_ports": [
+            "22",
+            "8000",
+            "11000",
+            "11001"
+        ],
+        "username": "HP",
+        "auth_type": "public_key"
+    }
+}

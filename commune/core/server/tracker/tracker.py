@@ -143,9 +143,8 @@ class Tx:
             search=None,
             client= None,
             server= None,
-            max_age:float = None, 
-            features:list = ['module', 'fn', 'params', 'client', 'cost', 'time', 'duration']):
-
+            max_age:float = 3600, 
+            features:list = ['module', 'fn', 'params', 'cost', 'duration',  'age', 'client',]):
         path = None
         if client is not None:
             path = f'{client}/'
@@ -159,8 +158,8 @@ class Tx:
         df = txs
     
         df['time_start_utc'] = df['client'].apply(lambda x: float(x['time']))
-        df['age'] = df['time_start_utc'] - time.time()
-        df = df[df['age'] > (current_time - max_age)] if max_age is not None else df
+        df['age'] = time.time() - df['time_start_utc']
+        df = df[df['age'] <  max_age] if max_age is not None else df
         df['time_end_utc'] = df['server'].apply(lambda x: float(x['time']))
         df['duration'] = df['time_end_utc'] - df['time_start_utc']
 

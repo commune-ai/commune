@@ -21,7 +21,6 @@ class Client:
         self.timeout = timeout
 
         # ensure info from the server is fetched
-        
 
     def forward(self, 
                 fn  = 'info', 
@@ -31,11 +30,10 @@ class Client:
                 mode: str  = 'http', # the mode of the request
                 cost=0,
                 update_info: bool = False, # whether to update the info from the server
-                # stream: bool = False, # if the response is a stream
+                stream: bool = True, # if the response is a stream
                 **extra_kwargs 
     ):
 
-        stream = True
         # step 1: get the url and fn
         if '/' in str(fn):
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
@@ -65,7 +63,6 @@ class Client:
         )
         return result
 
-
     def post(self, url, fn,  params=None, headers=None, timeout=None, stream=False):
         # step 5: make the request
         timeout = timeout or self.timeout
@@ -77,7 +74,7 @@ class Client:
             raise Exception(response.text)
         if 'text/event-stream' in response.headers.get('Content-Type', ''):
             print('Streaming response...')
-            result = self.stream(response)
+            result = self.stream_generator(response)
         else:
             if 'application/json' in response.headers.get('Content-Type', ''):
                 result = response.json()
@@ -125,7 +122,7 @@ class Client:
         return event_data
 
         
-    def stream(self, response):
+    def stream_generator(self, response):
         try:
             for chunk in response.iter_lines():
                 yield self.process_stream_line(chunk)

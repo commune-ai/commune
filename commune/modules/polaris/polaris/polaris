@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# polaris_run - Direct runner for Polaris commands
+# This script activates the virtual environment and runs polaris with any arguments
+
+# Get the directory of this script (works even with symlinks)
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+echo "Running Polaris from directory: $SCRIPT_DIR"
+
+# Ensure we're in the polariscloud directory
+cd "$SCRIPT_DIR"
+
+# Check if virtual environment exists
+if [ ! -d "venv" ] || [ ! -f "venv/bin/activate" ]; then
+    echo "Error: Virtual environment not found at $SCRIPT_DIR/venv"
+    echo "Please make sure Polaris is properly installed."
+    exit 1
+fi
+
+# Activate the virtual environment
+echo "Activating virtual environment at: $SCRIPT_DIR/venv"
+source "$SCRIPT_DIR/venv/bin/activate"
+
+# Check if activation was successful
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Error: Failed to activate virtual environment."
+    exit 1
+fi
+
+echo "Successfully activated the virtual environment"
+echo "Python interpreter: $(command -v python3)"
+
+# Check if polaris command exists in PATH or try alternatives
+if command -v polaris &>/dev/null; then
+    echo "Found polaris command: $(command -v polaris)"
+    polaris "$@"
+elif command -v pcli &>/dev/null; then
+    echo "Found pcli command: $(command -v pcli)"
+    pcli "$@"
+elif [ -f "$SCRIPT_DIR/polaris" ] && [ ! -L "$SCRIPT_DIR/polaris" ]; then
+    # If polaris exists and is not a symlink (to avoid infinite recursion)
+    echo "Using local polaris script at: $SCRIPT_DIR/polaris"
+    "$SCRIPT_DIR/polaris" "$@"
+elif [ -f "$SCRIPT_DIR/polaris/__main__.py" ]; then
+    # Try running it as a module if it exists
+    echo "Running polaris module directly with Python"
+    python3 -m polaris "$@"
+elif [ -f "$SCRIPT_DIR/main.py" ]; then
+    # Try running main.py directly
+    echo "Running main.py directly with Python"
+    python3 "$SCRIPT_DIR/main.py" "$@"
+else
+    echo "Error: Could not find polaris or pcli command."
+    echo "Available commands in PATH: $(which python3)"
+    echo "Contents of $SCRIPT_DIR/venv/bin:"
+    ls -la "$SCRIPT_DIR/venv/bin"
+    echo "Please ensure Polaris is properly installed."
+    exit 1
+fi
+
+RESULT=$?
+
+# Deactivate the virtual environment when done
+echo "Deactivating virtual environment"
+deactivate 2>/dev/null || true
+
+exit $RESULT

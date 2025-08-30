@@ -10,7 +10,7 @@ class Store:
     endpoints=['get', 'put', 'ls']
 
     def __init__(self, 
-                folder='~/.commune/module', 
+                folder='~/.commune', 
                 suffix='json',
                 key = None,
                 private=False,

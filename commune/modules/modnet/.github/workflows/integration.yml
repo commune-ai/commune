@@ -1,0 +1,50 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      ipfs:
+        image: ipfs/kubo:latest
+        ports:
+          - 5001:5001
+          - 8080:8080
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          rustup target add wasm32v1-none --toolchain stable-x86_64-unknown-linux-gnu
+          rustup component add rust-src --toolchain stable-x86_64-unknown-linux-gnu
+          python -m pip install --upgrade pip
+          pip install uv
+          pip install -r requirements.txt
+
+      - name: Build Rust
+        run: cargo build --all-features
+
+      - name: Run integration tests
+        run: |
+          cargo test --all-features
+          uv run pytest tests/

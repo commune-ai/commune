@@ -1,0 +1,24 @@
+ # start of file
+version: '3'
+services:
+  node:
+    build:
+      context: .
+    ports:
+      - "9944:9944"
+      - "9933:9933"
+      - "30333:30333"
+    volumes:
+      - ./data:/data
+    command: --dev --ws-external --rpc-external --rpc-cors=all --base-path=/data
+    restart: unless-stopped
+
+  # Optional UI for interacting with the node
+  polkadot-ui:
+    image: jacogr/polkadot-js-apps:latest
+    ports:
+      - "8080:80"
+    environment:
+      - WS_URL=ws://node:9944
+    depends_on:
+      - node

@@ -1,0 +1,16 @@
+# Test Module Dependencies
+# Core dependencies for the test module
+
+# Optional: commune framework (if available in environment)
+# commune>=0.1.0
+
+# Standard library modules used:
+# - asyncio (built-in)
+# - json (built-in)
+# - time (built-in)
+# - datetime (built-in)
+# - typing (built-in)
+# - hashlib (built-in)
+
+# No external dependencies required for basic functionality
+# The module is designed to work standalone or with commune

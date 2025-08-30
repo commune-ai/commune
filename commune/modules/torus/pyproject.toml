@@ -1,0 +1,98 @@
+[tool.poetry]
+name = "torusdk"
+version = "0.2.4.1"
+description = "Torus network official CLI"
+authors = ["renlabs <info@agicommies.org>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.scripts]
+torus = "torusdk.cli:app"
+
+# configure autopep to not format type ignores !!!
+[tool.autopep8]
+ignore_local_config = true
+aggressive = 2
+in-place = true
+recursive = true
+max_line_length = 80
+ignore = [
+    "E265", # block comment should start with '# '
+    "E501", # line too long
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+
+torustrateinterface = "^0.1.0"
+# Substrate
+# substrate-interface = "^1.7.4"
+scalecodec = "^1.2.7"
+py-sr25519-bindings = "^0.2.0"
+# Typing/Modeling/Validation
+pydantic = "^2.6.4"
+pydantic-settings = "^2.2.1"
+typeguard = "^4.2.1"
+# CLI
+typer = "^0.9.0"
+rich = "^13.7.0"
+# HTTP
+aiohttp = "^3.9.3"
+fastapi = "^0.110.0"
+starlette = "^0.36.3"
+uvicorn = "^0.29.0"
+keylimiter = "^0.1.5"
+# Cryptography
+cryptography = "^43.0.3"
+
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+# Type-checking
+pyright = "^1.1.390"
+# Testing
+pytest = "^7.4.2"
+# Linter
+#ruff = "^0.1.15"
+# Debugging
+ipython = "^8.22.2"
+
+
+[tool.poetry.group.examples]
+optional = true
+[tool.poetry.group.examples.dependencies]
+openai = "^1.13.3"
+
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+pdoc = "^14.3.0"
+
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+testpaths = "./tests"
+pythonpath = ["."]
+
+[tool.pyright]
+# strict = ["src"]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "none"
+reportUnusedVariable = "warning"
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["F841"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

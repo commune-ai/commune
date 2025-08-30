@@ -1,0 +1,232 @@
+<mod_net_development_workflow>
+  <overview>
+    This document outlines the development workflow and standards for the Mod-Net module pallet project. Following these practices ensures consistent, high-quality code and maintainable development processes.
+  </overview>
+
+  <core_principles>
+    <critical_workflow_rules>
+      <rule>Never declare work "complete" or "resolved" - only the user determines success</rule>
+      <rule>Use "QA" as the accepting state for completed work, not "RESOLVED" or "DONE"</rule>
+      <no_half_measures>
+        <item>No TODO comments</item>
+        <item>No mock implementations</item>
+        <item>No placeholder functions</item>
+        <item>Implementation must be complete and production-ready</item>
+        <item>All substrate types and traits must be fully implemented</item>
+      </no_half_measures>
+      <thorough_testing>
+        <item>Test all edge cases</item>
+        <item>Verify complete pallet workflows</item>
+        <item>Check error handling</item>
+        <item>Ensure runtime performance meets requirements</item>
+        <item>Verify weight calculations</item>
+      </thorough_testing>
+    </critical_workflow_rules>
+
+    <macro_goal_justification>
+      <requirement>When explaining your actions or making changes, you MUST:</requirement>
+      <rule>Always connect actions to the user's macro-goal - Every technical action should be explicitly justified by how it serves the user's actual desired outcome, not just because it's a technical problem that exists.</rule>
+      <format>
+        <correct>"I'm doing X BECAUSE it moves us toward [macro-goal]"</correct>
+        <incorrect>NOT just "I'm doing X" or "I'm fixing this error"</incorrect>
+      </format>
+      <rule>Resist micro-goal tunnel vision - Avoid getting satisfaction from solving individual technical puzzles. Each fix is only valuable if it serves the bigger picture.</rule>
+      <test>Can you clearly explain how this specific action moves toward the user's actual desired outcome? If not, reconsider whether it's the right action.</test>
+      <rule>Never declare success on micro-goals - Only the user can determine if the macro-goal has been achieved. Technical fixes are just steps, not victories.</rule>
+      <scope_balance>Some focus is necessary for progress, but too narrow and you miss the forest for the trees. Always maintain awareness of how your current action fits into the larger workflow the user needs.</scope_balance>
+    </macro_goal_justification>
+
+    <code_quality_standards>
+      <item>Write clear, well-documented Rust code</item>
+      <item>Follow substrate pallet development best practices</item>
+      <item>Maintain comprehensive test coverage</item>
+      <item>Document all public interfaces</item>
+      <item>Review and optimize for performance</item>
+    </code_quality_standards>
+
+    <package_management>
+      <python_uv>
+        <benefit>Faster than pip</benefit>
+        <benefit>Better dependency resolution</benefit>
+        <benefit>Built-in virtual environment management</benefit>
+        <benefit>Reproducible builds with uv.lock file</benefit>
+      </python_uv>
+      <requirements>
+        <item>Keep requirements.txt updated and pinned</item>
+        <item>Use pyproject.toml for project metadata and build settings</item>
+      </requirements>
+    </package_management>
+  </core_principles>
+
+  <git_workflow>
+    <conventional_commits>
+      <format>&lt;type&gt;(&lt;scope&gt;): &lt;description&gt;</format>
+      <types>
+        <type name="feat">A new feature</type>
+        <type name="fix">A bug fix</type>
+        <type name="docs">Documentation only changes</type>
+        <type name="style">Changes that don't affect code meaning (formatting, etc)</type>
+        <type name="refactor">Code change that neither fixes a bug nor adds a feature</type>
+        <type name="test">Adding missing tests or correcting existing tests</type>
+        <type name="chore">Changes to build process or auxiliary tools</type>
+        <type name="perf">Performance improvements</type>
+      </types>
+      <scope>pallet name or module affected</scope>
+      <examples>
+        <example>feat(storage): implement new storage map for module state</example>
+        <example>fix(extrinsic): handle invalid signature error</example>
+        <example>docs(events): update documentation for new events</example>
+        <example>test(runtime): add integration tests for token transfer</example>
+        <example>chore(build): update substrate dependencies</example>
+      </examples>
+    </conventional_commits>
+
+    <issue_management>
+      <issue_creation>
+        <title>Brief, descriptive title</title>
+        <description>
+          <purpose>Clear statement of the feature/fix needed</purpose>
+          <technical_details>Implementation considerations</technical_details>
+          <acceptance_criteria>Clear completion criteria</acceptance_criteria>
+        </description>
+      </issue_creation>
+      <branch_naming>
+        <feature>feature/descriptive-name</feature>
+        <fix>fix/issue-description</fix>
+        <docs>docs/what-changed</docs>
+        <refactor>refactor/what-changed</refactor>
+      </branch_naming>
+    </issue_management>
+  </git_workflow>
+
+  <ci_cd_pipeline>
+    <workflow_overview>
+      <rust_ci>
+        <item>Cargo check and build</item>
+        <item>Unit tests and coverage</item>
+        <item>Clippy linting</item>
+        <item>Documentation generation</item>
+      </rust_ci>
+      <python_ci>
+        <item>Black and isort formatting</item>
+        <item>Ruff and mypy linting</item>
+        <item>Unit tests with coverage</item>
+        <item>UV package management</item>
+      </python_ci>
+      <integration_tests>
+        <item>IPFS service container</item>
+        <item>Combined Rust/Python testing</item>
+        <item>Submodule handling</item>
+        <item>Environment validation</item>
+      </integration_tests>
+    </workflow_overview>
+    <process>
+      <step>Automated Checks - Triggered on push/PR</step>
+      <step>Manual Review - Code review required</step>
+      <step>Integration - Run full test suite</step>
+      <step>Documentation - Update docs and specs</step>
+      <step>Deployment - Merge and release</step>
+    </process>
+  </ci_cd_pipeline>
+
+  <development_process>
+    <stages>
+      <stage>Design - Plan module interface and implementation</stage>
+      <stage>Implementation - Write code with tests</stage>
+      <stage>Testing - Comprehensive testing</stage>
+      <stage>Documentation - Update all relevant docs</stage>
+      <stage>Review - Code review and updates</stage>
+      <stage>Integration - Merge and verify</stage>
+    </stages>
+  </development_process>
+
+  <quality_standards>
+    <code_requirements>
+      <item>All public functions must be documented</item>
+      <item>Unit tests for all functionality</item>
+      <item>Integration tests for module interactions</item>
+      <item>Benchmarks for critical paths</item>
+      <item>Error handling for all edge cases</item>
+      <item>Clean, idiomatic Rust code</item>
+    </code_requirements>
+    <testing_standards>
+      <example_structure>
+        #[test]
+        fn test_module_functionality() {
+            ExtBuilder::default().build().execute_with(|| {
+                // Arrange
+                // Act
+                // Assert
+            });
+        }
+      </example_structure>
+    </testing_standards>
+  </quality_standards>
+
+  <documentation>
+    <module_documentation>
+      <item>Clear overview of module purpose</item>
+      <item>Detailed interface documentation</item>
+      <item>Usage examples</item>
+      <item>Configuration options</item>
+      <item>Storage items description</item>
+      <item>Events and errors documentation</item>
+    </module_documentation>
+    <implementation_notes>
+      <item>Document complex algorithms</item>
+      <item>Explain critical design decisions</item>
+      <item>Note performance considerations</item>
+      <item>Document integration requirements</item>
+    </implementation_notes>
+  </documentation>
+
+  <quality_assurance>
+    <pre_merge_checklist>
+      <item>All tests pass</item>
+      <item>Documentation is updated</item>
+      <item>No clippy warnings</item>
+      <item>Follows rust formatting</item>
+      <item>Includes unit tests</item>
+      <item>Integration tests pass</item>
+    </pre_merge_checklist>
+    <performance_considerations>
+      <item>Optimize storage access patterns</item>
+      <item>Minimize on-chain computation</item>
+      <item>Use appropriate types for storage</item>
+      <item>Consider gas costs</item>
+      <item>Benchmark critical operations</item>
+    </performance_considerations>
+  </quality_assurance>
+
+  <commands_reference>
+    <rust_commands>
+      <command>cargo test --release</command>
+      <command>cargo test test_name --release</command>
+      <command>cargo fmt --all -- --check</command>
+      <command>cargo clippy -- -D warnings</command>
+      <command>cargo test --features runtime-benchmarks</command>
+    </rust_commands>
+    <python_commands>
+      <command>uv venv  # Create virtual environment</command>
+      <command>uv pip install -r requirements.txt  # Install dependencies</command>
+      <command>uv pip compile requirements.in  # Generate requirements.txt</command>
+      <command>uv pip install --upgrade-deps  # Upgrade all dependencies</command>
+    </python_commands>
+    <testing_linting>
+      <command>pytest tests/  # Run Python tests</command>
+      <command>black .  # Format Python code</command>
+      <command>isort .  # Sort imports</command>
+      <command>ruff check .  # Lint Python code</command>
+      <command>mypy .  # Type checking</command>
+    </testing_linting>
+  </commands_reference>
+
+  <success_criteria>
+    <item>Write high-quality, well-tested code</item>
+    <item>Maintain clear documentation</item>
+    <item>Follow Git best practices</item>
+    <item>Submit well-structured PRs</item>
+    <item>Ensure proper testing coverage</item>
+    <item>Keep code maintainable and performant</item>
+  </success_criteria>
+</mod_net_development_workflow>

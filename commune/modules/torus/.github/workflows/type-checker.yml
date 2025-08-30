@@ -1,0 +1,30 @@
+name: "Type checker"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - "nix/**"
+      - "flake.nix"
+      - "flake.lock"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      # - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: install Poetry dependencies
+        run: nix develop --command poetry install --with dev,examples
+
+      - name: Run checks (types and linter)
+        run: nix develop --command poetry run  make check

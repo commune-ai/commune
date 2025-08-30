@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dope Vibe Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dope Vibe Generator</h1>
+            <p>Create and experience cool vibes</p>
+        </header>
+        
+        <div class="vibe-controls">
+            <div class="control-group">
+                <label for="vibe-type">Vibe Type:</label>
+                <select id="vibe-type">
+                    <option value="random">Random</option>
+                    <option value="chill">Chill</option>
+                    <option value="energetic">Energetic</option>
+                    <option value="dreamy">Dreamy</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="intensity">Intensity:</label>
+                <input type="range" id="intensity" min="0.1" max="1.0" step="0.1" value="0.7">
+                <span id="intensity-value">0.7</span>
+            </div>
+            
+            <button id="generate-btn" class="btn primary">Generate Vibe</button>
+        </div>
+        
+        <div class="vibe-display">
+            <div class="vibe-info">
+                <h2>Current Vibe: <span id="current-vibe-type">None</span></h2>
+                <div class="vibe-details">
+                    <p>BPM: <span id="vibe-bpm">--</span></p>
+                    <p>Key: <span id="vibe-key">--</span></p>
+                    <p>Scale: <span id="vibe-scale">--</span></p>
+                    <p>Instruments: <span id="vibe-instruments">--</span></p>
+                    <p>Effects: <span id="vibe-effects">--</span></p>
+                </div>
+            </div>
+            
+            <div class="vibe-visualizer">
+                <canvas id="visualizer"></canvas>
+            </div>
+        </div>
+        
+        <div class="vibe-actions">
+            <button id="play-btn" class="btn secondary" disabled>Play</button>
+            <button id="pause-btn" class="btn secondary" disabled>Pause</button>
+            <button id="save-btn" class="btn secondary" disabled>Save Vibe</button>
+        </div>
+        
+        <div class="saved-vibes">
+            <h3>Saved Vibes</h3>
+            <ul id="saved-vibes-list">
+                <!-- Saved vibes will be added here -->
+            </ul>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

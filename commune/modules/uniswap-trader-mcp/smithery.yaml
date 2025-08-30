@@ -1,0 +1,24 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - infuraKey
+      - walletPrivateKey
+    properties:
+      infuraKey:
+        type: string
+        description: Infura API key for RPC endpoints
+      walletPrivateKey:
+        type: string
+        description: Private key of the wallet for executing swaps
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['index.js'], env: { INFURA_KEY: config.infuraKey, WALLET_PRIVATE_KEY: config.walletPrivateKey } })
+  exampleConfig:
+    infuraKey: abcd1234abcd1234abcd1234abcd1234
+    walletPrivateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

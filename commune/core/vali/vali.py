@@ -13,7 +13,7 @@ class Vali:
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
                     batch_size : int = 12, # the batch size of the most parallel tasks
-                    task : str= 'task', # score function
+                    task : str= 'vali.task', # score function
                     params = None, # the parameters for the task
                     key : str = 'vali', # the key for the module
                     tempo : int = 60, # the time between epochs

@@ -1,0 +1,58 @@
+repos:
+# STEP 1: Run auto-fixes first to prepare code for validation
+-   repo: local
+    hooks:
+    -   id: run-formatters
+        name: Auto-fix code formatting and style
+        entry: ./run_checks.sh
+        args: [formatters]
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+# STEP 2: Basic file checks (these don't conflict with auto-fixes)
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: trailing-whitespace
+        exclude: |
+            (?x)^(
+                .*/\.git/
+            )$
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: check-merge-conflict
+    -   id: check-symlinks
+    -   id: mixed-line-ending
+    -   id: check-case-conflict
+    -   id: check-json
+    -   id: check-toml
+
+# STEP 3: Validation checks (run after auto-fixes are applied)
+-   repo: local
+    hooks:
+    -   id: rust-clippy
+        name: Rust linting (clippy)
+        entry: cargo
+        args: [clippy, --all-targets, --all-features, --, -D, warnings]
+        language: system
+        types: [rust]
+        exclude: commune-ipfs/
+        pass_filenames: false
+    -   id: python-ruff-check
+        name: Python linting (ruff check only)
+        entry: uv
+        args: [run, ruff, check, --no-fix]
+        language: system
+        types: [python]
+        exclude: commune-ipfs/
+    -   id: python-mypy
+        name: Python type checking (mypy)
+        entry: uv
+        args: [run, mypy, .]
+        language: system
+        types: [python]
+        exclude: commune-ipfs/
+        pass_filenames: false

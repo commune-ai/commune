@@ -20,37 +20,27 @@ class Server:
     def __init__(
         self, 
         module: Union[str, object] = 'module',
-        key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
         params : Optional[dict] = None, # the kwargs for the module
-        
+        key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
         # FUNCTIONS
         fns:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
-
-        # NETWORK
         port: Optional[int] = None, # the port the server is running on
         tempo:int = 10000, # (in seconds) the maximum age of the txs
         name: Optional[str] = None, # the name of the server, 
         network: Optional[str] = 'local', # the network the server is running on
-
         # STORAGE
         store = 'store', # the store for the server
         path = '~/.commune/server', # the path to store the server data
-
         # AUTHENTICATION
         tx = 'tracker', # the tx for the server
         tx_path = '~/.commune/server/tx',
         auth = 'auth', # the auth for the server,
         private = True, # whether the store is private or not
         middleware = 'server.middleware', # the middleware for the server
-        role2rate = {'admin': 1000, 'owner': 1000, 'local': 10, 'public': 10}, # the rate for each role,
-        admin_roles:List[str] = ['admin', 'owner'], # the roles that can call any fn
-
         # PROCESS MANAGER
         pm = 'pm', # the process manager to use
-        # MISC
         verbose:bool = True, # whether to print the output
         timeout = 10, # (in seconds) the maximum time to wait for a response
-        serve:bool = False, # whether to run the api
         ):
         
         self.store = c.mod(store)(path)
@@ -58,43 +48,28 @@ class Server:
         self.tempo = tempo
         self.verbose = verbose
         self.tracker = c.mod(tx)(tx_path=tx_path)
-        self.role2rate = role2rate
-        self.admin_roles = admin_roles
         self.auth = c.mod(auth)()
         self.pm = c.mod(pm)() # sets the module to the pm
-
-
-
-
-    def get_request(self, fn:str, request) -> float:
-
-        if fn == '':
-            fn = 'info'
-        # params
-        # headers
-        headers = dict(request.headers)    
-        server_cost = float(self.module.info['schema'].get(fn, {}).get('cost', 0))
-        client_cost = float(headers.get('cost', 0))
-        assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
-        self.auth.verify(headers) # verify the headers
-
-        # verify the headers
-        params = self.loop.run_until_complete(request.json())
-        params = json.loads(params) if isinstance(params, str) else params
-        assert self.auth.hash({"fn": fn, "params": params}) == headers['data'], f'Invalid data hash for {params}'
-        role = self.role(headers['key']) # get the role of the user
-        if role not in ['admin', 'owner']:
-            assert fn in self.module.info['schema'], f"Function {fn} not in fns={self.fns}"
-        return {'fn': fn, 'params': params, 'client': headers}
-
-
+        self.timeout = timeout
+    
     def forward(self, fn:str, request: Request):
+        """
+        forwards the request to the module
+        1. get the request
+        2. verify the request
+        3. run the function
+        4. save the transaction
+        5. return the result (if generator, return a stream, else return the result)
 
-        # PROCESS REQUEST
+        params: 
+            fn: the function to run
+            request: the request object
+        returns:
+            the result of the function
+        """
         request = self.get_request(fn=fn, request=request) # get the request
         fn = request['fn']
         params = request['params']
-
         print(request, color='blue', verbose=self.verbose)
         # NOW RUN THE FUNCTION
         fn_obj = getattr(self.module, fn) # get the function object from the module
@@ -117,6 +92,9 @@ class Server:
                     print(item, end='')
                     _gen_result += str(item)
                     yield item
+
+                # save the transaction between the headers and server for future auditing
+
                 self.tracker.forward(
                     module=self.module.info['name'],
                     fn=fn, # 
@@ -126,6 +104,7 @@ class Server:
                     client=request['client'],
                     server=self.auth.headers(data={'fn': fn, 'params': params, 'result': _gen_result}, key=self.key),
                     )
+            # if the result is a generator, return a stream
             return  EventSourceResponse(generator_wrapper(result))
         else:
 
@@ -133,27 +112,41 @@ class Server:
             result = self.serializer.forward(result) # serialize the result
             fn = request['fn']
             params = request['params']
+
             tx = self.tracker.forward(
                 module=self.module.info['name'],
                 fn=fn, # 
                 params=params, # params of the inputes
                 result=result,
                 schema=self.module.info['schema'][fn],
-                client=request['client'],
-                server=self.auth.headers(data={'fn': fn, 'params': params, 'result': result}, key=self.key),
+                client=request['client'], # client auth
+                server=self.auth.headers(data={"fn": fn, "params": params, "result": result}, key=self.key),
                 )
-                
-
             return result
 
-
+    def get_request(self, fn:str, request) -> float:
+        if fn == '':
+            fn = 'info'
+        # params
+        # headers
+        headers = dict(request.headers)    
+        server_cost = float(self.module.info['schema'].get(fn, {}).get('cost', 0))
+        client_cost = float(headers.get('cost', 0))
+        assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
+        self.auth.verify(headers) # verify the headers
+        params = self.loop.run_until_complete(request.json())
+        params = json.loads(params) if isinstance(params, str) else params
+        assert self.auth.hash({"fn": fn, "params": params}) == headers['data'], f'Invalid data hash for {params}'
+        role = self.role(headers['key']) # get the role of the user
+        if role not in ['admin', 'owner']:
+            assert fn in self.module.info['schema'], f"Function {fn} not in fns={self.fns}"
+        return {'fn': fn, 'params': params, 'client': headers}
 
     def fleet(self, module='module', n=2, timeout=10):
         if '::' not in module:
             module = module + '::'
         names = [module+str(i) for i in range(n)]
         return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
-
 
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
         return  self.tracker.txs( *args, **kwargs)
@@ -376,8 +369,7 @@ class Server:
         """
         check if the address is blacklisted
         """
-        blacklist = self.store.get(f'blacklist', [], max_age=max_age, update=update)
-        return blacklist
+        return self.store.get(f'blacklist', [], max_age=max_age, update=update)
 
     def is_blacklisted(self, user:str, max_age:int = 60, update:bool = False):
         """
@@ -385,25 +377,6 @@ class Server:
         """
         blacklist = self.blacklist(max_age=max_age, update=update)
         return user in blacklist
-    
-    def network_rate(self, user:str, network:str = 'chain', max_age:int = 60, update:bool = False):  
-        state = self.network_state(network=network, max_age=60, update=False)
-        server_address = self.key.key_address
-        stake = state.get('stake', {}).get(user, 0) + state.get('stake_to', {}).get(user, {}).get(server_address, 0) 
-        stake_per_call = state.get('stake_per_call', 1000)
-        rate = stake / stake_per_call
-        return rate
-
-    def network_state(self, network:str = 'chain', max_age:int = 360, update:bool = False):
-        path = self.store.get_path(f'network_state/{network}.json')
-        self.state = self.store.get(path, max_age=self.tempo, update=update)
-        if network in ['local', 'local_chain']:
-            return {}
-        else:
-            if self.state == None:
-                self.state = c.mod(network)().state()
-                self.store.put(path, self.state)
-            return self.state
 
     def wait_for_server(self, name:str, max_time:int=10, trial_backoff:int=0.5, network:str='local', verbose=True, max_age:int=20):
         # wait for the server to start
@@ -418,7 +391,6 @@ class Server:
                         print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
                         if trial > 1:
                             print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
-                    
                         # print(c.logs(name, tail=10))
             c.sleep(trial_backoff)
         raise Exception(f'Failed to start {name} after {trials} trials')
@@ -437,9 +409,9 @@ class Server:
     def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
         return self.pm.namespace(search=search, max_age=max_age, update=update, **kwargs)
 
-
     @classmethod
-    def serve(cls, module: Union[str, 'Module', Any] = None, # the module in either a string
+    def serve(cls, 
+              module: Union[str, 'Module', Any] = None, # the module in either a string
               params:Optional[dict] = None,  # kwargs for the module
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
@@ -451,6 +423,7 @@ class Server:
               serializer = 'serializer',
               **extra_params
               ):
+
         module = module or 'module'
         name = name or module
         params = {**(params or {}), **extra_params}
@@ -495,30 +468,9 @@ class Server:
                 return c.detailed_error(e)
         app.post("/{fn}")(server_fn)
 
-        c.print(f'Serving(name={name} port={port} key={self.key.key_address})', color='green')
+        c.print(f'Serving(name={name} port={port} key={self.key.address})', color='green')
         uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
         return {'success':True, 'message':f'Set module to {self.name}'}
-
-    def ping(self, server, n=4, period=0.1, timeout=20):
-        print(f'Testing server {server} with {n} iterations and period {period}', color='blue')
-        futures = []
-        for i in range(n):
-            print(f'Testing {server} with {i}', color='blue')
-            futures.append(c.submit(c.call, [server + '/info'], timeout=timeout, mode='thread'))
-
-        progress = c.tqdm(futures, desc=f"Testing {server}", total=n)
-        results = []
-        for future in c.as_completed(futures, timeout=timeout):
-            try:
-                result = future.result()
-                results.append(result)
-                progress.update(1)
-                print(f'Result from {server}: {c.hash(result)}', color='green')
-            except Exception as e:
-                print(f'Error: {c.detailed_error(e)}', color='red')
-                results.append({'error': str(e)})
-            c.sleep(period)
-        return {'success': True, 'message': f'Tested server {server} with {n} iterations and period {period}'}
 
     def get_info(self, name:str, timeout:int = 60, interval:int = 1):
         elapsed_seconds = 0
@@ -576,16 +528,3 @@ class Server:
         self.unblacklist_user(key, max_age=max_age, update=update)
         assert key not in self.blacklist(max_age=max_age, update=update), f"Failed to remove {key} from blacklist"
         return {'blacklist': True, 'user': key , 'blacklist': self.blacklist(max_age=max_age, update=update)}
-
-    def print_request(self, request: Request):
-        """
-        Print the request details
-        """
-        def print_value_row(key, value, color=None):
-            divider = '-' * 50
-            color = color or c.random_color()
-            print(divider, color=color)
-            print(f'{key}: {value}', color=color)
-        print_value_row('fn', request['fn'])
-        print_value_row('params', request['params'])
-        print_value_row('client', request['client'])

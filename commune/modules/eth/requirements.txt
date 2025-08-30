@@ -1,0 +1,6 @@
+web3
+eth-account
+eth-utils
+eth-keys
+pycryptodome
+py-solc-x

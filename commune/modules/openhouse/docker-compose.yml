@@ -1,0 +1,64 @@
+ # start of file
+version: '3.8'
+
+services:
+  # Local Ethereum network
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    ports:
+      - "8545:8545"
+    command: >
+      --deterministic
+      --mnemonic "test test test test test test test test test test test junk"
+      --networkId 5777
+      --chainId 1337
+      --blockTime 2
+      --gasLimit 12000000
+      --accounts 10
+      --defaultBalanceEther 1000
+    volumes:
+      - ganache-data:/data
+    networks:
+      - home2home-network
+
+  # Frontend application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - ganache
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_RPC_URL=http://ganache:8545
+    networks:
+      - home2home-network
+
+  # Contract deployment service
+  contract-deployer:
+    build:
+      context: ./blockchain
+      dockerfile: Dockerfile
+    volumes:
+      - ./contracts:/app/contracts
+      - ./blockchain:/app
+      - /app/node_modules
+    depends_on:
+      - ganache
+    environment:
+      - NETWORK_URL=http://ganache:8545
+    networks:
+      - home2home-network
+    command: ["npm", "run", "deploy"]
+
+networks:
+  home2home-network:
+    driver: bridge
+
+volumes:
+  ganache-data:

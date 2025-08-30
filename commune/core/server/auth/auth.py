@@ -28,6 +28,23 @@ class Auth:
         self.signature_keys = signature_keys
         self.max_age = max_age
 
+
+    def get_data(self, fn:str, params:dict, result:Optional[Any]=None) -> dict:
+        """
+        Get the data to be signed
+        """
+        data = {
+            'fn': fn,
+            'params': params,
+        }
+        if result is not None:
+            data['result'] = result
+        return data
+
+    def get_sig_data(self, headers: Dict[str, str]) -> str:
+        assert all(k in headers for k in self.signature_keys), f'Missing keys in headers {headers}'
+        return json.dumps({k: headers[k] for k in self.signature_keys}, separators=(',', ':'))
+
     def forward(self,  data: Any,  key=None, crypto_type=None, cost=0) -> dict:
         """
         Generate the headers with the JWT token
@@ -36,33 +53,25 @@ class Auth:
         result = {
             'data': self.hash(data),
             'time': str(time.time()),
+            'cost': str(cost),
             'key': key.key_address,
-            'cost': str(cost)
         }
         result['signature'] = key.sign(self.get_sig_data(result), mode='str')
         return result
 
     headers = generate = forward
 
-
-    def get_sig_data(self, headers: Dict[str, str]) -> str:
-        assert all(k in headers for k in self.signature_keys), f'Missing keys in headers {headers}'
-        return json.dumps({k: headers[k] for k in self.signature_keys}, separators=(',', ':'))
-
     def verify(self, headers: str, data:Optional[Any]=None, max_age=1000) -> bool:
         """
         Verify and decode a JWT token
         provide the data if you want to verify the data hash
         """
-
         # check age 
         crypto_type = headers.get('crypto_type', self.crypto_type)
         age = abs(time.time() - float(headers['time']))
         max_age = max_age or self.max_age
         assert age < max_age, f'Token is stale {age} > {max_age}'
-        assert 'signature' in headers, 'Missing signature'
-        sig_data = self.get_sig_data(headers)
-        verified = self.key.verify(sig_data, signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)
+        verified = self.key.verify(self.get_sig_data(headers), signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)
         assert verified, f'Invalid signature {headers}'
         if data != None:
             assert headers['data'] == self.hash(data), f'Invalid data {data}'

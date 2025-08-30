@@ -30,9 +30,12 @@ class Mod:
         self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
         self.core_path = self.root_path + '/core' # the path to the core
         self.tests_path = f'{self.lib_path}/tests'
-        self.mods_path = self.mp =  self.modspath = self.root_path + '/mods'
+        mods_dirname_options = ['modules', 'mods', '_mods']
+        mods_path_options = [os.path.join(self.root_path, md) for md in mods_dirname_options ]
+        mods_path_options = list(filter(lambda p: os.path.exists(p), mods_path_options))
+        assert len(mods_path_options) == 1, f'we require exactly one mods dir name in {mods_path_options}'
+        self.mods_path = self.modspath = mods_path_options[0]  # default to modules
         self.home_path = self.homepath = os.path.expanduser('~')
-
         self.set_config(config)
         self.name  = self.config['name']
         self.storage_path = f'{self.home_path}/.{self.name}'
@@ -58,7 +61,6 @@ class Mod:
                     setattr(self, fn, fn_obj)
 
         self.sync_mods()
-
         return {'success': True, 'msg': 'synced mods and utils'}
 
     def sync_mods(self):
@@ -83,8 +85,6 @@ class Mod:
                 cache=True, 
                 verbose=False, 
                 update=False,
-                max_age: int = 600,
-                trials = 1,
                 **kwargs) -> str:
 
         """
@@ -107,13 +107,10 @@ class Mod:
             self.print(f'Error loading module {module} from {obj_path}: {e}', color='red', verbose=verbose)
             tree = self.tree(update=True)
             tree_options = [v for k,v in tree.items() if module in k]
-            if any([v == module for v in tree_options]):
-                obj = [v for v in tree_options if v == module][0]
-            elif any([all([part in v for part in module.split('.')]) for v in tree_options]):
-                obj = [v for v in tree_options if all([part in v for part in module.split('.')])][0]
-            elif len(tree_options) == 1:
+            if len(tree_options) == 1:
                 obj = tree_options[0]
             else:
+                self.print(f'Could not find module {module} in tree options {tree_options}', color='red', verbose=verbose)
                 raise e
             obj = self.obj(obj)
         if params != None:
@@ -124,6 +121,7 @@ class Mod:
         return obj
 
     get_module   = module = mod
+
     def forward(self, fn:str='info', params:dict=None, auth=None) -> Any:
         params = params or {}
         # assert fn in self.endpoints, f'{fn} not in {self.endpoints}'
@@ -135,7 +133,6 @@ class Mod:
 
     def go(self, module=None, **kwargs):
         module = module or 'module'
-
         if self.module_exists(module):
             path = self.dirpath(module)
         else:
@@ -168,7 +165,6 @@ class Mod:
     def abspath(self,path:str=''):
         return os.path.abspath(os.path.expanduser(path))
 
-    abs = abspath
 
     def filepath(self, obj=None) -> str:
         """
@@ -808,7 +804,7 @@ class Mod:
 
     fn2cost = {}
 
-    def fn_schema(self, fn:str = '__init__', code=True, source=True, **kwargs)->dict:
+    def fn_schema(self, fn:str = '__init__', code=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''     
@@ -817,12 +813,19 @@ class Mod:
         if not callable(fn_obj):
             return {'fn_type': 'property', 'type': type(fn_obj).__name__}
         fn_signature = inspect.signature(fn_obj)
+
+
+        # INPUT SCHEMA
         schema['input'] = {}
         for k,v in dict(fn_signature._parameters).items():
+            # each reacord is a dict with value and type (default value and typ of  e)
             schema['input'][k] = {
                     'value': "_empty"  if v.default == inspect._empty else v.default, 
                     'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
             }
+
+
+        # OUTPUT SCHEMA
         schema['output'] = {
             'value': None,
             'type': str(fn_obj.__annotations__.get('return', None) if hasattr(fn_obj, '__annotations__') else None)
@@ -830,7 +833,7 @@ class Mod:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 0 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__ # attribute the cost to the function
         schema['name'] = fn_obj.__name__
-        if source:
+        if code:
             schema.update(self.source(fn_obj))
         return schema
 
@@ -852,7 +855,7 @@ class Mod:
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None , verbose=False, source=True, **kwargs)->dict:
+    def schema(self, obj = None , verbose=False, code=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
@@ -874,7 +877,7 @@ class Mod:
             obj = obj.__class__
         for fn in self.fns(obj):
             try:
-                schema[fn] = self.fn_schema(getattr(obj, fn), source=source, **kwargs)
+                schema[fn] = self.fn_schema(getattr(obj, fn), code=code, **kwargs)
             except Exception as e:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
         return schema
@@ -998,6 +1001,7 @@ class Mod:
     def info(self, 
             module:str='module',  # fam
             code = False,
+            schema = True,
             keep_last_n : int = 10,
             relative=True,
             update: bool =False, 
@@ -1021,9 +1025,11 @@ class Mod:
                     'key': self.get_key(key or module).key_address,  
                     'cid': cid,
                     'time': time.time(),
-                    'schema': self.schema(module),
                     'code': self.code_map(module) if code else None
                     }
+            if schema:
+
+                info['schema'] = self.schema(module )
             info['signature'] = self.sign(info, key=key)
 
             if ai_describe :
@@ -1225,8 +1231,16 @@ class Mod:
         if path.endswith('.py'):
             path = path[:-3]
         return path.replace('__init__.', '.')
-        
-    def path2name(self, path, ignore_folder_names = ['modules', 'agents', 'src', 'mods']):
+
+    def ignore_folder_names(self, 
+                            ignore_folder_names = ['modules', 'agents', 'src', 'mods'], 
+                            possible_suffixes = ['_', '']
+                            ) -> List[str]:
+        return [ f + s for f in ignore_folder_names for s in possible_suffixes]
+
+    def path2name(self, path ):
+    
+        ignore_folder_names = self.ignore_folder_names()
         name = self.path2objectpath(path)
         name_chunks = []
         for chunk in name.split('.'):
@@ -1375,12 +1389,13 @@ class Mod:
     def objectpath2name(self, 
                         p:str,
                         avoid_terms=[
+                                    '_mods',
+                                    '_modules',
                                     'mods',
                                     'modules', 
                                      'agents',
                                      'agent',
                                      'module', 
-                                     '_modules', 
                                      '_agents', 
                                      'core',
                                     'src', 
@@ -1433,15 +1448,12 @@ class Mod:
         return self.get_tree(self.mods_path, depth=10,  **kwargs)
     
     def tree(self, max_age=None, update=False, **kwargs):
-
         params = {'max_age': max_age, 'update': update, **kwargs}
         tree = { 
                 **self.mods_tree(**params), 
                 **self.local_tree(**params),  
                 ** self.core_tree(**params) 
-            }
-
-
+                }
         return tree
 
     def get_tree(self, path='./', depth = 10, max_age=None, update=False,
@@ -1458,7 +1470,6 @@ class Mod:
         tree = self.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
             class_paths = self.classes(path, depth=depth)
-            
             def filter_path(p):
                 if p.startswith('src.' + self.name):
                     return p.replace('src.' + self.name + '.', '')
@@ -1480,7 +1491,6 @@ class Mod:
     
     ltree = local_tree
     mtree = mods_tree
-
     
     def check_info(self,info, features=['key', 'hash', 'time', 'founder', 'name', 'schema']):
         try:
@@ -1510,7 +1520,6 @@ class Mod:
             if os.path.exists(dirpath):
                 self.rm(dirpath)
             cmd = f'cp -r {original_dirpath} {dirpath}'
-            
             self.cmd(cmd)
             return {'name': name, 'path': dirpath, 'msg': 'Mod Copied'}
         elif bool(name.endswith('.git') or name.startswith('http')):
@@ -1536,11 +1545,8 @@ class Mod:
     
     create = new = add = addmod
 
-
-
     def urls(self, *args, **kwargs):
         return self.fn('pm/urls')(*args, **kwargs)
-
 
     def servers(self, *args, **kwargs):
         return self.fn('pm/servers')(*args, **kwargs)
@@ -1550,7 +1556,6 @@ class Mod:
         path = "executor/" + mode + '/' + str(max_workers)
         if cache and path in self.executor_cache:
             return self.executor_cache[path]
-
         if mode == 'process':
             from concurrent.futures import ProcessPoolExecutor
             executor =  ProcessPoolExecutor(max_workers=max_workers)

@@ -41,7 +41,7 @@ class Chain:
 
     
     urls = {
-        "main":  {"lite": ["api.communeai.net"],  "archive": ["commune-archive-node-0.communeai.net", "commune-archive-node-1.communeai.net"]},
+        "main":  {"lite": ["commune-api-node-0.communeai.net"],  "archive": ["commune-archive-node-0.communeai.net", "commune-archive-node-1.communeai.net"]},
         "test": {"lite": ["testnet.api.communeai.net"]}
     }
     networks = list(urls.keys())
@@ -106,14 +106,8 @@ class Chain:
         self.url = url
         return {'url': self.url}
 
-    def resolve_network(self, network: str = None, test: bool = False):
-        if network == None:
-            network = self.network
-        if network in ['chain']:
-            network = 'main'
-        if test: 
-            network = 'test'
-        return network
+    def set_connections(self, num_connections: int = 1):
+        return self.set_network(num_connections=num_connections)
 
     def set_network(self, 
                         network=None,
@@ -127,7 +121,13 @@ class Chain:
                         timeout: int  = None ):
         t0 = c.time()
 
-        self.network = self.net = self.resolve_network(network=network, test=test)
+        if network == None:
+            network = self.network
+        if network in ['chain']:
+            network = 'main'
+        if test: 
+            network = 'test'
+        self.network = network
         if timeout != None:
             ws_options["timeout"] = timeout
         self.ws_options = ws_options
@@ -1111,22 +1111,50 @@ class Chain:
                 
         return subnet
 
+
+
     def get_balances(
         self, 
         addresses=None,
         extract_value: bool = False, 
         block_hash: str = None,
-        threads = 8,
-        timeout= 120
+        threads = 24,
+        timeout= 120,
+        connections = 2,
 
     ) -> dict[str, dict[str, int ]]:
         """
         Retrieves a mapping of account balances within the network.
         """
 
+            
         addresses = addresses or list(c.key2address().values())
+
+        if threads > 1:
+            self.set_connections(connections)
+            futures = []
+            progress = c.tqdm(total=len(addresses), desc='Getting Balances', unit='addr')
+            chunk_size = max(1, len(addresses) // threads)
+            
+            future2addresses = {}
+            for i in range(0, len(addresses), chunk_size):
+                print(f'Getting balances for addresses {i} to {i + chunk_size}...')
+                chunk = addresses[i:i + chunk_size]
+                params = dict(addresses=chunk, extract_value=extract_value, block_hash=block_hash, threads=1)
+                future2addresses[c.submit(self.get_balances, params)] = chunk
+
+            results = {}
+            for f in c.as_completed(future2addresses, timeout=timeout):
+                addresses_chunk = future2addresses[f]
+                balances_chunk = f.result()
+                assert len(balances_chunk) == len(addresses_chunk), f"Expected {len(addresses_chunk)} balances, got {len(balances_chunk)}"
+                progress.update(len(addresses_chunk))
+                results.update(dict(zip(addresses_chunk, balances_chunk)))
+            return results
+
+        addresses = [a for a in addresses if not a.startswith('0x')]
         with self.get_conn(init=True) as substrate:
-            storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in addresses if not ka.startswith('0x')]
+            storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in addresses]
             balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
         key2balance = {k:v[1].value['data']['free'] for k,v in zip(addresses, balances) }
         return key2balance
@@ -1140,7 +1168,9 @@ class Chain:
             balances = self.get_balances(addresses=addresses, **kwargs)
             address2key = c.address2key()
             balances = {address2key.get(k, k):v for k,v in balances.items()}
-            c.put(path, balances)    
+            c.put(path, balances)
+
+        print(balances)    
         balances = {k: v for k, v in balances.items() if v > 0}
         balances = dict(sorted(balances.items(), key=lambda x: x[1], reverse=True))
         return self.format_amount(balances, fmt='j')
@@ -2042,7 +2072,7 @@ class Chain:
 
         return self.call(module="SubspaceModule", fn="transfer_multiple", params=params, key=key )
 
-    def wallets(self,  max_age=None, update=False, mode='df'):
+    def wallets(self,  update=False, max_age=None, mode='df'):
         """
         an overview of your wallets
         """

@@ -1,0 +1,10 @@
+{
+  "chill": ["#B3E5FC", "#81D4FA", "#4FC3F7", "#29B6F6", "#03A9F4"],
+  "energetic": ["#FF5252", "#FF8A80", "#FF1744", "#D50000", "#FF4081"],
+  "creative": ["#E1BEE7", "#CE93D8", "#BA68C8", "#AB47BC", "#9C27B0"],
+  "focused": ["#C5CAE9", "#9FA8DA", "#7986CB", "#5C6BC0", "#3F51B5"],
+  "happy": ["#FFF59D", "#FFF176", "#FFEE58", "#FFEB3B", "#FDD835"],
+  "reflective": ["#BBDEFB", "#90CAF9", "#64B5F6", "#42A5F5", "#2196F3"],
+  "motivated": ["#FFCCBC", "#FFAB91", "#FF8A65", "#FF7043", "#FF5722"],
+  "peaceful": ["#C8E6C9", "#A5D6A7", "#81C784", "#66BB6A", "#4CAF50"]
+}

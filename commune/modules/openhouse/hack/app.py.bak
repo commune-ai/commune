@@ -1,0 +1,166 @@
+import streamlit as st
+import commune as c
+import os
+import json
+import getpass
+import pandas as pd
+from hack import Hackathon
+
+# Initialize the Hackathon class
+@st.cache_resource
+def get_hackathon():
+    return Hackathon()
+
+hackathon = get_hackathon()
+
+# # Set page configuration
+# st.set_page_config(
+#     page_title="Hackathon Platform",
+#     page_icon="🚀",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# Sidebar navigation
+st.sidebar.title("Hackathon Platform")
+page = st.sidebar.radio("Navigate", ["Home", "Submit Module", "View Modules", "Leaderboard"])
+
+# Sidebar navigation
+st.sidebar.title("Hackathon Platform")
+page = st.sidebar.radio("Navigate", ["Home", "Submit Module", "View Modules", "Leaderboard", "Verify Ownership"])
+
+
+# Home page
+if page == "Home":
+    st.title("Welcome to the Hackathon Platform! 🚀")
+    st.markdown("""
+    ## About
+    This platform allows you to submit your code modules, get them scored, and compete on the leaderboard.
+    
+    ### Features:
+    - **Submit Module**: Create and submit your code for evaluation
+    - **View Modules**: Browse through submitted modules
+    - **Leaderboard**: See how your submission ranks against others
+    
+    Get started by selecting an option from the sidebar!
+    """)
+    
+    # Display some stats
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Modules", len(hackathon.modules()))
+    with col2:
+        try:
+            leaderboard = hackathon.leaderboard()
+            if not leaderboard.empty:
+                top_score = leaderboard['score'].max()
+                st.metric("Top Score", top_score)
+            else:
+                st.metric("Top Score", "No submissions yet")
+        except Exception as e:
+            st.metric("Top Score", "Error loading")
+            st.error(f"Error: {str(e)}")
+
+# Submit Module page
+elif page == "Submit Module":
+    st.title("Submit Your Module 📝")
+    
+    with st.form("submit_form"):
+        name = st.text_input("Module Name")
+        query = st.text_area("Enter your query/prompt", height=150)
+        password = st.text_input("Password", type="password")
+        confirm_password = st.text_input("Confirm Password", type="password")
+        
+        submitted = st.form_submit_button("Submit Module")
+        
+        if submitted:
+            if not name or not query or not password or not confirm_password:
+                st.error("All fields are required!")
+            elif password != confirm_password:
+                st.error("Passwords do not match!")
+            elif hackathon.score_exists(name):
+                st.error(f"Module '{name}' already exists!")
+            else:
+                try:
+                    with st.spinner("Processing submission..."):
+                        # Create a key from the password
+                        key = hackathon.key_manager.from_password(password)
+                        
+                        # Create module path
+                        module_path = hackathon.mods_path + '/' + name
+                        
+                        # Use the dev module to forward the query and save the result
+                        output = hackathon.dev.forward(query, target=module_path, path=None, force_save=True)
+                        
+                        # Score the module
+                        score_result = hackathon.score(name, key=key)
+                        
+                        st.success(f"Module '{name}' submitted successfully!")
+                        st.json(score_result)
+                except Exception as e:
+                    st.error(f"Error during submission: {str(e)}")
+
+# View Modules page
+elif page == "View Modules":
+    st.title("Browse Modules 📚")
+    
+    modules = hackathon.modules()
+    if not modules:
+        st.info("No modules have been submitted yet.")
+    else:
+        selected_module = st.selectbox("Select a module to view", modules)
+        
+        if selected_module:
+            try:
+                code = hackathon.get_module_code(selected_module)
+                st.subheader(f"Code for {selected_module}")
+                st.code(code, language="python")
+                
+                # Show score if available
+                if hackathon.score_exists(selected_module):
+                    score_path = hackathon.get_score_path(selected_module)
+                    score_data = c.get_json(score_path)
+                    
+                    st.subheader("Module Score")
+                    st.metric("Score", score_data.get("score", "N/A"))
+                    
+                    st.subheader("Feedback")
+                    st.write(score_data.get("feedback", "No feedback available"))
+                    
+                    if "suggestions" in score_data and score_data["suggestions"]:
+                        st.subheader("Improvement Suggestions")
+                        for i, suggestion in enumerate(score_data["suggestions"], 1):
+                            st.markdown(f"**{i}. {suggestion.get('improvement', 'N/A')}** (Points: {suggestion.get('delta', 'N/A')})")
+            except Exception as e:
+                st.error(f"Error loading module: {str(e)}")
+
+# Leaderboard page
+elif page == "Leaderboard":
+    st.title("Leaderboard 🏆")
+    
+    try:
+        leaderboard_df = hackathon.leaderboard()
+        
+        if leaderboard_df.empty:
+            st.info("No submissions on the leaderboard yet.")
+        else:
+            # Sort by score in descending order
+            leaderboard_df = leaderboard_df.sort_values('score', ascending=False).reset_index(drop=True)
+            
+            # Add rank column
+            leaderboard_df.insert(0, 'Rank', range(1, len(leaderboard_df) + 1))
+            
+            # Display the leaderboard
+            st.dataframe(leaderboard_df, use_container_width=True)
+            
+            # Visualize top performers
+            if len(leaderboard_df) > 0:
+                st.subheader("Top Performers")
+                chart_data = leaderboard_df.head(10) if len(leaderboard_df) > 10 else leaderboard_df
+                st.bar_chart(chart_data.set_index('module')['score'])
+    except Exception as e:
+        st.error(f"Error loading leaderboard: {str(e)}")
+
+# Footer
+st.markdown("---")
+st.markdown("© 2023 Hackathon Platform | Built with Streamlit and Commune")

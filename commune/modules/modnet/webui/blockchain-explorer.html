@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mod-Net Blockchain Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h3::before {
+            content: "🔗";
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .status-online { background-color: #4CAF50; }
+        .status-offline { background-color: #f44336; }
+        .status-loading { background-color: #ff9800; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .rpc-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .rpc-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .rpc-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        input, textarea, select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .error {
+            border-left-color: #f44336;
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .success {
+            border-left-color: #4CAF50;
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .quick-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .quick-method {
+            background: #f0f2ff;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 13px;
+            transition: background-color 0.2s ease;
+        }
+
+        .quick-method:hover {
+            background: #e0e7ff;
+        }
+
+        .copy-btn {
+            margin-left: 8px;
+            padding: 2px 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+            background: #f3f3f3;
+            transition: background 0.2s;
+        }
+        .copy-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: white;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Mod-Net Blockchain Explorer</h1>
+            <p>Real-time monitoring and interaction with your Substrate blockchain</p>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>Node Status</h3>
+                <div class="metric">
+                    <span class="metric-label">Connection</span>
+                    <span class="metric-value">
+                        <span id="connection-status" class="status-indicator status-loading"></span>
+                        <span id="connection-text">Connecting...</span>
+                    </span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Chain</span>
+                    <span class="metric-value" id="chain-name">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Version</span>
+                    <span class="metric-value" id="node-version">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Peers</span>
+                    <span class="metric-value" id="peer-count">Loading...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Chain Info</h3>
+                <div class="metric">
+                    <span class="metric-label">Best Block</span>
+                    <span class="metric-value" id="best-block">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Finalized Block</span>
+                    <span class="metric-value" id="finalized-block">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Block Hash</span>
+                    <span class="metric-value" id="block-hash" style="font-size: 11px;">Loading...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Health Status</h3>
+                <div class="metric">
+                    <span class="metric-label">Is Syncing</span>
+                    <span class="metric-value" id="is-syncing">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Should Have Peers</span>
+                    <span class="metric-value" id="should-have-peers">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Last Updated</span>
+                    <span class="metric-value" id="last-updated">Never</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="rpc-section">
+            <h3>🔧 RPC Interface</h3>
+
+            <div class="quick-methods">
+                <div class="quick-method" onclick="setQuickMethod('system_health')">System Health</div>
+                <div class="quick-method" onclick="setQuickMethod('system_name')">System Name</div>
+                <div class="quick-method" onclick="setQuickMethod('system_version')">System Version</div>
+                <div class="quick-method" onclick="setQuickMethod('system_chain')">Chain Name</div>
+                <div class="quick-method" onclick="setQuickMethod('chain_getHeader')">Latest Header</div>
+                <div class="quick-method" onclick="setQuickMethod('system_peers')">Network Peers</div>
+            </div>
+
+            <div class="rpc-form">
+                <div class="form-group">
+                    <label for="rpc-method">RPC Method:</label>
+                    <input type="text" id="rpc-method" placeholder="e.g., system_health" value="system_health">
+                </div>
+
+                <div class="form-group">
+                    <label for="rpc-params">Parameters (JSON array):</label>
+                    <textarea id="rpc-params" rows="3" placeholder='[]'>[]</textarea>
+                </div>
+
+                <button onclick="sendRpcRequest()" id="send-btn">Send RPC Request</button>
+
+                <div id="rpc-response" class="response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Mod-Net Infrastructure • Configure external access in deployment</p>
+        </div>
+    </div>
+
+    <script>
+        const RPC_URL = 'http://localhost:9944';
+        // External RPC URL - configure this based on your deployment
+        // For local development: 'http://localhost:9944'
+        // For external access: 'http://YOUR_EXTERNAL_IP:YOUR_EXTERNAL_PORT'
+        const EXTERNAL_RPC_URL = 'http://localhost:9944';
+
+        let currentRpcUrl = RPC_URL;
+        let requestId = 1;
+
+        // Add an error message div and disable UI elements if needed
+        function showRpcError(message) {
+            let errorDiv = document.getElementById('rpc-error');
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.id = 'rpc-error';
+                errorDiv.style.color = 'red';
+                errorDiv.style.margin = '10px 0';
+                document.body.prepend(errorDiv);
+            }
+            errorDiv.textContent = message;
+            // Disable relevant UI elements (example: disable all buttons)
+            document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        }
+
+        function hideRpcError() {
+            const errorDiv = document.getElementById('rpc-error');
+            if (errorDiv) errorDiv.textContent = '';
+            // Re-enable UI elements
+            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+        }
+
+        // Try to determine the best RPC URL to use
+        async function detectRpcUrl() {
+            let rpcAvailable = false;
+            try {
+                const response = await fetch(RPC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 1,
+                        jsonrpc: '2.0',
+                        method: 'system_health',
+                        params: []
+                    })
+                });
+                if (response.ok) {
+                    currentRpcUrl = RPC_URL;
+                    hideRpcError();
+                    rpcAvailable = true;
+                } else {
+                    // Try external RPC URL
+                    const extResponse = await fetch(EXTERNAL_RPC_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: 1,
+                            jsonrpc: '2.0',
+                            method: 'system_health',
+                            params: []
+                        })
+                    });
+                    if (extResponse.ok) {
+                        currentRpcUrl = EXTERNAL_RPC_URL;
+                        hideRpcError();
+                        rpcAvailable = true;
+                    }
+                }
+            } catch (err) {
+                // Try external RPC URL if local fails
+                try {
+                    const extResponse = await fetch(EXTERNAL_RPC_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: 1,
+                            jsonrpc: '2.0',
+                            method: 'system_health',
+                            params: []
+                        })
+                    });
+                    if (extResponse.ok) {
+                        currentRpcUrl = EXTERNAL_RPC_URL;
+                        hideRpcError();
+                        rpcAvailable = true;
+                    }
+                } catch (err2) {
+                    // Both endpoints unreachable
+                    showRpcError('Unable to connect to blockchain RPC endpoint. Please check your network or node status.');
+                }
+            }
+            if (!rpcAvailable) {
+                showRpcError('Unable to connect to blockchain RPC endpoint. Please check your network or node status.');
+            }
+        }
+
+        async function sendRpcRequest(method = null, params = null) {
+            const methodInput = document.getElementById('rpc-method');
+            const paramsInput = document.getElementById('rpc-params');
+            const responseDiv = document.getElementById('rpc-response');
+            const sendBtn = document.getElementById('send-btn');
+
+            const rpcMethod = method || methodInput.value.trim();
+            let rpcParams;
+
+            try {
+                rpcParams = params !== null ? params : JSON.parse(paramsInput.value.trim() || '[]');
+            } catch (e) {
+                showResponse('Invalid JSON in parameters', 'error');
+                return;
+            }
+
+            if (!rpcMethod) {
+                showResponse('Please enter an RPC method', 'error');
+                return;
+            }
+
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+
+            try {
+                const response = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: requestId++,
+                        jsonrpc: '2.0',
+                        method: rpcMethod,
+                        params: rpcParams
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showResponse(`Error: ${data.error.message}\nCode: ${data.error.code}`, 'error');
+                } else {
+                    showResponse(JSON.stringify(data.result, null, 2), 'success');
+                }
+
+            } catch (error) {
+                showResponse(`Network Error: ${error.message}`, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send RPC Request';
+            }
+        }
+
+        function showResponse(text, type = 'success') {
+            const responseDiv = document.getElementById('rpc-response');
+            responseDiv.textContent = text;
+            responseDiv.className = `response ${type}`;
+            responseDiv.style.display = 'block';
+        }
+
+        function setQuickMethod(method) {
+            document.getElementById('rpc-method').value = method;
+            document.getElementById('rpc-params').value = '[]';
+        }
+
+        async function updateDashboard() {
+            try {
+                // System Health
+                const healthResponse = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 1,
+                        jsonrpc: '2.0',
+                        method: 'system_health',
+                        params: []
+                    })
+                });
+
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    if (healthData.result) {
+                        document.getElementById('connection-status').className = 'status-indicator status-online';
+                        document.getElementById('connection-text').textContent = 'Connected';
+                        document.getElementById('peer-count').textContent = healthData.result.peers || '0';
+                        document.getElementById('is-syncing').textContent = healthData.result.isSyncing ? 'Yes' : 'No';
+                        document.getElementById('should-have-peers').textContent = healthData.result.shouldHavePeers ? 'Yes' : 'No';
+                    }
+                }
+
+                // System Name
+                const nameResponse = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 2,
+                        jsonrpc: '2.0',
+                        method: 'system_name',
+                        params: []
+                    })
+                });
+
+                if (nameResponse.ok) {
+                    const nameData = await nameResponse.json();
+                    if (nameData.result) {
+                        document.getElementById('chain-name').textContent = nameData.result;
+                    }
+                }
+
+                // System Version
+                const versionResponse = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 3,
+                        jsonrpc: '2.0',
+                        method: 'system_version',
+                        params: []
+                    })
+                });
+
+                if (versionResponse.ok) {
+                    const versionData = await versionResponse.json();
+                    if (versionData.result) {
+                        document.getElementById('node-version').textContent = versionData.result;
+                    }
+                }
+
+                // Chain Header
+                const headerResponse = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 4,
+                        jsonrpc: '2.0',
+                        method: 'chain_getHeader',
+                        params: []
+                    })
+                });
+
+                if (headerResponse.ok) {
+                    const headerData = await headerResponse.json();
+                    if (headerData.result) {
+                        const blockNumber = parseInt(headerData.result.number, 16);
+                        document.getElementById('best-block').textContent = blockNumber.toString();
+
+                        const fullHash = headerData.result.parentHash;
+                        const blockHashElem = document.getElementById('block-hash');
+                        blockHashElem.textContent = fullHash.substring(0, 20) + '...';
+
+                        // Add copy button for block hash
+                        let copyBtn = document.getElementById('copy-block-hash');
+                        if (!copyBtn) {
+                            copyBtn = document.createElement('button');
+                            copyBtn.id = 'copy-block-hash';
+                            copyBtn.textContent = 'Copy';
+                            copyBtn.className = 'copy-btn';
+                            blockHashElem.parentNode.appendChild(copyBtn);
+                        }
+                        copyBtn.onclick = function() {
+                            navigator.clipboard.writeText(fullHash);
+                            copyBtn.textContent = 'Copied!';
+                            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1200);
+                        };
+                    }
+                }
+
+                // Finalized Head
+                const finalizedResponse = await fetch(currentRpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 5,
+                        jsonrpc: '2.0',
+                        method: 'chain_getFinalizedHead',
+                        params: []
+                    })
+                });
+
+                if (finalizedResponse.ok) {
+                    const finalizedData = await finalizedResponse.json();
+                    if (finalizedData.result) {
+                        // Get header for finalized block
+                        const finalizedHeaderResponse = await fetch(currentRpcUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: 6,
+                                jsonrpc: '2.0',
+                                method: 'chain_getHeader',
+                                params: [finalizedData.result]
+                            })
+                        });
+
+                        if (finalizedHeaderResponse.ok) {
+                            const finalizedHeaderData = await finalizedHeaderResponse.json();
+                            if (finalizedHeaderData.result) {
+                                const finalizedBlockNumber = parseInt(finalizedHeaderData.result.number, 16);
+                                document.getElementById('finalized-block').textContent = finalizedBlockNumber.toString();
+                            }
+                        }
+                    }
+                }
+
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+
+            } catch (error) {
+                document.getElementById('connection-status').className = 'status-indicator status-offline';
+                document.getElementById('connection-text').textContent = 'Disconnected';
+                console.error('Dashboard update error:', error);
+            }
+        }
+
+        // Initialize
+        async function init() {
+            await detectRpcUrl();
+            updateDashboard();
+
+            // Update dashboard every 10 seconds
+            setInterval(updateDashboard, 10000);
+        }
+
+        // Start when page loads
+        window.addEventListener('load', init);
+
+        // Allow Enter key to send RPC request only when focused on the RPC input field
+        const rpcInput = document.getElementById('rpc-params');
+        if (rpcInput) {
+            rpcInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                    sendRpcRequest();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

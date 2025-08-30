@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Crypto Wallet</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background: #000;
+            color: #0f0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(transparent 50%, rgba(0, 255, 0, 0.03) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            animation: scanlines 8s linear infinite;
+        }
+        
+        @keyframes scanlines {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(10px); }
+        }
+        
+        .container {
+            background: #111;
+            border: 3px solid #0f0;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 0 30px #0f0, inset 0 0 30px rgba(0, 255, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+            position: relative;
+        }
+        
+        .title {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px #0f0;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #0f0, 0 0 20px #0f0; }
+            to { text-shadow: 0 0 20px #0f0, 0 0 30px #0f0; }
+        }
+        
+        .network-selector {
+            margin-bottom: 30px;
+        }
+        
+        .network-label {
+            display: block;
+            margin-bottom: 15px;
+            font-size: 12px;
+        }
+        
+        .network-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .network-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            background: #000;
+            border: 2px solid #0f0;
+            color: #0f0;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        
+        .network-btn:hover {
+            background: #0f0;
+            color: #000;
+            box-shadow: 0 0 20px #0f0;
+            transform: scale(1.05);
+        }
+        
+        .network-btn.active {
+            background: #0f0;
+            color: #000;
+            box-shadow: 0 0 30px #0f0;
+        }
+        
+        .wallet-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #000;
+            border: 1px solid #0f0;
+            display: none;
+        }
+        
+        .wallet-info.show {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .info-row {
+            margin-bottom: 15px;
+            font-size: 10px;
+            word-break: break-all;
+        }
+        
+        .info-label {
+            color: #0f0;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            color: #0ff;
+            font-size: 9px;
+        }
+        
+        .balance {
+            font-size: 16px;
+            color: #ff0;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            background: #000;
+            border: 2px solid #0ff;
+            color: #0ff;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .action-btn:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 20px #0ff;
+        }
+        
+        .loading {
+            text-align: center;
+            font-size: 10px;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .error {
+            color: #f00;
+            text-align: center;
+            font-size: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    
+    <div class="container">
+        <h1 class="title">RETRO WALLET</h1>
+        
+        <div class="network-selector">
+            <label class="network-label">SELECT NETWORK:</label>
+            <div class="network-buttons">
+                <button class="network-btn" data-network="local">LOCAL NET</button>
+                <button class="network-btn" data-network="testnet">TEST NET</button>
+                <button class="network-btn" data-network="mainnet">MAIN NET</button>
+            </div>
+        </div>
+        
+        <div class="wallet-info" id="walletInfo">
+            <div class="loading" id="loading">CONNECTING...</div>
+            <div id="walletContent" style="display: none;">
+                <div class="info-row">
+                    <div class="info-label">NETWORK:</div>
+                    <div class="info-value" id="networkName">-</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">ADDRESS:</div>
+                    <div class="info-value" id="walletAddress">-</div>
+                </div>
+                <div class="balance" id="balance">BALANCE: 0.00 ETH</div>
+                
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="sendTransaction()">SEND</button>
+                    <button class="action-btn" onclick="refreshBalance()">REFRESH</button>
+                </div>
+            </div>
+            <div class="error" id="error"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Network configurations
+        const networks = {
+            local: {
+                name: 'Local Network',
+                rpcUrl: 'http://localhost:8545',
+                chainId: 1337
+            },
+            testnet: {
+                name: 'Sepolia Testnet',
+                rpcUrl: 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY',
+                chainId: 11155111
+            },
+            mainnet: {
+                name: 'Ethereum Mainnet',
+                rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY',
+                chainId: 1
+            }
+        };
+        
+        let currentNetwork = null;
+        let web3 = null;
+        let account = null;
+        
+        // Network button handlers
+        document.querySelectorAll('.network-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                // Update active button
+                document.querySelectorAll('.network-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Connect to selected network
+                const networkKey = this.dataset.network;
+                await connectToNetwork(networkKey);
+            });
+        });
+        
+        async function connectToNetwork(networkKey) {
+            currentNetwork = networks[networkKey];
+            const walletInfo = document.getElementById('walletInfo');
+            const loading = document.getElementById('loading');
+            const walletContent = document.getElementById('walletContent');
+            const error = document.getElementById('error');
+            
+            // Show wallet info section
+            walletInfo.classList.add('show');
+            loading.style.display = 'block';
+            walletContent.style.display = 'none';
+            error.textContent = '';
+            
+            try {
+                // Check if MetaMask is installed
+                if (typeof window.ethereum !== 'undefined') {
+                    // Request account access
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    account = accounts[0];
+                    
+                    // Switch to the selected network
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x' + currentNetwork.chainId.toString(16) }],
+                        });
+                    } catch (switchError) {
+                        // This error code indicates that the chain has not been added to MetaMask
+                        if (switchError.code === 4902) {
+                            if (networkKey === 'local') {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: '0x' + currentNetwork.chainId.toString(16),
+                                        chainName: currentNetwork.name,
+                                        rpcUrls: [currentNetwork.rpcUrl],
+                                        nativeCurrency: {
+                                            name: 'Ethereum',
+                                            symbol: 'ETH',
+                                            decimals: 18
+                                        }
+                                    }],
+                                });
+                            } else {
+                                throw new Error('Please add this network to MetaMask manually');
+                            }
+                        } else {
+                            throw switchError;
+                        }
+                    }
+                    
+                    // Initialize Web3
+                    web3 = new Web3(window.ethereum);
+                    
+                    // Update UI
+                    document.getElementById('networkName').textContent = currentNetwork.name;
+                    document.getElementById('walletAddress').textContent = account;
+                    
+                    // Get balance
+                    await refreshBalance();
+                    
+                    loading.style.display = 'none';
+                    walletContent.style.display = 'block';
+                    
+                } else {
+                    throw new Error('MetaMask not detected. Please install MetaMask.');
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                error.textContent = 'ERROR: ' + err.message;
+                console.error(err);
+            }
+        }
+        
+        async function refreshBalance() {
+            if (!web3 || !account) return;
+            
+            try {
+                const balance = await web3.eth.getBalance(account);
+                const ethBalance = web3.utils.fromWei(balance, 'ether');
+                document.getElementById('balance').textContent = `BALANCE: ${parseFloat(ethBalance).toFixed(4)} ETH`;
+            } catch (err) {
+                console.error('Error fetching balance:', err);
+            }
+        }
+        
+        async function sendTransaction() {
+            if (!web3 || !account) return;
+            
+            const recipient = prompt('ENTER RECIPIENT ADDRESS:');
+            if (!recipient) return;
+            
+            const amount = prompt('ENTER AMOUNT (ETH):');
+            if (!amount) return;
+            
+            try {
+                const transaction = {
+                    from: account,
+                    to: recipient,
+                    value: web3.utils.toWei(amount, 'ether'),
+                    gas: 21000
+                };
+                
+                const txHash = await web3.eth.sendTransaction(transaction);
+                alert(`TRANSACTION SENT!\nHASH: ${txHash.transactionHash}`);
+                
+                // Refresh balance after transaction
+                setTimeout(refreshBalance, 3000);
+            } catch (err) {
+                alert('TRANSACTION FAILED: ' + err.message);
+            }
+        }
+        
+        // Add Web3 CDN
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js';
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

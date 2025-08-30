@@ -1,0 +1,3 @@
+[submodule "commune-ipfs"]
+	path = commune-ipfs
+	url = https://github.com/bakobiibizo/commune-ipfs

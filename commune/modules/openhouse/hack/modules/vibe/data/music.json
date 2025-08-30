@@ -1,0 +1,58 @@
+{
+  "chill": [
+    {"artist": "Tycho", "song": "Awake", "link": "https://open.spotify.com/track/4jTiyLlOJVJj3mCr7yfPQD"},
+    {"artist": "Bonobo", "song": "Kerala", "link": "https://open.spotify.com/track/1hdxVWPEmDrBguXpwURm85"},
+    {"artist": "Nujabes", "song": "Feather", "link": "https://open.spotify.com/track/2ej1A2Ze6P2EOW7KfIosZR"},
+    {"artist": "Khruangbin", "song": "Friday Morning", "link": "https://open.spotify.com/track/5RVjB6pBSxRlHBQAHwFuZj"},
+    {"artist": "Boards of Canada", "song": "Dayvan Cowboy", "link": "https://open.spotify.com/track/4YRZ5J5FrfNAFgTbMG8sXK"}
+  ],
+  "energetic": [
+    {"artist": "The Prodigy", "song": "Breathe", "link": "https://open.spotify.com/track/5zVOkZP92qfw0WnXXKHwDl"},
+    {"artist": "Chemical Brothers", "song": "Galvanize", "link": "https://open.spotify.com/track/0Qw8jJnYm6tIX7Yl5pEbUz"},
+    {"artist": "Daft Punk", "song": "Harder, Better, Faster, Stronger", "link": "https://open.spotify.com/track/5W3cjX2J3tjhG8zb6u0qHn"},
+    {"artist": "Justice", "song": "D.A.N.C.E.", "link": "https://open.spotify.com/track/33yAEqzKXexYM3WlOYtTfQ"},
+    {"artist": "Fatboy Slim", "song": "Right Here, Right Now", "link": "https://open.spotify.com/track/1pJzl0YsxEXGrTwutBNl2I"}
+  ],
+  "creative": [
+    {"artist": "Flying Lotus", "song": "Never Catch Me", "link": "https://open.spotify.com/track/2Nt4Uw91pQLXSJ28SttDdF"},
+    {"artist": "Radiohead", "song": "Everything In Its Right Place", "link": "https://open.spotify.com/track/2yPr9G3glBCLzFqaVJeRlR"},
+    {"artist": "Björk", "song": "Hyperballad", "link": "https://open.spotify.com/track/2KgW0pUQEJfK4yyKWdNCXX"},
+    {"artist": "Four Tet", "song": "Angel Echoes", "link": "https://open.spotify.com/track/1Eolhana7nKHYpcOQv9n8q"},
+    {"artist": "Aphex Twin", "song": "Avril 14th", "link": "https://open.spotify.com/track/2MZSXhq4XDJWu6coGoXX1V"}
+  ],
+  "focused": [
+    {"artist": "Brian Eno", "song": "1/1", "link": "https://open.spotify.com/track/7M2tXmeS15NAP8E8hJ97wd"},
+    {"artist": "Max Richter", "song": "On The Nature Of Daylight", "link": "https://open.spotify.com/track/1BSMpVGWs3v5BZKnAQziAc"},
+    {"artist": "Nils Frahm", "song": "Says", "link": "https://open.spotify.com/track/1wHZx0LgzFHyeIZkUuRzk9"},
+    {"artist": "Jon Hopkins", "song": "Immunity", "link": "https://open.spotify.com/track/5RzjqfPS0Bu3xsRkR1dSmt"},
+    {"artist": "Ólafur Arnalds", "song": "Ljósið", "link": "https://open.spotify.com/track/4NWB5vbRbUdGQ0VRx5pIjf"}
+  ],
+  "happy": [
+    {"artist": "Pharrell Williams", "song": "Happy", "link": "https://open.spotify.com/track/60nZcImufyMA1MKQY3dcCO"},
+    {"artist": "Earth, Wind & Fire", "song": "September", "link": "https://open.spotify.com/track/2grjqo0Frpf2okIBiifQKs"},
+    {"artist": "Daft Punk", "song": "Get Lucky", "link": "https://open.spotify.com/track/2Foc5Q5nqNiosCNqttzHof"},
+    {"artist": "Stevie Wonder", "song": "Sir Duke", "link": "https://open.spotify.com/track/2udw7RDkldLFIPG9WYdVtT"},
+    {"artist": "ABBA", "song": "Dancing Queen", "link": "https://open.spotify.com/track/0GjEhVFGZW8afUYGChu3Rr"}
+  ],
+  "reflective": [
+    {"artist": "Bon Iver", "song": "Holocene", "link": "https://open.spotify.com/track/4fbvXwMi4fL4EgSvLf1HJr"},
+    {"artist": "Sigur Rós", "song": "Hoppípolla", "link": "https://open.spotify.com/track/6eTGxxQxiTFE6LfZHC33Wm"},
+    {"artist": "Olafur Arnalds", "song": "Near Light", "link": "https://open.spotify.com/track/0Qg5iMtYtvayMJQWUkGsCu"},
+    {"artist": "Philip Glass", "song": "Opening", "link": "https://open.spotify.com/track/6Z2bN2XVKUyMdMSU4lmnQi"},
+    {"artist": "Explosions in the Sky", "song": "Your Hand in Mine", "link": "https://open.spotify.com/track/1hTI4G9UJY7hGdaJQIZMR7"}
+  ],
+  "motivated": [
+    {"artist": "Kendrick Lamar", "song": "DNA.", "link": "https://open.spotify.com/track/6HZILIRieu8S0iqY8kIKhj"},
+    {"artist": "Kanye West", "song": "Power", "link": "https://open.spotify.com/track/2gZUPNdnz5Y45eiGxpHGSc"},
+    {"artist": "Run The Jewels", "song": "Legend Has It", "link": "https://open.spotify.com/track/6jHG1YQkqgojdEzm8XgCnx"},
+    {"artist": "Queen", "song": "Don't Stop Me Now", "link": "https://open.spotify.com/track/5T8EDUDqKcs6OSOwEsfqG7"},
+    {"artist": "Eminem", "song": "Till I Collapse", "link": "https://open.spotify.com/track/4xkOaSrkexMciUUogZKVTS"}
+  ],
+  "peaceful": [
+    {"artist": "Hammock", "song": "Breathturn", "link": "https://open.spotify.com/track/7xtmJBut9ziVHW00enQxSD"},
+    {"artist": "Stars of the Lid", "song": "Requiem for Dying Mothers", "link": "https://open.spotify.com/track/1mhJaYAFgAp7GEQh8RM4JO"},
+    {"artist": "Eluvium", "song": "Radio Ballet", "link": "https://open.spotify.com/track/65NwOZqoXny4JxqAPlfxRD"},
+    {"artist": "Harold Budd", "song": "The Pearl", "link": "https://open.spotify.com/track/3Pvih8CV1vFAoqSXLQBrAJ"},
+    {"artist": "Grouper", "song": "Clearing", "link": "https://open.spotify.com/track/0Mf1jBmEiUjUYXxjwxkWVd"}
+  ]
+}

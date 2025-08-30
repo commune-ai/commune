@@ -956,3 +956,17 @@ class PM:
 
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())
+
+
+    def start_docker_daemon(self):
+        """
+        Start the Docker daemon if it is not already running.
+        
+        Returns:
+            str: Status message indicating whether the daemon was started or was already running.
+        """
+        try:
+            c.cmd('systemctl start docker')
+            return "Docker daemon started successfully."
+        except Exception as e:
+            return f"Error starting Docker daemon: {str(e)}"

@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Polaris specific
+system_info.json
+user_info.json
+*.log
+*.pid
+*.egg-info/

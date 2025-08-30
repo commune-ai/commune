@@ -1,0 +1,102 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**.py'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/python.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - '**.py'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/python.yml'
+
+jobs:
+  lint:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          cd commune-ipfs
+          uv venv
+          # Install in development mode with test dependencies
+          uv pip install -e ".[dev]"
+          # Verify installation
+          uv run python -c "import app; print('Package installed successfully')"
+
+      - name: Run Black
+        run: |
+          cd commune-ipfs
+          uv run black . --check
+
+      - name: Run isort
+        run: |
+          cd commune-ipfs
+          uv run isort . --check-only --profile black
+
+      - name: Run Ruff
+        run: |
+          cd commune-ipfs
+          uv run ruff check .
+
+      - name: Run MyPy
+        run: |
+          cd commune-ipfs
+          uv run mypy app/ --ignore-missing-imports
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          cd commune-ipfs
+          uv venv
+          # Install in development mode with test dependencies
+          uv pip install -e ".[dev]"
+          # Verify installation
+          uv run python -c "import app; print('Package installed successfully')"
+
+      - name: Run tests
+        run: |
+          cd commune-ipfs
+          # Ensure package is properly installed before running tests
+          uv run python -c "from app.api.modules import router; print('Import test passed')"
+          # Run tests with increased verbosity and coverage
+          PYTHONPATH=$PWD uv run python -m pytest tests/ -v --cov=app --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Bakobiibizo/commune-ipfs

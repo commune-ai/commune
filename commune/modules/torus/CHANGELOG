@@ -1,0 +1,25 @@
+# Changelog
+
+## 0.2.4.1
+- Issues a warn when the torus storage is not created
+
+## 0.2.4
+- Overhaul in display of balances
+- Fixed some references to the previous codebase
+- New key storage format
+- Added `torus key migrate` to migrate keys to torus storage format
+- Added new proposals type: `torus proposal propose-emission`
+- Validates agent metadata on registration
+- Only asks for key passwords where keypair is needed
+
+## 0.2.3.1
+- Disabling `torus misc apr`
+
+## 0.2.3
+- Fixed default testnet node url
+
+## 0.2.2
+- Changed unit name
+
+## 0.2.1
+- Ported to Torus network

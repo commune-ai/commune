@@ -1,0 +1,17 @@
+
+ethereum:
+  main:
+    chainid: 1
+    url: https://mainnet.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+    explorer: https://api.etherscan.io/api
+arbitrum:
+  main:
+    chainid: 42161
+    url: https://arb1.arbitrum.io/rpc
+    explorer: https://api.arbiscan.io/api
+    multicall2: "0x5B5CFE992AdAC0C9D48E05854B2d91C73a003858"
+local:
+  chainid: 1337
+  url: http://0.0.0.0:8545
+  explorer: null
+  multicall2: null

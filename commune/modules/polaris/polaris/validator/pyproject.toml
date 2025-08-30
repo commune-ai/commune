@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "validator_node"
+version = "0.1.0"
+description = "Validator node implementation"
+authors = ["Your Name <your.email@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+typer = "^0.9.0"
+paramiko = "^3.4.0"
+requests = "^2.31.0"
+loguru = "^0.7.0"
+python-dotenv = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
