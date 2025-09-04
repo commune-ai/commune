@@ -18,7 +18,7 @@ class Git:
         # has the .git folder
         return c.cmd(f'ls -a {path}').count('.git') > 0
 
-    def push(self, path=None, msg:str='update', safety=True):
+    def push(self, path=None, msg:str='update', safety=False):
         path = self.get_path(path)
         cmds = ['git add .', f'git commit -m "{msg}"', 'git push']
         if safety:
@@ -90,12 +90,13 @@ class Git:
                 continue
             commit, comment = co.split(' ', 1)
             commit2comment[commit] = comment
-        print(past_commits)
+        diff = self.diff(path)
         return {
             'url': git_url,
             'branch': git_branch,
             'commit': git_commit,
             'past_commits': commit2comment,
+            'diff': diff,
         }
         
     def commits(self, path: str = None, n: int = 10,features=['date', 'additions', 'deletions']) -> pd.DataFrame:
@@ -276,21 +277,7 @@ class Git:
         
         # Run git diff command
         response = c.cmd('git diff', cwd=path, verbose=False)
-
-        # return the diff
-
-        # process this to get the path2diff where the diff is the addiitons and deletions
-        diff = {}
-        for chunk in response.split('diff --git'):
-            # get the path
-            lines = chunk.split('\n')
-            if len(lines) < 2:
-                continue
-            if len(lines[0].split(' ')) < 3:
-                continue
-            diff[lines[0].split(' ')[2][2:]] = '\n'.join(lines[1:])
-        diff = {k: v for k,v in diff.items()}
-        return diff
+        return response
     def dff(self, path='./'):
         diff = self.diff(path)
         df  = []

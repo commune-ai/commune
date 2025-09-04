@@ -1689,8 +1689,9 @@ class Mod:
     def links(self, module:str = 'datura', expected_features = ['api', 'app', "code"]):
         return self.config['links']
 
+
     def push(self, path = None, comment=None):
-        path = path or (self.mods_path + '/' + module.replace('.', '/'))
+        path = self.dp(path)
         assert os.path.exists(path), f'Path {path} does not exist'
         if comment == None:
             comment = input('Enter the comment for the commit: ')
@@ -1698,22 +1699,12 @@ class Mod:
         self.cmd(cmd, cwd=self.mods_path)
         
     def git_info(self, path:str = None, name:str = None, n=10):
-        return self.fn('git/git_info', {'path': path, 'name': name, 'n': n})
+        return self.fn('git/get_info', {'path': path, 'name': name, 'n': n})
     
     def isrepo(self, module:str = None):
         path = self.dirpath(module)
         return os.path.exists(path + '/.git')
 
-    def push(self, module:str = 'model.openai', name:str = None):
-        """
-        Push the module to the git repository
-        """
-        name = name or module
-        if not os.path.exists(module):
-            self.cmd(f'git clone {module} {name}')
-        else:
-            self.cmd(f'git pull {module} {name}')
-        return {'success': True, 'msg': 'pushed module'}
 
     def cpmod(self, from_module:str = 'dev', to_module:str = 'dev2'):
         """

@@ -5,12 +5,6 @@ from typing import List, Dict, Union, Optional, Any
 import commune as c
 import subprocess
 import json
-
-import pandas as pd
-import subprocess
-import json
-import os
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 class PM:
@@ -212,10 +206,11 @@ class PM:
         if mod:
             path = c.dirpath(mod)
         path = os.path.abspath(path or self.path)
-        print(f'Building Docker image from {path} with tag {tag}')
         if os.path.isdir(path):
             assert os.path.exists(os.path.join(path, 'Dockerfile'))
         tag = tag or path.split('/')[-1]
+
+        print(f'Building Docker image from {path} with tag {tag}')
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'

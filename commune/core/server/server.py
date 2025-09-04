@@ -357,7 +357,7 @@ class Server:
               key = None, # the key for the server
               cwd = None, # the cwd to run the server in
               remote = False, # whether to run the server remotely
-              public = False, # whether to make the server public
+              host = '0.0.0.0',
               server_mode = 'http',
               **extra_params 
               ):
@@ -387,9 +387,7 @@ class Server:
         )
         # add the endpoints
         info = c.info(mod, key=self.key)
-        ip = c.ip() if public else '0.0.0.0' 
-    
-        self.url = f"{server_mode}://{ip}:{port}"
+        self.url = f"{server_mode}://{host}:{port}"
         info['url'] = self.url
         self.mod.info = info
         self.set_fns(fns) 
