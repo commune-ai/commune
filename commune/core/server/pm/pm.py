@@ -40,6 +40,7 @@ class PM:
                 daemon=True, d = None, # daemon
                 remote=True,
                 name = None,
+                cwd = None,
                 include_storage=True,
                 **params):
         image = image or self.image
@@ -69,7 +70,8 @@ class PM:
             mod_path = c.dirpath(module)
             docker_mods_path = mod_path.replace(c.home_path, '/root')
             volumes[mod_path] = docker_mods_path
-
+ 
+        cwd = cwd or c.dp(module)
         params = {
             'name': name, 
             'image': image,
@@ -77,9 +79,17 @@ class PM:
             'cmd': cmd,
             'working_dir': working_dir, 
             'daemon': daemon,
-            'volumes': volumes           
+            'volumes': volumes,
+            'cwd': cwd       
             }
-        return self.run(**params)
+        return self.run(name=name, 
+                        image=image, 
+                        port=port, 
+                        cmd=cmd, 
+                        working_dir=working_dir, 
+                        daemon=daemon, 
+                        volumes=volumes, 
+                        cwd=cwd)
 
     def process2name(self, container):
         return container.replace('__', '::')
@@ -216,6 +226,7 @@ class PM:
             name : str = "commune",
             image: str = 'commune:latest',
             fn = 'fn',
+            cwd: Optional = None, 
             cmd: str = None,
             volumes: Dict = None,
             gpus: Union[List, str, bool] = False,
@@ -227,10 +238,10 @@ class PM:
             ports: Union[List, Dict[int, int]] = None,
             daemon: bool = True,
             remote: bool = False,
-            cwd: Optional = None, entrypoint: Optional[str] = None,
+            entrypoint: Optional[str] = None,
             env: Optional[Dict] = None,
             working_dir = '/app',
-            compose_file: str = '~/.commune/pm/docker-compose.yml',
+            compose_path: str = None,
             restart: str = 'unless-stopped'
             ) -> Dict:
         """
@@ -238,7 +249,6 @@ class PM:
         """
         import yaml
 
-        compose_file = os.path.expanduser(compose_file)
         
         name = name or image.split('::')[0].replace('/', '_')
         
@@ -259,7 +269,7 @@ class PM:
         
         # Handle GPU configuration
         if gpus:
-
+            
             service_config['deploy'] = {
                 'resources': {
                     'reservations': {
@@ -267,7 +277,7 @@ class PM:
                     }
                 }
             }
-            
+
             if isinstance(gpus, list):
                 for gpu in gpus:
                     service_config['deploy']['resources']['reservations']['devices'].append({
@@ -288,7 +298,7 @@ class PM:
                         'device_ids': [gpus],
                         'capabilities': ['gpu']
                     })
-            elif gpus is True:
+            elif gpus == True:
                 service_config['deploy']['resources']['reservations']['devices'].append({
                     'driver': 'nvidia',
                     'count': 'all',
@@ -351,31 +361,29 @@ class PM:
             }
     
         # Write the docker-compose file
-
-        c.put_yaml(compose_file, compose_config)
-        
-        print(f'Generated docker-compose file: {compose_file}')
-        c.print(compose_config)
-    
+        cwd = cwd or os.getcwd()
+        if compose_path is None:
+            compose_path = cwd + '/docker-compose.yml' 
+        compose_path = os.path.expanduser(compose_path)
+        if not os.path.exists(compose_path):
+            c.put_yaml(compose_path, compose_config)
         
         # Run docker-compose
         compose_cmd = ['sudo'] if sudo else []
-        compose_cmd.extend(['docker-compose', '-f', compose_file])
-        
+        compose_cmd.extend(['docker-compose', '-f', compose_path, 'up'])
         # Run the container
-        up_cmd = compose_cmd + ['up']
-        if remote :
-            daemon = remote
-        if daemon:
-            up_cmd.append('-d')
-        
-        command_str = ' '.join(up_cmd)
-
-        if cwd:
-            command_str = f'cd {cwd} && ' + command_str
+        if bool(remote or daemon):
+            compose_cmd.append('-d')
+        command_str = ' '.join(compose_cmd)
+        command_str = f'cd {cwd} && ' + command_str
         print(f'Running command: {command_str}')
-        os.system(command_str)
-        return compose_config['services'][name]
+        try:
+            os.system(command_str)
+        except Exception as e:
+            print(f'Error running docker-compose: {e}')
+        # remove the compose file if not daemon
+        os.remove(compose_path)
+        return  {'compose_file': compose_config['services'][name], 'cwd': cwd, 'name': name, 'status': 'running', 'command': command_str}
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'
@@ -994,5 +1002,24 @@ class PM:
         """
 
         return not("Is the docker daemon running?" in c.cmd('docker info', verbose=False))
+
+
+    def compose_files(self, mod = 'mod', depth=3) -> List[str]:
+        """
+        List all docker-compose files in the specified path.
+        
+        Args:
+            path (str): Path to search for docker-compose files. Defaults to current directory.
+            
+        Returns:
+            List[str]: List of docker-compose file paths.
+        """
+        compose_files = []
+        path = c.dp(mod)
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                if file.lower() in ['docker-compose.yml', 'docker-compose.yaml']:
+                    compose_files.append(os.path.join(root, file))
+        return compose_files
         
 

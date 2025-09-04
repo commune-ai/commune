@@ -1159,25 +1159,15 @@ class Chain:
         key2balance = {k:v[1].value['data']['free'] for k,v in zip(addresses, balances) }
         return key2balance
     
-    def my_balance(self,  max_age=None, update=False, **kwargs):
-        path = self.get_path(f'{self.network}/my_balance')
-        balances = c.get(path, None, update=update, max_age=max_age)
-        if balances == None:
-            key2address = c.key2address()
-            addresses = list(key2address.values())
-            balances = self.get_balances(addresses=addresses, **kwargs)
-            address2key = c.address2key()
-            balances = {address2key.get(k, k):v for k,v in balances.items()}
-            c.put(path, balances)
-
-        print(balances)    
-        balances = {k: v for k, v in balances.items() if v > 0}
-        balances = dict(sorted(balances.items(), key=lambda x: x[1], reverse=True))
+    def my_balances(self,  update=False, **kwargs):
+        key2address = c.key2address()
+        balances = self.balances(update=update, **kwargs)
+        balances = {k: balances.get(v, 0) for k,v in key2address.items()}
         return self.format_amount(balances, fmt='j')
     
     def balances(self, *args, **kwargs):  
-        return self.my_balance(*args, **kwargs)
-
+        balances =  self.query_map("Account", params=[], module="System", *args, **kwargs)
+        return {k: balances[k]['data']['free'] for k in balances}
     def proposal(self, proposal_id: int = 0):
         """
         Queries the network for a specific proposal.
@@ -2072,12 +2062,12 @@ class Chain:
 
         return self.call(module="SubspaceModule", fn="transfer_multiple", params=params, key=key )
 
-    def wallets(self,  update=False, max_age=None, mode='df'):
+    def wallets(self,  update=False, max_age=None, mode='df', min_value=0):
         """
         an overview of your wallets
         """
         my_stake = self.my_stake(update=update, max_age=max_age)
-        my_balance = self.my_balance(update=update, max_age=max_age)
+        my_balances = self.my_balances(update=update, max_age=max_age)
         key2address = c.key2address()
         wallets = []
         wallet_names = set(key2address.keys())
@@ -2085,9 +2075,11 @@ class Chain:
             if not k in key2address:
                 continue
             address = key2address[k]
-            balance = my_balance.get(k, 0)
+            balance = my_balances.get(k, 0)
             stake = my_stake.get(k, 0)
             total = balance + stake
+            if total < min_value:
+                continue
             wallets.append({'name': k , 'address': address, 'balance': balance, 'stake': stake, 'total': total})
 
         # add total balance to each wallet
@@ -2105,10 +2097,10 @@ class Chain:
         return wallets
      
 
-    def my_tokens(self, min_value=0):
-        my_stake = self.my_stake()
-        my_balance = self.my_balance()
-        my_tokens =  {k:my_stake.get(k,0) + my_balance.get(k,0) for k in set(my_stake)}
+    def my_tokens(self, min_value=0, update=False):
+        my_stake = self.my_stake(update=update)
+        my_balances = self.my_balances(update=update)
+        my_tokens =  {k:my_stake.get(k,0) + my_balances.get(k,0) for k in set(my_stake)}
         return dict(sorted({k:v for k,v in my_tokens.items() if v > min_value}.items(), key=lambda x: x[1], reverse=True))
    
     def my_total(self):
@@ -3342,8 +3334,6 @@ class Chain:
         self, key, amount, dest, multisig=None, safety=True
     ) -> ExtrinsicReceipt:
         return self.transfer(key=key, amount=amount, dest=dest)
-
-
 
     def send_my_modules( self,  amount=1, subnet=0, key='module'):
         destinations = self.my_keys(subnet)

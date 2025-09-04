@@ -87,6 +87,7 @@ class Server:
             fn = request['fn']
             params = request['params']
 
+            server_auth = self.auth.generate(data={"fn": fn, "params": params, "result": result}, key=self.key)
             tx = self.tracker.forward(
                 mod=self.mod.info['name'],
                 fn=fn, # 
@@ -94,7 +95,6 @@ class Server:
                 result=result,
                 schema=self.mod.info['schema'].get(fn, {}),
                 client=request['client'], # client auth
-                server=self.auth.generate(data={"fn": fn, "params": params, "result": result}, key=self.key),
                 )
             return result
         raise Exception('Should not reach here')
@@ -135,8 +135,6 @@ class Server:
         # if no fns are provided, get them from the mod attributes
         if len(fns) == 0:
             for fa in fn_attributes:
-                fn_obj = getattr(self.mod, fa)
-                has_fn_attr = hasattr(self.mod, fa) and isinstance(getattr(self.mod, fa), (list, dict))
                 if hasattr(self.mod, fa) and isinstance(getattr(self.mod, fa), list):
                     fns = getattr(self.mod, fa) 
                     break

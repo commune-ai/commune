@@ -13,12 +13,15 @@ class Client:
                  timeout = 10,
                  auth = 'server.auth',
                  storage_path = '~/.commune/client',
+                 fn = 'info',
                  **kwargs):
         self.url = url
         self.auth = c.mod(auth)()
         self.key  = c.get_key(key)
         self.store = c.mod('store')(storage_path)
         self.timeout = timeout
+        self.fn = fn
+        self.namespace = c.namespace()
 
         # ensure info from the server is fetched
 
@@ -29,45 +32,37 @@ class Client:
                 key : str = None,  # the key to use for the request
                 mode: str  = 'http', # the mode of the request
                 cost=0,
+                url = None,
                 update_info: bool = False, # whether to update the info from the server
-                stream: bool = True, # if the response is a stream
                 **extra_kwargs 
     ):
 
-        # step 1: get the url and fn
-        if '/' in str(fn):
-            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-        else: 
-            if self.url == None:
-                url = fn
-                fn = 'info'
-            else: 
-                url = self.url
+
         # step 2 : get the key
+        url = self.get_url( url=url, fn=fn, mode=mode)
         key = self.get_key(key)
-        c.print(f'Client({url}/{fn} key={key.name})', color='yellow')
+        fn = url.split('/')[-2]
+        
+        c.print(f'Client({url} key={key.name})', color='yellow')
         # step 3: get the params
         params = params or {}
         params.update(extra_kwargs)   
-        url = self.get_url(url, mode=mode)
         # step 4: get the headers/auth if it is not provided
         headers = self.auth.forward({'fn': fn, 'params': params}, key=key, cost=cost)
 
         result = self.post(
             url=url, 
-            fn=fn,
             params=params, 
             headers=headers, 
             timeout=timeout, 
-            stream=stream
         )
         return result
 
-    def post(self, url, fn,  params=None, headers=None, timeout=None, stream=False):
+    def post(self, url,  params=None, headers=None, timeout=None, stream=True):
         # step 5: make the request
         timeout = timeout or self.timeout
         with requests.Session() as conn:
-            response = conn.post( f"{url}/{fn}/", json=params,  headers=headers, timeout=timeout, stream=stream)
+            response = conn.post( url, json=params,  headers=headers, timeout=timeout, stream=stream)
 
         # step 6: handle the response
         if response.status_code != 200:
@@ -93,24 +88,32 @@ class Client:
             key = c.get_key(key)
         return key
 
-    def get_url(self, url, mode='http'):
+    def get_url(self, url=None, fn='info', mode='http'):
         """
         gets the url and makes sure its legit
         """
+
+        if '/' in str(fn):
+            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
+            if len(fn) == 0:
+                fn = self.fn
+        elif self.url is None:
+            url = fn
+            fn = self.fn
+        url = url or self.url
+        # step 1: get the url and fn
         if c.is_url(url):
             url = url
         elif c.is_int(url):
             url = f'0.0.0.0:{url}'
-        if not hasattr(self, 'namespace'):
-            self.namespace = c.namespace()
         url = self.namespace.get(str(url), url)
         if not url.startswith(mode):
             url = f'{mode}://{url}'
-        return url
+        return url + '/' + fn + '/'
 
     call = forward
 
-    def process_stream_line(line , stream_prefix = 'data: '):
+    def process_stream_line(self, line , stream_prefix = 'data: '):
         event_data = line.decode('utf-8')
         if event_data.startswith(stream_prefix):
             event_data = event_data[len(stream_prefix):] 
