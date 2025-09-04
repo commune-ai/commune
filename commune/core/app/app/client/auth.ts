@@ -160,8 +160,7 @@ export class Auth {
     if (this.hashType == 'sha256') {
       let dataToHash = JSON.stringify(data);
       let hash =  createHash('sha256').update(dataToHash).digest('hex');
-      console.log(`Hashing data: ${dataToHash} to hash: ${hash}`);
-      return hash;
+       return hash;
     } else {
      throw new Error(`Invalid hash type: ${this.hashType}`);
     }

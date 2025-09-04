@@ -970,7 +970,7 @@ class Network:
 
     def module_exists(self, key, subnet=0):
         key_address = self.get_key(key).key_address
-        return any([key_address == m['key'] for m in self.modules(subnet=subnet)])
+        return any([key_address == m['key'] for m in self.mods(subnet=subnet)])
 
 
     def voting_power_delegators(self) -> list[Ss58Address]:

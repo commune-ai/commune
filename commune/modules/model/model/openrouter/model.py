@@ -170,7 +170,6 @@ class OpenRouter:
         self.store.put(self.api_key_path, keys)
         return keys
 
-
     def model2info(self, search: str = None, path='models', max_age=100, update=False):
         models = self.store.get(path, default={}, max_age=max_age, update=update)
         if len(models) == 0:

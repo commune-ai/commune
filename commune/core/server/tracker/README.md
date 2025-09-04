@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Transaction (TX) module in Commune provides a standardized interface for handling blockchain transactions across different networks. It serves as a crucial component for interacting with various blockchain protocols, enabling seamless transaction creation, signing, and broadcasting.
+The Transaction (TX) mod in Commune provides a standardized interface for handling blockchain transactions across different networks. It serves as a crucial component for interacting with various blockchain protocols, enabling seamless transaction creation, signing, and broadcasting.
 
 ## Features
 
@@ -14,7 +14,7 @@ The Transaction (TX) module in Commune provides a standardized interface for han
 
 ## Installation
 
-The TX module is included as part of the Commune core. No separate installation is required if you have Commune installed.
+The TX mod is included as part of the Commune core. No separate installation is required if you have Commune installed.
 
 ```bash
 # If you need to install Commune
@@ -44,7 +44,7 @@ status = tx.get_transaction_status(transaction.hash)
 
 ## Configuration
 
-The TX module can be configured through the Commune config system or by passing parameters during initialization:
+The TX mod can be configured through the Commune config system or by passing parameters during initialization:
 
 ```python
 tx = TX(
@@ -66,8 +66,8 @@ tx = TX(
 
 ## Contributing
 
-Contributions to improve the TX module are welcome. Please follow the standard Commune contribution guidelines.
+Contributions to improve the TX mod are welcome. Please follow the standard Commune contribution guidelines.
 
 ## License
 
-This module is part of the Commune project and is released under the same license terms as the main project.
+This mod is part of the Commune project and is released under the same license terms as the main project.

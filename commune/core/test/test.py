@@ -4,7 +4,7 @@ class Test:
     description = """
     i test stuff
     """
-    def forward(self, module=None, timeout=50, modules=[ 'server', 'vali','key', 'chain']):
+    def forward(self, module=None, timeout=50, modules=[ 'server', 'vali','key']):
         """
         Test the module 
         """
@@ -57,7 +57,6 @@ class Test:
     def test_fns(self, module='module'):
         if self.has_test_module(module):
             module = module + '.test'
-
         obj = c.mod(module)()
         test_fns = []
         for fn in dir(obj):

@@ -29,7 +29,7 @@ RUN curl -L "https://github.com/docker/compose/releases/latest/download/docker-c
 # Workdir + Install App
 WORKDIR /root/commune
 COPY . .
-RUN pip install -e .
+RUN pip install -e ./
 
 # Default CMD (replace with ENTRYPOINT if needed)
 CMD ["tail", "-f", "/dev/null"]

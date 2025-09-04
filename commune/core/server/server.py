@@ -16,63 +16,37 @@ print = c.print
 
 class Server:
 
-    helper_fns  = ['info', 'forward'] # the helper fns
     def __init__(
         self, 
-        module: Union[str, object] = 'module',
-        params : Optional[dict] = None, # the kwargs for the module
-        key: Optional[str] = None, # key for the server (str), defaults to being the name of the server
-        # FUNCTIONS
-        fns:Optional[List[Union[str, callable]]] = ["forward", "info"] , # list of endpoints
-        port: Optional[int] = None, # the port the server is running on
-        tempo:int = 10000, # (in seconds) the maximum age of the txs
-        name: Optional[str] = None, # the name of the server, 
-        network: Optional[str] = 'local', # the network the server is running on
-        # STORAGE
-        store = 'store', # the store for the server
         path = '~/.commune/server', # the path to store the server data
-        # AUTHENTICATION
-        tx = 'tracker', # the tx for the server
-        tx_path = '~/.commune/server/tx',
-        auth = 'auth', # the auth for the server,
-        private = True, # whether the store is private or not
-        middleware = 'server.middleware', # the middleware for the server
-        # PROCESS MANAGER
-        pm = 'pm', # the process manager to use
         verbose:bool = True, # whether to print the output
-        timeout = 10, # (in seconds) the maximum time to wait for a response
-        ):
+        pm = 'server.pm', # the process manager to use
+        middleware = 'server.middleware', # the middleware to use
+        serializer = 'server.serializer', # the serializer to use
+        tracker = 'server.tracker', # the tracker to use
+        auth = 'server.auth', # the auth to use
+        **_kwargs):
         
-        self.store = c.mod(store)(path)
-        self.network = network or 'local'
-        self.tempo = tempo
+        self.app = FastAPI()
+        self.store = c.mod('store')(path)
         self.verbose = verbose
-        self.tracker = c.mod(tx)(tx_path=tx_path)
+        self.pm = c.mod(pm)() # sets the mod to the pm
+        self.middleware = c.mod(middleware)
+        self.serializer = c.mod(serializer)() # sets the serializer
+        self.tracker = c.mod(tracker)()
         self.auth = c.mod(auth)()
-        self.pm = c.mod(pm)() # sets the module to the pm
-        self.timeout = timeout
     
     def forward(self, fn:str, request: Request):
         """
-        forwards the request to the module
-        1. get the request
-        2. verify the request
-        3. run the function
-        4. save the transaction
-        5. return the result (if generator, return a stream, else return the result)
-
-        params: 
-            fn: the function to run
-            request: the request object
-        returns:
-            the result of the function
+        runt the function
         """
         request = self.get_request(fn=fn, request=request) # get the request
         fn = request['fn']
         params = request['params']
         print(request, color='blue', verbose=self.verbose)
         # NOW RUN THE FUNCTION
-        fn_obj = getattr(self.module, fn) # get the function object from the module
+
+        fn_obj = getattr(self.mod, fn) # get the function object from the mod
         if callable(fn_obj):
             if len(params) == 2 and 'args' in params and 'kwargs' in params :
                 kwargs = dict(params.get('kwargs')) 
@@ -84,7 +58,7 @@ class Server:
         else:
             # if the fn is not callable, return it
             result = fn_obj
-        fn = request['fn']
+
         if c.is_generator(result):
             def generator_wrapper(generator):
                 _gen_result =  ''
@@ -96,11 +70,11 @@ class Server:
                 # save the transaction between the headers and server for future auditing
 
                 self.tracker.forward(
-                    module=self.module.info['name'],
+                    mod=self.mod.info['name'],
                     fn=fn, # 
                     params=params, # params of the inputes
                     result=_gen_result,
-                    schema=self.module.info['schema'][fn],
+                    schema=self.mod.info['schema'][fn],
                     client=request['client'],
                     server=self.auth.headers(data={'fn': fn, 'params': params, 'result': _gen_result}, key=self.key),
                     )
@@ -114,15 +88,16 @@ class Server:
             params = request['params']
 
             tx = self.tracker.forward(
-                module=self.module.info['name'],
+                mod=self.mod.info['name'],
                 fn=fn, # 
                 params=params, # params of the inputes
                 result=result,
-                schema=self.module.info['schema'][fn],
+                schema=self.mod.info['schema'].get(fn, {}),
                 client=request['client'], # client auth
-                server=self.auth.headers(data={"fn": fn, "params": params, "result": result}, key=self.key),
+                server=self.auth.generate(data={"fn": fn, "params": params, "result": result}, key=self.key),
                 )
             return result
+        raise Exception('Should not reach here')
 
     def get_request(self, fn:str, request) -> float:
         if fn == '':
@@ -130,96 +105,65 @@ class Server:
         # params
         # headers
         headers = dict(request.headers)    
-        server_cost = float(self.module.info['schema'].get(fn, {}).get('cost', 0))
+        server_cost = float(self.mod.info['schema'].get(fn, {}).get('cost', 0))
         client_cost = float(headers.get('cost', 0))
         assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
         self.auth.verify(headers) # verify the headers
-        params = self.loop.run_until_complete(request.json())
+        loop = asyncio.get_event_loop()
+        params = loop.run_until_complete(request.json())
         params = json.loads(params) if isinstance(params, str) else params
         assert self.auth.hash({"fn": fn, "params": params}) == headers['data'], f'Invalid data hash for {params}'
         role = self.role(headers['key']) # get the role of the user
         if role not in ['admin', 'owner']:
-            assert fn in self.module.info['schema'], f"Function {fn} not in fns={self.fns}"
+            assert fn in self.fns, f"Function {fn} not in fns={self.fns}"
         return {'fn': fn, 'params': params, 'client': headers}
-
-    def fleet(self, module='module', n=2, timeout=10):
-        if '::' not in module:
-            module = module + '::'
-        names = [module+str(i) for i in range(n)]
-        return c.wait([c.submit(self.serve, [names[i]])  for i in range(n)], timeout=timeout)
 
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
         return  self.tracker.txs( *args, **kwargs)
 
-    def hash(self, data:dict) -> str:
-        return  hashlib.sha256(json.dumps(data).encode()).hexdigest()
-
     def set_fns(self, 
-                fns:Optional[List[str]], 
-                fn_attributes =['endpoints', 
-                        'fns',
-                        'expose', 
-                        "exposed_fns",
-                        'server_fns', 
-                        'public_fns', 
-                        'pubfns',  
-                        'public_functions', 
-                        'exposed_functions'] # the attributes that can contain the fns
+                fns: List[str] = None, # the fns to set
+                helper_fns : List[str] = ['info', 'forward'],# the helper fns
+                hide_private_fns: bool = True, # whether to include private fns
+                fn_attributes : List[str] =['endpoints',  'fns', 'expose',  'expoed', 'functions'],  # the attributes that can contain the fns
+                code: bool = False, # whether to include the code in the schema
         ):
         """
         sets the fns of the server
         """
         fns =  fns or []
+        # if no fns are provided, get them from the mod attributes
         if len(fns) == 0:
             for fa in fn_attributes:
-                if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
-                    fns = getattr(self.module, fa) 
+                fn_obj = getattr(self.mod, fa)
+                has_fn_attr = hasattr(self.mod, fa) and isinstance(getattr(self.mod, fa), (list, dict))
+                if hasattr(self.mod, fa) and isinstance(getattr(self.mod, fa), list):
+                    fns = getattr(self.mod, fa) 
                     break
+    
         # does not start with _ and is not a private fn
-        fns = [fn for fn in sorted(list(set(fns + self.helper_fns))) if not fn.startswith('_')]
-        schema = c.schema(self.module, code=False)
-        schema = {fn: schema[fn] for fn in fns if fn in schema}
-        self.fns = fns
-        return {'fns': self.fns}
-        
-    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
-        if port == None:
-            in_port_attribute = any([k for k in port_attributes])
-            if in_port_attribute:
-                for k in port_attributes:
-                    # Check if the attribute exists and is an integer
-                    if hasattr(self.module, k) and isinstance(getattr(self.module, k), int):
-                        port = getattr(self.module, k)
-                        print(f'Setting port from attribute {k} to {port}', color='green')
-                        break
-            else:
-                namespace = self.namespace()
-                if self.name in namespace:
-                    port = int(namespace.get(self.name).split('::')[-1])
-                    self.kill(self.name)
-        # if the port is still None, get a free port
-        port = port or c.free_port()
-        while c.port_used(port):
-            c.kill_port(port)
-            c.sleep(0.1)
-            print(f'Waiting for port {port} to be free')
-        self.module.port = port
-        self.url = f'0.0.0.0:{self.module.port}' 
-        return {'success':True, 'message':f'Set port to {port}'}
+        if hide_private_fns:
+            fns = [fn for fn in fns if not fn.startswith('_') ]
+        fns = list(set(fns + helper_fns))
+        schema = self.mod.info['schema']
 
+        self.mod.info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
+        self.fns = sorted(list(self.mod.info['schema'].keys()))
+        return schema
+        
+    def get_port(self, port:Optional[int]=None):
+        port = port or c.free_port()
+        return port
 
     def servers(self, search=None,  **kwargs) -> List[str]:
-        return self.pm.servers(search=search,  **kwargs)
+        return list(self.namespace(search=search, **kwargs).keys())
 
     def urls(self, search=None,  **kwargs) -> List[str]:
-        return list(self.pm.namespace(search=search, **kwargs).values())   
+        return list(self.namespace(search=search, **kwargs).values())   
 
-    def params(self,*args,  **kwargs):
-        return { 'network': self.network, 'tempo' : self.tempo}
+    mods_path = 'mods.json'
 
-    mods_path = 'modules.json'
-
-    def modules(self, 
+    def mods(self, 
                 search=None, 
                 max_age=None, 
                 update=False, 
@@ -227,31 +171,28 @@ class Server:
                 timeout=24, 
                 **kwargs):
 
-
         def module_filter(m: dict) -> bool:
-            """Filter function to check if a module contains the required features."""
-
-            return isinstance(m, dict) and all(feature in m for feature in features )
-            
-        modules = self.store.get(self.mods_path, None, max_age=max_age, update=update)
-        if modules == None :
+            """Filter function to check if a mod contains the required features."""
+            return isinstance(m, dict) and all(feature in m for feature in features )    
+        mods = self.store.get(self.mods_path, None, max_age=max_age, update=update)
+        if mods == None :
             urls = self.urls(search=search, **kwargs)
-            print(f'Updating modules from {self.mods_path}', color='yellow')
-            
-            futures  = [c.submit(c.call, [url + '/info'], timeout=timeout, mode='thread') for url in urls]
-            modules =  c.wait(futures, timeout=timeout)
-            print(f'Found {len(modules)} modules', color='green')
-            modules = list(filter(module_filter, modules))
-            self.store.put(self.mods_path, modules)
+            print(f'Updating mods from {self.mods_path}', color='yellow')
+            futures  = [c.submit(c.call, {"fn":url + '/info'}, timeout=timeout, mode='thread') for url in urls]
+            mods =  c.wait(futures, timeout=timeout)
+            print(mods)
+            print(f'Found {len(mods)} mods', color='green')
+            mods = list(filter(module_filter, mods))
+            self.store.put(self.mods_path, mods)
         else:
-            modules = list(filter(module_filter, modules))
+            mods = list(filter(module_filter, mods))
 
         if search != None:
-            modules = [m for m in modules if search in m['name']]
-        return modules
+            mods = [m for m in mods if search in m['name']]
+        return mods
 
     def n(self, search=None, **kwargs):
-        return len(self.modules(search=search, **kwargs))
+        return len(self.mods(search=search, **kwargs))
 
     def exists(self, name:str, **kwargs) -> bool:
         """check if the server exists"""
@@ -261,13 +202,13 @@ class Server:
             fn = 'info', # the function to rate
              max_age:int = 60, # the maximum age of the rate
              update:bool = False, # whether to update the rate
-             module = None, # the module to rate on
+             mod = None, # the mod to rate on
              ) -> float:
-        if module == None:
-            module = self.name
+        if mod == None:
+            mod = self.name
         if '/' in user:
-            module, user = user.split('/')
-        path = f'results/{module}/{fn}/{user}'
+            mod, user = user.split('/')
+        path = f'results/{mod}/{fn}/{user}'
         return len( self.store.paths(path)) 
 
 
@@ -280,7 +221,7 @@ class Server:
         if c.is_admin(user):
             # can call any fn
             role =  'admin'
-        elif hasattr(self, 'module') and user == self.key.key_address:
+        elif hasattr(self, 'mod') and user == self.key.key_address:
             # can call any fn
             role =  'owner'
         else:
@@ -406,71 +347,68 @@ class Server:
     def logs(self, name, **kwargs):
         return self.pm.logs(name, **kwargs)
 
-    def namespace(self,  search=None,  max_age=None, update=False,**kwargs) -> dict:
-        return self.pm.namespace(search=search, max_age=max_age, update=update, **kwargs)
+    def namespace(self,  search=None,**kwargs) -> dict:
+        return self.pm.namespace(search=search, **kwargs)
 
-    @classmethod
-    def serve(cls, 
-              module: Union[str, 'Module', Any] = None, # the module in either a string
-              params:Optional[dict] = None,  # kwargs for the module
-              port :Optional[int] = None, # name of the server if None, it will be the module name
-              name = None, # name of the server if None, it will be the module name
-              fns = None, # list of fns to serve, if none, it will be the endpoints of the module
+    def serve(self, 
+              mod: Union[str, 'Module', Any] = None, # the mod in either a string
+              params:Optional[dict] = None,  # kwargs for the mod
+              port :Optional[int] = None, # name of the server if None, it will be the mod name
+              name = None, # name of the server if None, it will be the mod name
+              fns = None, # list of fns to serve, if none, it will be the endpoints of the mod
               key = None, # the key for the server
-              cwd = None,
-              remote = False,
-              auth = 'auth',
-              serializer = 'serializer',
-              **extra_params
+              cwd = None, # the cwd to run the server in
+              remote = False, # whether to run the server remotely
+              public = False, # whether to make the server public
+              server_mode = 'http',
+              **extra_params 
               ):
-
-        module = module or 'module'
-        name = name or module
+        port = self.get_port(port)
+        mod = mod or 'mod'
+        name = name or mod
         params = {**(params or {}), **extra_params}
         if remote:
-            return c.fn('pm/serve')(module=module, params=params, name=name, fns=fns, port=port, key=key, auth=auth, serializer=serializer)
-        self =  Server(module=module, name=name, fns=fns, params=params, port=port,  key=key)
+            return c.fn('pm/serve')(mod=mod, params=params, name=name, fns=fns, port=port, key=key, auth=auth, serializer=serializer)
         if self.exists(name):
             self.kill(name) # kill the server if it exists
-
-        module = module or 'module'
-        if isinstance(module, str):
-            if '::' in module:
-                name = module
-                module = '::'.join(name.split('::')[:-1])
-
-        self.serializer = c.mod(serializer)() # sets the serializer
-        self.module = c.mod(module)(**(params or {}))
-        self.name = name = name or module 
+        mod = mod or 'mod'
+        if isinstance(mod, str):
+            if '::' in mod:
+                name = mod
+                mod = '::'.join(name.split('::')[:-1])
+        self.mod = c.mod(mod)(**(params or {}))
+        self.name = name = name or mod 
         self.key = c.get_key(key or self.name)
-        self.set_fns(fns) 
-        self.set_port(port)
-        self.auth = c.mod(auth)()
-
-        info = c.info(module, key=self.key)
-        info['url'] = self.url
-        self.module.info = info
-        self.loop = asyncio.get_event_loop() # get the event loop
-        app = FastAPI()
-        # app.add_middleware(c.mod(middleware), auth=)
-        app.add_middleware(
+        # add CORS middleware
+        self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # or your specific origins
+            allow_origins=["*"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
-
+        # add the endpoints
+        info = c.info(mod, key=self.key)
+        ip = c.ip() if public else '0.0.0.0' 
+    
+        self.url = f"{server_mode}://{ip}:{port}"
+        info['url'] = self.url
+        self.mod.info = info
+        self.set_fns(fns) 
         def server_fn(fn: str, request: Request):
             try:
                 return self.forward(fn, request)
             except Exception as e:
                 return c.detailed_error(e)
-        app.post("/{fn}")(server_fn)
+        self.app.post("/{fn}")(server_fn)
 
-        c.print(f'Serving(name={name} port={port} key={self.key.address})', color='green')
-        uvicorn.run(app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-        return {'success':True, 'message':f'Set module to {self.name}'}
+        c.print(f'Serving({self.mod.info})', color='green')
+        self.store.put(f'servers/{self.name}', self.mod.info)
+        uvicorn.run(self.app, 
+                    host='0.0.0.0', 
+                    port=port, 
+                    loop='asyncio')
+        return {'success':True, 'message':f'Set mod to {self.name}'}
 
     def get_info(self, name:str, timeout:int = 60, interval:int = 1):
         elapsed_seconds = 0
@@ -486,45 +424,4 @@ class Server:
             print(f'waiting for {name} to be available')
         raise TimeoutError(f"Timeout waiting for {name} to be available after {timeout} seconds")
 
-    def test_serializer(self):
-        return c.mod('serializer')().test()  
-
-    def test_server(self, 
-                    server = 'module::test_serving', 
-                    key="test_deployer"):
-        c.serve(server, key=key)
-        info = self.get_info(server)
-        assert info['key'] == c.key(key).ss58_address
-        c.kill(server)
-        return {'success': True, 'msg': 'server test passed'}
-
-    def test_executor(self):
-        return c.mod('executor')().test()
-
-    def test_auth(self, auths=['auth.jwt', 'auth']):
-        for auth in auths:
-            print(f'testing {auth}')
-            c.mod(auth)().test()
-        return {'success': True, 'msg': 'server test passed', 'auths': auths}
-
-    def test_role(self, address:str=None, role:str='viber', max_age:int = 60, update:bool = False):
-        """
-        test the role of the address
-        """
-        address = address or c.get_key('test').ss58_address
-        self.add_role(address, role, max_age=max_age, update=update)
-        assert self.get_role(address, max_age=max_age, update=update) == role, f"Failed to add {address} to {role}"
-        self.remove_role(address, role, max_age=max_age, update=update)
-        assert self.get_role(address, max_age=max_age, update=update) == 'public', f"Failed to remove {address} from {role}"
-        return {'roles': True, 'address': address , 'roles': self.get_role(address, max_age=max_age, update=update)}
-
-    def test_blacklist(self,  max_age:int = 60, update:bool = False):  
-        """
-        check if the address is blacklisted
-        """
-        key = c.get_key('test').ss58_address
-        self.blacklist_user(key, max_age=max_age, update=update)
-        assert key in self.blacklist(max_age=max_age, update=update), f"Failed to add {key} to blacklist"
-        self.unblacklist_user(key, max_age=max_age, update=update)
-        assert key not in self.blacklist(max_age=max_age, update=update), f"Failed to remove {key} from blacklist"
-        return {'blacklist': True, 'user': key , 'blacklist': self.blacklist(max_age=max_age, update=update)}
+   

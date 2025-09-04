@@ -9,11 +9,10 @@ import commune as c
 
 class Api:
 
-
+    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
     port = 8000
     url = '0.0.0.0:8000'
     tempo = 600
-    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
     mods_path = os.path.expanduser('~/.commune/api/modules')
 
     def __init__(self,
@@ -124,13 +123,13 @@ class Api:
         return c.servers()
 
     def call(self, fn, 
-                  params={}, 
-                  fns = ['chain/events', 
+                params={}, 
+                fns = ['chain/events', 
                          'chain/forward', 
                          'chain/stream', 
                          'chain/stream_forward', 
                          'schema'],
-                          **kwargs):
+                auth = None, **kwargs):
 
         
         assert fn in fns, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
@@ -214,7 +213,7 @@ class Api:
         print(f"Syncing {n} modules in {pages} pages with page size {page_size}")
         for page in range(1, pages + 1):
             print(f"Syncing page {page}/{pages}")
-            self.modules(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
+            self.mods(search=None, max_age=max_age, page=page, page_size=page_size, threads=threads)
         return {"message": f"Synced {n} modules in {pages} pages with page size {page_size}"}
 
     def balance(self, address):

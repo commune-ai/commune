@@ -3,30 +3,29 @@ import os
 
 class App:
 
+    api_port = 8000
+    app_port = 3000
 
-
-
-    def serve(self, public=False, port=3000, api_port=8000):
+    def serve(self, public=False):
         return {
-            "api": self.api(port=api_port),
+            "api": self.api(),
             "app": self.app(public=public),
 
         }
 
     forward = serve  # Alias for serve method
         
-    def app(self, port=3000, public=False, remote=True, build=True, api_port=8000):
-        if not c.server_exists('api'):
-            print('API not found, please run `commune api` first.')
-            self.api(port=api_port)
-        api_ip = c.ip() if public else '0.0.0.0'
-        api_url = f'http://{api_ip}:{api_port}'
+    def app(self, public=False, remote=True, build=True):
         cwd = c.dirpath('app') 
+        ip = c.ip() if public else '0.0.0.0'
+        api_url = f'http://{ip}:{self.api_port}'
+        app_url = f'http://{ip}:{self.app_port}'
         params = {
             'name': 'app', 
             'build': {'context': './'},
-            'port':  port,
-            'env': {'API_URL': api_url, 'APP_URL': f'http://0.0.0.0:{port}'},
+            'port':  self.app_port,
+            'env': {'API_URL': api_url, 
+                    'APP_URL': app_url},
             'volumes': [f'{cwd}:/app','/app/node_modules'],
             'cwd': cwd  ,
             'working_dir': '/app',
@@ -35,10 +34,9 @@ class App:
         }
         return c.fn('pm/run')(**params)
 
-    def api(self, port=8000):   
-        return c.serve('api', port=port)
-        
-
+    def api(self):   
+        return c.serve('api', port=self.api_port)
+    
 
     def sand(self):
         import json

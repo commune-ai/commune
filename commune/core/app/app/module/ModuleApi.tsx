@@ -64,6 +64,8 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
     return acc
   }, {} as Record<string, SchemaType>)
 
+  
+
   // if none then choose the first function
   if (!selectedFunction && Object.keys(filteredSchema).length > 0) {
     setSelectedFunction(Object.keys(filteredSchema)[0])
@@ -143,6 +145,8 @@ export const ModuleSchema = ({mod}: Record<string, any>) => {
       setLoading(false)
     }
   }
+
+
 
 
   // Modern dark theme colors
@@ -266,21 +270,19 @@ const colors = {
                     className="p-6 space-y-4"
                   >
 
-
                     {/* Input Parameters */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
-                      {Object.keys(filteredSchema[selectedFunction].input).length > 0 && (
-                      <div className="space-y-3">
-                        {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
+                    {
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold" style={{ color: colors.accent }}>INPUT</h3>
+                        {filteredSchema[selectedFunction].input !== undefined &&  Object.keys(filteredSchema[selectedFunction].input).length > 0 && (
+                          <div className="space-y-3">
+                            {Object.entries(filteredSchema[selectedFunction].input).map(([param, details]) => (
                           <div key={param} className="space-y-2">
                             <label className="block text-sm font-bold" style={{ color: colors.text }}>
                               {param}
                               <span className="ml-2 font-normal" style={{ color: colors.accent }}>[{details.type}]</span>
                             </label>
-                            {details.value !== '_empty' && details.value !== undefined && (
-                              <p className="text-xs" style={{ color: colors.textMuted }}>Default: {String(details.value)}</p>
-                            )}
+
                             <input
                               type="text"
                               value={params[param] !== undefined ? params[param] : ''}
@@ -305,7 +307,7 @@ const colors = {
                           </div>
                         ))}
                       </div>)}
-                    </div>
+                    </div>  }
 
                     {/* Execute Button */}
                     <button

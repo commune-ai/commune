@@ -1084,7 +1084,7 @@ def get_port_range(port_range: list = None) -> list:
         port_range = list(map(int, port_range.split('-')))
     if len(port_range) == 0:
         port_range = c.port_range
-    print(c.port_range)
+    print(port_range)
     port_range = list(port_range)
     assert isinstance(port_range, list), 'Port range must be a list'
     assert isinstance(port_range[0], int), 'Port range must be a list of integers'

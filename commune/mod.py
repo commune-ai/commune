@@ -84,7 +84,7 @@ class Mod:
                 params: dict = None,  
                 cache=True, 
                 verbose=False, 
-                update=False,
+                update=True,
                 **kwargs) -> str:
 
         """
@@ -104,7 +104,7 @@ class Mod:
         try:
             obj = self.obj(obj_path)
         except Exception as e:
-            self.print(f'Error loading module {module} from {obj_path}: {e}', color='red', verbose=verbose)
+            self.print(f'Error loading module {module} from {obj_path}:{e}', color='red', verbose=verbose)
             tree = self.tree(update=True)
             tree_options = [v for k,v in tree.items() if module in k]
             if len(tree_options) == 1:
@@ -181,38 +181,32 @@ class Mod:
         dirpath = self.dirpath(module)
         dockerfiles = [f for f in os.listdir(dirpath) if f.startswith('Dockerfile')]
         return [os.path.join(dirpath, f) for f in dockerfiles]
-        
+
+
+    anchor_names = ['module', 'mod', 'agent', 'block', 'server']
     def dirpath(self, module=None) -> str:
         """
         get the directory path of the module
         """
         module = self.shortcuts.get(module, module)
         module = (module or 'module').replace('/', '.')
-        if module in ['module', 'commune']:
+        if module in self.anchor_names:
             return self.lib_path
         else:
-            possible_paths = [ self.core_path + '/' + module, self.mods_path + '/' + module ]
-            if any(os.path.exists(pp)  for pp in possible_paths):
-                for pp in possible_paths:
-                    if os.path.exists(pp):
-                        dirpath = pp 
-                        break
+            possible_core_path = self.core_path + '/' + module
+            possible_mods_path = self.mods_path + '/' + module.replace('.', '/')
+            if os.path.exists(possible_core_path):
+                dirpath = possible_core_path
+            elif os.path.exists(possible_mods_path):
+                dirpath = possible_mods_path
             elif self.module_exists(module):
                 filepath = self.filepath(module)
                 dirpath =  os.path.dirname(filepath)
             else: 
                 dirpath = self.mods_path + '/' + module.replace('.', '/')
-
-             
-            src_tag =  module + '/src' 
-            if src_tag in dirpath:
-                dirpath = dirpath.split(src_tag)[0] + module
-
             # if ../x/x then remove x
             if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
                 dirpath = '/'.join(dirpath.split('/')[:-1]) 
-                
-            
             if dirpath.endswith('/src'):
                 dirpath = dirpath[:-4]  # remove the trailing /src
             return dirpath
@@ -238,7 +232,6 @@ class Mod:
         if obj == None: 
             objx = self 
         return obj.__name__
-
 
     def config_path(self, obj = None) -> str:
         if obj in [None, 'module']:
@@ -319,9 +312,6 @@ class Mod:
             lib_path = self.lib_path
         return self.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
     
-
-
-
     def run_fn(self,fn:str, params:Optional[dict]=None, args=None, kwargs=None, module='module') -> Any:
         """
         get a fucntion from a strings
@@ -1007,6 +997,7 @@ class Mod:
             update: bool =False, 
             key=None,
             url = None, 
+            host = None,
             ai_describe: bool = False,
             tag_divider = '::',
             **kwargs):
@@ -1014,35 +1005,36 @@ class Mod:
         Get the info of a module, including its schema, key, cid, and code if specified.
         """
         
+        name = module
         if tag_divider in module:
             module, tag = module.split('::')
         cid = self.cid(module)
-        path = self.get_path('info/' + str(cid)) 
-        info = self.get(path, {}, update=update)
-        if len(info) == 0:
-            info =  {
-                    'name': module, 
-                    'key': self.get_key(key or module).key_address,  
-                    'cid': cid,
-                    'time': time.time(),
-                    'code': self.code_map(module) if code else None
-                    }
-            if schema:
+        key = self.get_key(key or module)
 
-                info['schema'] = self.schema(module )
-            info['signature'] = self.sign(info, key=key)
+        host = host or self.get_key().address
+        info =  {
+                'name': name, 
+                'key': key.address,  
+                'host': host,
+                'cid': cid,
+                'time': time.time(),
+                'code': self.code_map(module) if code else None
+                }
+        if schema:
 
-            if ai_describe :
-                if 'desc' not in info:
-                    prompt = 'given decribe this module in a few sentences, the module is a python module with the following schema: ' + json.dumps(info['schema'])
-                    desc = ''
-                    for ch in self.ask(prompt):
-                        print(ch, end='', flush=True)
-                        desc += ch
-                    info['desc'] = desc
-                
-            self.put(path, info)
-            assert self.verify_info(info), f'Invalid signature {info["signature"]}'
+            info['schema'] = self.schema(module )
+        if url: 
+            info['url'] = url
+        info['signature'] = self.sign(info, key=key)
+        assert self.verify_info(info), f'Invalid signature {info["signature"]}'
+        if ai_describe :
+            if 'desc' not in info:
+                prompt = 'given decribe this module in a few sentences, the module is a python module with the following schema: ' + json.dumps(info['schema'])
+                desc = ''
+                for ch in self.ask(prompt):
+                    print(ch, end='', flush=True)
+                    desc += ch
+                info['desc'] = desc
         return  info
 
     card = info 
@@ -1054,7 +1046,7 @@ class Mod:
         if isinstance(info, str):
             info = self.info(info, **kwargs)
         signature = info.pop('signature')
-        verify = self.verify(data=info, signature=signature)  
+        verify = self.verify(data=info, signature=signature, address=info['key'])  
         assert verify, f'Invalid signature {signature}'
         info['signature'] = signature
         return info
@@ -1076,7 +1068,9 @@ class Mod:
         return self.fn('dev/tools')()
     def tool(self, tool_name:str):
         return self.fn(f'dev/tool')(tool_name)
+    
     _executors = {}
+    
     def submit(self, 
                 fn, 
                 params = None,
@@ -1102,6 +1096,16 @@ class Mod:
         else:
             future =  executor.submit(self.fn(fn), *args, **kwargs)
         return future 
+
+    def isfn(self, fn:Union[callable, str]) -> bool:
+        """
+        Checks if the function exists
+        """
+        try:
+            fn_obj = self.fn(fn)
+            return callable(fn_obj)
+        except Exception as e:
+            return False
 
     def fn(self, fn:Union[callable, str], params:str=None, splitter='/', default_fn='forward', default_module = 'module') -> 'Callable':
         """
@@ -1386,25 +1390,11 @@ class Mod:
             module_exists =  False
         return module_exists
     
-    def objectpath2name(self, 
+    def simplify_path(self, 
                         p:str,
-                        avoid_terms=[
-                                    '_mods',
-                                    '_modules',
-                                    'mods',
-                                    'modules', 
-                                     'agents',
-                                     'agent',
-                                     'module', 
-                                     '_agents', 
-                                     'core',
-                                    'src', 
-                                    'server',
-                                    'servers', 
-                                    ]):
+                        avoid_terms=['modules', 'core', 'src', 'agent']
+                        ):
         chunks = p.split('.')
-        
-
 
         if len(chunks) < 2:
             return None
@@ -1452,7 +1442,7 @@ class Mod:
         tree = { 
                 **self.mods_tree(**params), 
                 **self.local_tree(**params),  
-                ** self.core_tree(**params) 
+                **self.core_tree(**params) 
                 }
         return tree
 
@@ -1478,7 +1468,7 @@ class Mod:
                     return p.replace(repo_prefix, self.name)
                 return p
             class_paths = [filter_path(p) for p in class_paths]
-            simple_paths = [self.objectpath2name(p) for p in class_paths]
+            simple_paths = [self.simplify_path(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
             self.put(tree_cache_path, tree)
         if startswith != None:
@@ -1624,7 +1614,6 @@ class Mod:
     def context(self, path=None):
         path = path or self.core_path
         readme2text = self.readme2text(path)
-        print('ctx size', len(str(readme2text)))
         return readme2text
 
     def context_size(self, path:str = './', search=None, **kwargs) -> int:
@@ -1808,18 +1797,15 @@ class Mod:
         globals_input = globals_input or {}
         for k,v in self.__dict__.items():
             globals_input[k] = v     
-        for f in self.fns(Mod, mode='self'):
-            def wrapper_fn(f, *args, **kwargs):
-                fn = getattr(Mod(), f)
-                return fn(*args, **kwargs)
-            globals_input[f] = partial(wrapper_fn, f)
+        for f in dir(self):
+            globals_input[f] = getattr(self, f)
         return globals_input
 
     def main(self, *args, **kwargs):
         """
         Main function to run the module
         """
-        self.module('cli')().forward()
+        self.mod('cli')().forward()
 
     def hasattr(self, module, k):
         """

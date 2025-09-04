@@ -17,7 +17,7 @@ class Tx:
                 private = False,
                 roles = ['client', 'server'], # the roles that need to sign the transaction
                 tx_schema = {
-                    'module': str,
+                    'mod': str,
                     'fn': str,
                     'params': dict,
                     'result': dict,
@@ -39,7 +39,7 @@ class Tx:
         self.roles = roles
 
     def forward(self, 
-                 module:str = 'module', 
+                 mod:str = 'mod', 
                  fn:str = 'forward', 
                  bid = None, 
                  cost = None,
@@ -58,7 +58,7 @@ class Tx:
         result = self.serializer.forward(result)
 
         if client is None or server is None: 
-            auths = self.get_auths(module, fn, params, result, key=key)
+            auths = self.get_auths(mod, fn, params, result, key=key)
         else: 
             if client is not None:
                 auths['client'] = client
@@ -66,7 +66,7 @@ class Tx:
                 auths['server'] = server
             
         tx = {
-            'module': module, # the module name (str)
+            'mod': mod, # the mod name (str)
             'fn': fn, # the function name (str)
             'params': params, # the params is the input to the function  (dict)
             'result': result, # the result of the function (dict)
@@ -136,15 +136,18 @@ class Tx:
         elif len(params.get('args', {})) > 0 and len(params.get('kwargs', {})) > 0:
             return params
         elif len(params.get('args', {})) == 0 and len(params.get('kwargs', {})) == 0:
-            return {}
+            return params
         else:
             return params
     def txs(self, 
             search=None,
             client= None,
             server= None,
+            n = None,
             max_age:float = 3600, 
-            features:list = ['module', 'fn', 'params', 'cost', 'duration',  'age', 'client',]):
+            features:list = ['mod', 'fn', 'params', 'cost', 'duration',  'age', 'client'],
+            shorten_features = ['client']
+            ):
         path = None
         if client is not None:
             path = f'{client}/'
@@ -169,7 +172,15 @@ class Tx:
         df['params'] = df['params'].apply(self.transform_params)
         df['cost'] = df['schema'].apply(lambda x: x['cost'] if 'cost' in x else 0)
         df['client'] = df['client'].apply(lambda x: addres2key.get(x['key'], x['key']))
+        shorten_fn = lambda x: x if len(x) <= 10 else x[:4] + '...' + x[-4:]
+        for f in shorten_features:
+            if f in df.columns:
+                df[f] = df[f].apply(shorten_fn)
+            
         df = df.sort_values(by='time', ascending=False)
+        if n is not None:
+            df = df.head(n)
+            
         return df[features]
 
     def n(self):
@@ -187,7 +198,7 @@ class Tx:
         """
         t0 = time.time()
         tx = {
-            'module': 'test',
+            'mod': 'test',
             'fn': 'test',
             'params': {'a': 1, 'b': 2},
             'result': {'a': 1, 'b': 2},
@@ -210,14 +221,14 @@ class Tx:
 
         return { 'time': time.time() - t0, 'msg': 'Transaction test passed'}
 
-    def get_auths(self, module:str, fn:str, params:dict, result:Any, key=None):
+    def get_auths(self, mod:str, fn:str, params:dict, result:Any, key=None):
         """
         Get the auths for the transaction
         """
-        auth_data = self.get_role_auth_data_map(module, fn, params, result)
+        auth_data = self.get_role_auth_data_map(mod, fn, params, result)
         return {role : self.auth.headers(auth_data[role], key=key) for role in self.roles}
 
-    def get_role_auth_data_map(self, module:str, fn:str, params:dict, result:Any, **_ignore_params):
+    def get_role_auth_data_map(self, mod:str, fn:str, params:dict, result:Any, **_ignore_params):
         """
         Get the auth data for each role 
             client: the client auth data

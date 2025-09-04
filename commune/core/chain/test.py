@@ -4,8 +4,8 @@ import pandas as pd
 class Test:
 
     
-    def __init__(self, module='chain', networkk='test', test_key='test'): 
-        self.chain = c.mod(module)(network=networkk)
+    def __init__(self, module='chain', network='test', test_key='test'): 
+        self.chain = c.mod(module)(network=network)
         self.fund = self.chain.fund
         self.key = c.get_key(test_key)
 
@@ -62,8 +62,6 @@ class Test:
         self.chain.deregister(key, subnet=subnet)
         self.chain.register(key, subnet=subnet)
         return self.chain.module(key)
-
-        
 
     def test_substrate(self):
         for i in range(3):

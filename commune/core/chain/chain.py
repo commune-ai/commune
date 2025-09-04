@@ -1010,7 +1010,7 @@ class Chain:
         if state == None:
             c.print(f"subnet_state: {path} not found")
             futures = [c.submit(self.subnets, kwargs=dict(subnet=subnet, max_age=max_age, update=update)), 
-                        c.submit(self.modules, kwargs=dict(subnet=subnet, max_age=max_age, update=update))]
+                        c.submit(self.mods, kwargs=dict(subnet=subnet, max_age=max_age, update=update))]
             params, modules = c.wait(futures)
             state = {'params': params, 'modules': modules}
             c.put(path, state)
@@ -1355,7 +1355,7 @@ class Chain:
 
     def module_exists(self, key, subnet=0):
         key_address = self.get_key(key).key_address
-        return any([key_address == m['key'] for m in self.modules(subnet=subnet)])
+        return any([key_address == m['key'] for m in self.mods(subnet=subnet)])
 
     
 
@@ -1674,7 +1674,7 @@ class Chain:
             modules = c.get(path, None, max_age=max_age, update=update)
             if modules == None:
                 keys = c.address2key().keys()
-                modules = self.modules(keys=keys, subnet=subnet, features=features)
+                modules = self.mods(keys=keys, subnet=subnet, features=features)
             
         return modules
 
@@ -1690,7 +1690,7 @@ class Chain:
               features=['name', 'key', 'stake_from', 'weights'],
               **kwargs):
          
-        valis =  self.modules(subnet=subnet, features=features, update=update, **kwargs)
+        valis =  self.mods(subnet=subnet, features=features, update=update, **kwargs)
         
         if search != None:
             valis = [v for v in valis if search in v['name'] or search in v['key'] ]
@@ -1978,10 +1978,10 @@ class Chain:
         return netuid2subnet
     
     def miners(self, subnet=0, max_age=None, update=False):
-        return self.modules(subnet=subnet, max_age=max_age, update=update)
+        return self.mods(subnet=subnet, max_age=max_age, update=update)
     
     def stats(self, subnet=0, max_age=None, update=False):
-        modules =  c.df(self.modules(subnet=subnet, max_age=max_age, update=update))
+        modules =  c.df(self.mods(subnet=subnet, max_age=max_age, update=update))
 
         return modules
     
@@ -3120,7 +3120,7 @@ class Chain:
         """
         Returns a mapping of names to keys for the specified subnet.
         """
-        modules = self.modules(subnet=subnet, features=['name', 'key'], **kwargs)
+        modules = self.mods(subnet=subnet, features=['name', 'key'], **kwargs)
         return {m['name']: m['key'] for m in modules}
 
     def call_multisig(

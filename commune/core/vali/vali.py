@@ -66,12 +66,12 @@ class Vali:
         self.search = search
         self.net = c.mod(self.network)() 
         # create some extra helper mappings
-        self.modules = self.net.modules(search=search,  update=update)
-        self.namespace = {m['name']: m['url'] for m in self.modules if 'name' in m and 'url' in m}
-        self.key2module = {m['key']: m for m in self.modules if 'key' in m}
-        self.name2module = {m['name']: m for m in self.modules if 'name' in m}
-        self.url2module = {m['url']: m for m in self.modules if 'url' in m}
-        
+        self.mods = self.net.mods(search=search,  update=update)
+        print(self.mods, 'mods')
+        self.namespace = {m['name']: m['url'] for m in self.mods if 'name' in m and 'url' in m}
+        self.key2module = {m['key']: m for m in self.mods if 'key' in m}
+        self.name2module = {m['name']: m for m in self.mods if 'name' in m}
+        self.url2module = {m['url']: m for m in self.mods if 'url' in m}
         return self.network
     
     def set_task(self, task: Union[str, 'callable', int]):
@@ -149,10 +149,10 @@ class Vali:
 
     def epoch(self, search=None, result_features=['score', 'key', 'duration', 'name'], key=None, **kwargs):
         self.set_network(search=search, **kwargs)
-        n = len(self.modules)
+        n = len(self.mods)
         if key:
             self.set_key(key)
-        batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
+        batches = [self.mods[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         print(f'Running epoch {self.epochs} with {n} modules in {len(batches)} batches of size {self.batch_size}')
         num_batches = len(batches)
         results = []
@@ -162,7 +162,7 @@ class Vali:
             futures = []
             for m in batch:
                 print(f'Batch {i}/{num_batches} {m["name"]} {m["url"]}')
-                future = c.submit(self.forward, [m] , timeout=self.timeout)
+                future = c.submit(self.forward, {"module": m} , timeout=self.timeout)
                 futures.append(future)
             try:
                 batch_results = c.wait(futures, timeout=self.timeout)
@@ -255,7 +255,7 @@ class Vali:
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
 
     def tasks(self):
-        return c.modules(search='task.')
+        return c.mods(search='task.')
 
 
     def test(self ,  n=2, 

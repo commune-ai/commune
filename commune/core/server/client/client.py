@@ -11,7 +11,7 @@ class Client:
                  url: Optional[str] = None,  # the url of the commune server
                  key : Optional[str]= None,  
                  timeout = 10,
-                 auth = 'auth',
+                 auth = 'server.auth',
                  storage_path = '~/.commune/client',
                  **kwargs):
         self.url = url

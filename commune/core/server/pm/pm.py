@@ -17,22 +17,32 @@ class PM:
     """
     A module for interacting with Docker.
     """
-    default_shm_size = '100g'
-    default_network = 'host'
-    image = 'commune:latest'
-    path = os.path.expanduser('~/commune')
-    mods_path = c.mods_path
+
+    def __init__(self,  
+                path = os.path.expanduser('~/commune'), 
+                image = None, # default image name is the folder name
+                storage_path='~/.commune/server/pm', 
+                **kwargs):
+    
+        self.path = path
+        self.image = (image or path.split('/')[-1].lower()) + ':latest'
+        self.store = c.mod('store')(storage_path)
+        # if not self.is_docker_daemon_on():
+        #     self.start_docker_daemon()
+
+        
 
     def serve(self, 
                 module='api', 
                 port=None, 
-                image='commune:latest', 
+                image=None, 
                 working_dir='/app', 
-                daemon=True, 
-                d = None,
+                daemon=True, d = None, # daemon
+                remote=True,
                 name = None,
                 include_storage=True,
                 **params):
+        image = image or self.image
         daemon = daemon if d is None else d
         module = module or 'module'
         port = port or c.free_port()
@@ -41,22 +51,34 @@ class PM:
         params['port'] = port
         params_cmd = self.params2cmd(params)
         cmd = f"c server/serve {module} {params_cmd}"
-        # names
+        if not remote:
+            return os.system(cmd)
         if '::' in module:
-            name = name or module
-            name = self.name2process(name)
+            name = self.name2process(name or module)
             module = module.split('::')[0]
         name = name or module
-        
-        dirpath = c.dirpath(module)
-        params = {
-            'name': name, 'image': image,'port': port,'cmd': cmd,'working_dir': working_dir, 'daemon': daemon,
-            'volumes': { self.path:'/root/commune'},
+        lib_path = c.lib_path
+        storage_path = c.storage_path
+        docker_lib_path = c.lib_path.replace(c.home_path, '/root')
+        docker_storage_path = storage_path.replace(c.home_path, '/root')
+        volumes = {
+            lib_path: docker_lib_path,
+            storage_path: docker_storage_path
         }
-        if module not in ['mod', 'module']:
-            params['volumes'][dirpath] = f'/app/{module}'
-        if include_storage :
-            params['volumes'][c.storage_path] = '/root/.commune'
+        if module not in c.anchor_names:
+            mod_path = c.dirpath(module)
+            docker_mods_path = mod_path.replace(c.home_path, '/root')
+            volumes[mod_path] = docker_mods_path
+
+        params = {
+            'name': name, 
+            'image': image,
+            'port': port,
+            'cmd': cmd,
+            'working_dir': working_dir, 
+            'daemon': daemon,
+            'volumes': volumes           
+            }
         return self.run(**params)
 
     def process2name(self, container):
@@ -75,7 +97,6 @@ class PM:
 
     def server_exists(self, name):
         return name in self.servers()
-
 
     def params2cmd(self, params: Dict[str, Any]) -> str:
         """
@@ -97,7 +118,6 @@ class PM:
             elif v is None:
                 params[k] = ''
         return ' '.join([f"{k}={v}" for k, v in params.items() if v is not None])
-
 
     def dockerfiles(self, mod='mod'):
         """
@@ -161,7 +181,6 @@ class PM:
     def build(self,
               path: Optional[str] = None,
               tag: Optional[str] = None,
-              name = None,
               mod = None,
               verbose: bool = True,
               no_cache: bool = False,
@@ -185,17 +204,12 @@ class PM:
         path = os.path.abspath(path or self.path)
         print(f'Building Docker image from {path} with tag {tag}')
         if os.path.isdir(path):
-            if not os.path.exists(os.path.join(path, 'Dockerfile')):
-                raise FileNotFoundError(f"No Dockerfile found in {path}")
-            else:
-                path = os.path.join(path, 'Dockerfile')
-        assert os.path.exists(path), f"Dockerfile not found at {path}"
-        tag = name or tag or path.split('/')[-1]
+            assert os.path.exists(os.path.join(path, 'Dockerfile'))
+        tag = tag or path.split('/')[-1]
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
-        dirpath = os.path.dirname(path)
-        return os.system('cd ' + dirpath + ' && ' + cmd)
+        return os.system('cd ' + path + ' && ' + cmd)
 
 
     def run(self,
@@ -957,7 +971,6 @@ class PM:
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())
 
-
     def start_docker_daemon(self):
         """
         Start the Docker daemon if it is not already running.
@@ -965,8 +978,21 @@ class PM:
         Returns:
             str: Status message indicating whether the daemon was started or was already running.
         """
+
         try:
             c.cmd('systemctl start docker')
             return "Docker daemon started successfully."
         except Exception as e:
             return f"Error starting Docker daemon: {str(e)}"
+
+    def is_docker_daemon_on(self):
+        """
+        Check if the Docker daemon is running.
+        
+        Returns:
+            bool: True if the Docker daemon is running, False otherwise.
+        """
+
+        return not("Is the docker daemon running?" in c.cmd('docker info', verbose=False))
+        
+

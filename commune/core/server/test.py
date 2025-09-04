@@ -1,7 +1,8 @@
  
 import commune as c
 
-class ServerTestMixin:
+Server = c.mod('server')
+class ServerTestMixin(Server):
     def test_server(self, 
                         server = 'module::test_serving', 
                         key="test_deployer"):

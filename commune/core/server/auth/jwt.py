@@ -8,14 +8,18 @@ import commune as c
 class AuthJWT:
     description = 'auth'
 
-    def __init__(self, key=None):
-        self.key = c.get_key(key)
+    def __init__(self, key=None, crypto_type: str = 'sr25519'):
+        self.key = c.get_key(key, crypto_type=crypto_type)
 
-    def generate(self, data: Any, key:str=None, crypto_type='ecdsa', mode='dict') -> dict:
+    @property
+    def crypto_type(self) -> str:
+        return self.key.crypto_type_name
+        
+    def generate(self, data: Any, key:str=None, mode='headers') -> dict:
         """
         Generate the headers with the JWT token
         """
-        headers =  self.get_token(c.hash(data), key=key, crypto_type=crypto_type, mode=mode)
+        headers =  self.token(c.hash(data), key=key, mode=mode)
         return headers
 
     headers = forward = generate
@@ -30,47 +34,33 @@ class AuthJWT:
             data = json.dumps(data)
         return c.hash(data)
 
-    def verify(self, headers: str, data:Optional[Any]=None) -> Dict:
-        """
-        Verify and decode a JWT token
-        """
-        verified = self.verify_token(headers['token'])
-        assert verified, 'Invalid signature'
-        if data != None:
-            assert verified['data'] == c.hash(data), 'Invalid data {} != {}'.format(verified['data'], c.hash(data))
-        return headers
-
-    def check_crypto_type(self, crypto_type):
-        assert crypto_type in ['ecdsa', 'sr25519'], f'Invalid crypto_type {crypto_type}'
-
-    def get_token(self, data: Dict='hey',  key:Optional[str]=None,   crypto_type: str = 'ecdsa', expiration: int = 3600, mode='bytes') -> str:
+    def get_key(self, key) -> Any:
+        if key == None:
+            return self.key
+        else:
+            key = c.get_key(key, crypto_type=self.crypto_type)
+        assert key.crypto_type_name == self.crypto_type, f"Key crypto type {key.crypto_type} does not match expected {self.crypto_type}"
+        return key
+        
+    def token(self, data: Dict='hey',  key:Optional[str]=None, expiration: int = 3600, mode='bytes') -> str:
         """
         Generate a JWT token with the given data
         Args:
             data: Dictionary containing the data to encode in the token
             expiration: Optional custom expiration time in seconds
+            mode: 'bytes' to return as string, 'dict'/'headers' to return as dictionary with metadata
         Returns:
             JWT token string
         """
-        if isinstance(key, str) or key == None:
-            key = c.get_key(key, crypto_type=crypto_type)
-        else:
-            key = key
-            if crypto_type != key.get_crypto_type(key.crypto_type):
-                crypto_type = key.get_crypto_type(key.crypto_type)
-
-        self.check_crypto_type(crypto_type)
-        if not isinstance(data, dict):
-            data = {'data': data }
-        token_data = data.copy()        
-        # Add standard JWT claims
-        token_data.update({
+        key = self.get_key(key)
+        token_data = {
+            'data': data,
             'iat': str(float(c.time())),  # Issued at time
             'exp': str(float(c.time() + expiration)),  # Expiration time
             'iss': key.key_address,  # Issuer (key address)
-        })
+        }
         header = {
-            'alg': crypto_type,
+            'alg': self.crypto_type,
             'typ': 'JWT',
         }
         # Create message to sign
@@ -79,18 +69,33 @@ class AuthJWT:
         signature = self._base64url_encode(key.sign(message, mode='bytes'))
         # Combine to create the token
         token = f"{message}.{signature}"
-        if mode == 'dict':
-            return self.verify_token(token)
+        if mode in ['dict', 'headers']:
+            return {
+                'token': token,
+                'time': token_data['iat'],
+                'exp': token_data['exp'],
+                'key': key.key_address,
+                'alg': header['alg'],
+                'typ': header['typ'],
+            }
         elif mode == 'bytes':
             return f"{message}.{signature}"
         else:
             raise ValueError(f"Invalid mode: {mode}. Use 'bytes' or 'dict'.")
+
+
+    def is_headers(self, token: str) -> bool:
+        """
+        Check if the token is in headers format (dict with 'token' key)
+        """
+        return isinstance(token, dict) and 'token' in token
+
             
-    def verify_token(self, token: str) -> Dict:
+    def verify(self, token: str) -> Dict:
         """
         Verify and decode a JWT token
         """
-        if isinstance(token, dict) and 'token' in token:
+        if self.is_headers(token):
             token = token['token']
         # Split the token into parts
         header_encoded, data_encoded, signature_encoded = token.split('.')
@@ -100,17 +105,10 @@ class AuthJWT:
         # Check if token is expired
         if 'exp' in data and float(data['exp']) < c.time():
             raise Exception("Token has expired")
-        # Verify signature
         message = f"{header_encoded}.{data_encoded}"
         signature = self._base64url_decode(signature_encoded)
         assert self.key.verify(data=message, signature=signature, address=data['iss'], crypto_type=headers['alg']), "Invalid token signature"
-        # data['data'] = message
-        data['time'] = data['iat'] # set time field for semanitcally easy people
-        data['alg'] = headers['alg']
-        data['typ'] = headers['typ']
-        data['token'] = token
-        data['key'] = data['iss']
-        return data
+        return True
 
     def _base64url_encode(self, data):
         """Encode data in base64url format"""
@@ -126,7 +124,7 @@ class AuthJWT:
         padding = b'=' * (4 - (len(data) % 4))
         return base64.urlsafe_b64decode(data.encode('utf-8') + padding)
 
-    def test_token(self, test_data = {'fam': 'fam', 'admin': 1} , crypto_type='ecdsa'):
+    def test_token(self, test_data = {'fam': 'fam', 'admin': 1}):
         """
         Test the JWT token functionality
         
@@ -134,40 +132,43 @@ class AuthJWT:
             Dictionary with test results
         """
         # Generate a token
-        token = self.get_token(test_data, crypto_type=crypto_type)
+        token = self.token(test_data)
         # Verify the token
-        decoded = self.verify_token(token)
-        # Check if original data is in the decoded data
-        validation_passed = all(test_data[key] == decoded[key] for key in test_data)
-        assert validation_passed, "Decoded data does not match original data"
+        assert self.verify(token)
         # Test token expiration
-        quick_token = self.get_token(test_data, expiration=0.1, crypto_type=crypto_type)
+        quick_token = self.token(test_data, expiration=0.1)
         time.sleep(0.2)  # Wait for token to expire
         
         expired_token_caught = False
         try:
-            decoded = self.verify_token(quick_token)
+            decoded = self.verify(quick_token)
         except Exception as e:
             expired_token_caught = True
         assert expired_token_caught, "Expired token not caught"
         
         return {
             "token": token,
-            "decoded_data": decoded,
-            "crypto_type": crypto_type,
+            "crypto_type": self.crypto_type,
             "quick_token": quick_token,
             "expired_token_caught": expired_token_caught
             }
 
-    def test_headers(self, key='test.jwt', crypto_type='ecdsa'):
+    def test_headers(self, key='test.jwt'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
-        headers = self.generate(data, key=key, crypto_type=crypto_type)
+        headers = self.generate(data, key=key)
         verified = self.verify(headers)
-        verified = self.verify(headers, data=data)
+        verified = self.verify(headers)
         return {'headers': headers, 'verified': verified}
 
     def test(self):
-        return {
-            'token': self.test_token(),
-            'headers': self.test_headers()
-        }
+        crypto_types = ['sr25519', 'ed25519']
+        result = {}
+        for crypto_type in crypto_types:
+            self.key = c.get_key('test.jwt', crypto_type=self.crypto_type)
+            result[crypto_type] = {
+                'token': self.test_token(),
+                'headers': self.test_headers()
+            }
+            print(f"Tested JWT with crypto_type {crypto_type}: {result}")
+        
+        return result

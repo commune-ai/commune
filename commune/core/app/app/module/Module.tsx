@@ -115,16 +115,12 @@ export default function Module({ module_name }: ModuleProps) {
   // Access the auth context
   const { keyInstance, user, authLoading } = useUserContext()
   
-  const client = useMemo(() => {
-    // You can pass the key instance to the client if needed
-    return new Client(undefined, keyInstance )
-  }, [])
-  
+
   const [module, setModule] = useState<ModuleType | undefined>()
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(true)
   const [syncing, setSyncing] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<TabType>('app')
+  const [activeTab, setActiveTab] = useState<TabType>('api')
   const [hasFetched, setHasFetched] = useState(false)
 
   const fetchModule = useCallback(async (update = false) => {
@@ -135,6 +131,7 @@ export default function Module({ module_name }: ModuleProps) {
         setLoading(true)
       }
 
+      const client = new Client(undefined, keyInstance)
       // You can use the keyInstance here if needed for authenticated requests
       const params = { 
         module: module_name, 
@@ -156,10 +153,12 @@ export default function Module({ module_name }: ModuleProps) {
       setLoading(false)
       setSyncing(false)
     }
-  }, [module_name, client, keyInstance, user, syncing])
+  }, [module_name, keyInstance, user, syncing])
+
+  // if module is undefined, lets 
 
   useEffect(() => {
-    if (!hasFetched && !authLoading) {
+    if (!hasFetched && !authLoading || module === undefined) {
       setHasFetched(true)
       fetchModule(false)
     }
@@ -170,31 +169,8 @@ export default function Module({ module_name }: ModuleProps) {
   }, [fetchModule])
 
   // Show loading while auth is initializing
-  if (authLoading || loading) return <Loading />
+  if (authLoading || loading || module === undefined) return <Loading />
   
-  if (error || !module) {
-    return (
-      <div className='flex min-h-screen items-center justify-center bg-black'>
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className='max-w-md text-center'
-        >
-          <ExclamationTriangleIcon className='mx-auto h-16 w-16 text-red-500 mb-6' />
-          <h2 className='text-2xl font-bold text-red-500 mb-3'>Error Loading Module</h2>
-          <p className='text-gray-400 mb-8'>{error}</p>
-          <Link
-            href='/'
-            className='inline-flex items-center gap-2 rounded-lg border border-green-500/30 bg-black/90 px-6 py-3 text-green-400 hover:bg-green-900/20 transition-all'
-          >
-            <ArrowLeftIcon className='h-5 w-5' />
-            Back to Modules
-          </Link>
-        </motion.div>
-      </div>
-    )
-  }
-
   const moduleColor = text2color(module.name)
   const patternBg = generatePattern(moduleColor, module.key || module.name || 'default')
 
