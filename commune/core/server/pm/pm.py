@@ -36,6 +36,7 @@ class PM:
                 name = None,
                 cwd = None,
                 include_storage=True,
+                env={},
                 **params):
         image = image or self.image
         daemon = daemon if d is None else d
@@ -74,6 +75,7 @@ class PM:
             'working_dir': working_dir, 
             'daemon': daemon,
             'volumes': volumes,
+            'env': env,
             'cwd': cwd       
             }
         return self.run(name=name, 
@@ -325,6 +327,9 @@ class PM:
         
         # Handle environment variables
         if env:
+            if isinstance(env, dict):
+                env = [f"{k}={v}" for k,v in env.items()]
+            assert isinstance(env, list)
             service_config['environment'] = env
          
         service_config['working_dir'] = working_dir
@@ -337,8 +342,6 @@ class PM:
             elif isinstance(build, str):
                 service_config['build'] = {'context': build, 'dockerfile': 'Dockerfile'}
             service_config['image'] = f'{name}:latest'
-
-        
         # Build the complete docker-compose configuration
         compose_config = {
             'services': {

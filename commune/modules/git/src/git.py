@@ -74,7 +74,7 @@ class Git:
             lib_path = self.lib_path
         return c.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
     
-    def get_info(self, path:str = None, name:str = None, n=10):
+    def forward(self, path:str = None, name:str = None, n=10):
         path = path or c.mods_path
         git_path = path + '/.git'
         git_url = c.cmd('git config --get remote.origin.url', cwd=path).strip().split('\n')[0].strip().split(' ')[0].strip()

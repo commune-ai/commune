@@ -6,14 +6,14 @@ class App:
     api_port = 8000
     app_port = 3000
 
-    def serve(self, public=False):
+    def forward(self, public=False):
         return {
             "api": self.api(),
             "app": self.app(public=public),
 
         }
 
-    forward = serve  # Alias for serve method
+    serve = forward  # Alias for serve method
         
     def app(self, public=False, remote=True, build=True):
         cwd = c.dirpath('app') 
@@ -24,8 +24,8 @@ class App:
             'name': 'app', 
             'build': {'context': './'},
             'port':  self.app_port,
-            'env': {'API_URL': api_url, 
-                    'APP_URL': app_url},
+            'env': {'NEXT_PUBLIC_API_URL': api_url, 
+                    'NEXT_PUBLIC_APP_URL': app_url},
             'volumes': [f'{cwd}:/app','/app/node_modules'],
             'cwd': cwd  ,
             'working_dir': '/app',

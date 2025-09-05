@@ -1,7 +1,10 @@
 
-import config from '@/config.json';
 import {Auth, AuthHeaders} from '@/app/client/auth';
 import Key from '@/app/key';
+
+
+// load config from environment variables or default values
+// get the process without using nodejs process
 
 export class Client {
   public url: string;
@@ -21,9 +24,9 @@ export class Client {
 
   }
 
-
   public getUrl(url: string, mode: string = 'http'): string {
-    url = url || '0.0.0.0:8000';
+
+    url = url || process.env.NEXT_PUBLIC_API_URL || 'localhost:8000';
     if (!url.startsWith(mode + '://')) {
       url = mode + '://' + url ;
     }
