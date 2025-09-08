@@ -9,7 +9,7 @@ import commune as c
 
 class Api:
 
-    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n']
+    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n', 'ask']
     port = 8000
     url = '0.0.0.0:8000'
     tempo = 600
@@ -45,14 +45,14 @@ class Api:
             raise ValueError(f"Unknown mode: {mode}. Use 'thread', 'process' or 'async'.")
         return executor
 
-    def modules(self, 
+    def mods(self, 
                     search=None,
                     page=1, 
                     update=False, 
                     modules:Optional[list]=None,
                      page_size=20, 
                     timeout=200, 
-                    code=True,
+                    source=True,
                     df = False,
                     names = False,
                     threads=8,
@@ -72,7 +72,7 @@ class Api:
             executor = self.executor(max_workers=threads, mode=mode)
             futures = []
             for module in modules:
-                future = executor.submit(self.module, module, max_age=max_age, update=update, code=code)
+                future = executor.submit(self.module, module, max_age=max_age, update=update, source=source)
                 futures.append(future)
             for future in c.as_completed(futures):
                 result = future.result()
@@ -99,21 +99,26 @@ class Api:
             results = [m['name'] for m in results]
         return results
 
-    mods = modules
-    def mod(self, module:str,  update=False, max_age=None, code=False, **kwargs):
+    modules = mods
 
+    def mod(self, module:str,  update=False,  source=False, schema = False,**kwargs):
+        """
+        Get module info
+        1. Check if module info is in store and not expired
+        2. If not, fetch module info from module server
+        """
         try:
             path = f'modules/{module}.json'
             info = self.store.get(path, None, update=update)
             if info == None:
-                info = c.info(module, max_age=max_age, update=update, code=code)
-                self.store.put(module, info)
-            
+                info = c.info(module=module, source=True, schema=False, **kwargs)
+                self.store.put(path, info)
+            if not source:
+                info.pop("source", None)
+            if not schema:
+                info.pop("schema", None)
         except Exception as e:
-
-            print(f"Error({module} error:{e})")
-        if not code:
-            info.pop("code", None)
+            print(c.detailed_error(e))
         
         return info
 
@@ -186,13 +191,13 @@ class Api:
 
     def add_module(self, 
                    name  = "module", 
-                   code = None, 
+                   source = None, 
                    key  = None, 
                    url  = "0.0.0.0:8000", 
                    app = None,
                    **kwargs ):
         
-        module = { "name": name, "url": url, "key": key, "code": code,  **kwargs }
+        module = { "name": name, "url": url, "key": key, "source": source,  **kwargs }
         self.save_module(module)
         result =  {"message": f"Module {module['name']} added successfully", "module": module}
         print('RESULT',result)
@@ -261,6 +266,13 @@ class Api:
         path = 'api/hosts.json'
         self.store.put('api/hosts', path, [])
         return {"message": "Hosts cleared successfully"}
+
+
+    def ask(self, text, *extra_text,  **kwargs):
+        """
+        Ask a question to the commune
+        """
+        return c.ask(text, *extra_text, **kwargs)
 
 
 

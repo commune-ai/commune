@@ -10,12 +10,7 @@ export const CopyButton = (props: TCodeComponentProps, className=null) => {
   const { code } = props
   const [copied, setCopied] = useState(false)
   if (!className) {
-  
-    // make this a simple button with rounded corners
-
     className = "p-1 hover:bg-black/20 rounded transition-colors flex items-center justify-center"
-
-
   }
 
   async function copyTextToClipboard(text: string) {

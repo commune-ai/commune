@@ -1,33 +1,135 @@
-# Sidebar Implementation
+# Commune Installation Guide
 
-The sidebar has been successfully implemented with the following features:
+## Overview
+Commune is a global toolbox that allows you to connect and share any tool (module). This guide will help you install and set up Commune on your system.
 
-## Features
-- **Toggle Button**: A hamburger menu icon in the top-left corner of the header
-- **Slide Animation**: Smooth slide-in/slide-out animation when toggling
-- **Overlay**: Dark overlay appears behind sidebar on mobile devices
-- **Responsive**: Works on both desktop and mobile
-- **Event-Driven**: Uses custom events to communicate between components
+## Prerequisites
+- Python 3.8 - 3.12
+- Docker (optional, for containerized deployment)
+- npm (for certain features)
 
-## Components Created
+## Installation Methods
 
-### 1. Header Component (`./app/components/Header.tsx`)
-- Contains the hamburger menu button
-- Manages sidebar toggle state
-- Dispatches custom events to control sidebar
+### Method 1: Quick Install (Recommended)
+```bash
+# Clone the repository
+git clone https://github.com/commune-ai/commune.git
+cd commune
 
-### 2. Sidebar Component (`./app/components/Sidebar.tsx`)
-- Listens for toggle events
-- Slides in from the left when opened
-- Contains navigation links
-- Has a close button
+# Run the install script
+make install
+# OR
+./scripts/install.sh
+```
 
-### 3. Layout (`./app/layout.tsx`)
-- Imports and renders both Header and Sidebar components
-- Provides the overall app structure
+This will automatically:
+- Install Python 3 and pip if not present
+- Install npm if not present
+- Install Docker and Docker Compose if not present
+- Install the Commune Python package
+
+### Method 2: Manual Python Installation
+```bash
+# Clone the repository
+git clone https://github.com/commune-ai/commune.git
+cd commune
+
+# Install as a Python package
+pip install -e .
+```
+
+### Method 3: Docker Installation
+```bash
+# Clone the repository
+git clone https://github.com/commune-ai/commune.git
+cd commune
+
+# Build and start with Docker
+make build
+make start
+
+# Enter the container
+make enter
+```
+
+## Verify Installation
+```bash
+# Check if commune is installed
+c key
+```
 
 ## Usage
-Click the hamburger menu icon (☰) in the top-left corner to expand the sidebar. Click the X button or the overlay to close it.
 
-## Styling
-The app uses Tailwind CSS for styling with dark mode support.
+### Basic Commands
+```bash
+# Start commune
+make start
+
+# Stop commune
+make stop
+
+# Restart commune
+make restart
+
+# Enter Docker container
+make enter
+```
+
+### Python Usage
+```python
+import commune as c
+
+# Example usage
+c.print('Hello Commune!', color='green')
+```
+
+## System Requirements
+- **Operating Systems**: Linux, macOS, Windows (WSL)
+- **Python**: 3.8, 3.9, 3.10, 3.11, or 3.12
+- **Memory**: Minimum 4GB RAM (8GB recommended)
+- **Storage**: At least 2GB free space
+
+## Dependencies
+The main dependencies include:
+- FastAPI for web framework
+- PyTorch for machine learning
+- Rich for terminal formatting
+- Various cryptographic libraries
+- And many more (see setup.py for full list)
+
+## Troubleshooting
+
+### Docker Issues
+If Docker fails to start:
+```bash
+# Install Docker manually
+./scripts/install_docker.sh
+```
+
+### Python Issues
+If Python is not found:
+```bash
+# Install Python manually
+./scripts/install_python.sh
+```
+
+### npm Issues
+If npm is not found:
+```bash
+# Install npm manually
+./scripts/install_npm.sh
+```
+
+## Uninstallation
+To uninstall Commune:
+```bash
+./scripts/uninstall.sh
+```
+
+## Support
+- Homepage: https://communeai.org/
+- Repository: https://github.com/commune-ai/commune
+- Issues: https://github.com/commune-ai/commune/issues
+
+## License
+MIT License

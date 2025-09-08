@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Main application
+  # app:
+  #   build:
+  #     context: ./asset/app
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - ETHEREUM_RPC_URL=http://ethereum-node:8545
+  #     - SOLANA_RPC_URL=http://solana-node:8899
+  #   volumes:
+  #     - ./asset/app:/app
+  #     - /app/node_modules
+  #   depends_on:
+  #     - ethereum-node
+  #     - solana-node
+  #   networks:
+  #     - blockchain-network
+
+  # Ethereum development environment
+  ethereum-node:
+    image: trufflesuite/ganache:latest
+    ports:
+      - "8545:8545"
+    command: >
+      -a 10
+      --deterministic
+      --host 0.0.0.0
+      --networkId 1337
+      --chainId 1337
+    volumes:
+      - ethereum-data:/ganache_data
+    networks:
+      - blockchain-network
+
+  # Solana development environment
+  solana-node:
+    image: solanalabs/solana:latest
+    ports:
+      - "8899:8899"
+      - "8900:8900"
+      - "9900:9900"
+    command: >
+      solana-test-validator
+      --rpc-port 8899
+      --ws-port 8900
+      --log
+    volumes:
+      - solana-data:/root/.config/solana
+      - ./asset/sol:/workspace
+    networks:
+      - blockchain-network
+
+  # Ethereum contract deployment
+  ethereum-deploy:
+    image: node:18-alpine
+    depends_on:
+      - ethereum-node
+    volumes:
+      - ./asset/erc20:/app
+      - ./scripts:/scripts
+    working_dir: /app
+    command: sh -c "sleep 10 && npm install && npm run deploy"
+    environment:
+      - RPC_URL=http://ethereum-node:8545
+    networks:
+      - blockchain-network
+
+  # Solana program deployment
+  solana-deploy:
+    image: projectserum/build:latest
+    depends_on:
+      - solana-node
+    volumes:
+      - ./asset/sol:/workspace
+      - solana-keys:/root/.config/solana
+    working_dir: /workspace
+    command: sh -c "sleep 15 && anchor build && anchor deploy --provider.cluster http://solana-node:8899"
+    environment:
+      - ANCHOR_PROVIDER_URL=http://solana-node:8899
+      - ANCHOR_WALLET=/root/.config/solana/id.json
+    networks:
+      - blockchain-network
+
+volumes:
+  ethereum-data:
+  solana-data:
+  solana-keys:
+
+networks:
+  blockchain-network:
+    driver: bridge

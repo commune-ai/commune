@@ -1,13 +1,230 @@
-'use client'
-import{useState,memo,useCallback,useMemo}from'react'
-import{useRouter}from'next/navigation'
-import{ModuleType}from'@app/types/module'
-import{CopyButton}from'@/app/components/CopyButton'
-const shorten=(key:string,length=6):string=>{if(!key||typeof key!=='string')return'';if(key.length<=length*2+3)return key;return`${key.slice(0,length)}...${key.slice(-length)}`}
-const time2str=(time:number):string=>{const d=new Date(time*1000);const now=new Date();const diff=now.getTime()-d.getTime();if(diff<60000)return'now';if(diff<3600000)return`${Math.floor(diff/60000)}m ago`;if(diff<86400000)return`${Math.floor(diff/3600000)}h ago`;if(diff<604800000)return`${Math.floor(diff/86400000)}d ago`;return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toLowerCase()}
-const getModuleColor=(name:string):string=>{const colors=['#00ff00','#ff00ff','#00ffff','#ffff00','#ff6600','#0099ff','#ff0099','#99ff00','#9900ff','#00ff99','#ff9900','#00ff66','#6600ff','#ff0066','#66ff00'];let hash=0;for(let i=0;i<name.length;i++){hash=name.charCodeAt(i)+((hash<<5)-hash)}return colors[Math.abs(hash)%colors.length]}
-const generateCyberpunkPattern=(key:string,color:string):string=>{if(!key)return'';const canvas=`<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="black"/><rect width="1" height="40" fill="${color}20" x="20"/><rect width="40" height="1" fill="${color}20" y="20"/></pattern><filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="400" height="400" fill="url(#grid)"/>`;let paths='';let hash=0;for(let i=0;i<key.length;i++){hash=key.charCodeAt(i)+((hash<<5)-hash)}const rand=(seed:number)=>{const x=Math.sin(seed)*10000;return x-Math.floor(x)};for(let i=0;i<8;i++){const x1=Math.floor(rand(hash+i)*400);const y1=Math.floor(rand(hash+i+1)*400);const x2=Math.floor(rand(hash+i+2)*400);const y2=Math.floor(rand(hash+i+3)*400);paths+=`<path d="M${x1},${y1} L${x2},${y2}" stroke="${color}" stroke-width="2" opacity="0.6" filter="url(#glow)"/>`;if(i%2===0){paths+=`<circle cx="${x1}" cy="${y1}" r="4" fill="${color}" filter="url(#glow)"/>`;paths+=`<circle cx="${x2}" cy="${y2}" r="4" fill="${color}" filter="url(#glow)"/>`}}for(let i=0;i<5;i++){const x=Math.floor(rand(hash+i+10)*350)+25;const y=Math.floor(rand(hash+i+11)*350)+25;const size=20+Math.floor(rand(hash+i+12)*30);paths+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="${color}15" stroke="${color}" stroke-width="1" filter="url(#glow)"/>`}const svg=canvas+paths+'</svg>';return`data:image/svg+xml;base64,${btoa(svg)}`}
-interface ModuleCardProps{module:ModuleType;viewMode?:'grid'|'list'}
-const ModuleCard=memo(({module,viewMode='grid'}:ModuleCardProps)=>{const router=useRouter();const[isHovered,setIsHovered]=useState(false);const[isLoading,setIsLoading]=useState(false);const moduleColor=getModuleColor(module.name);const cyberpunkPattern=useMemo(()=>{return generateCyberpunkPattern(module.key,moduleColor)},[module.key,moduleColor]);const handleCardClick=useCallback(async(e:React.MouseEvent)=>{e.stopPropagation();setIsLoading(true);await router.push(`${module.name}`)},[router,module.name]);return(<div onClick={handleCardClick}className='cursor-pointer border-2 bg-black p-6 font-mono hover:shadow-2xl transition-all duration-300 relative overflow-hidden group flex flex-col h-[420px] rounded-2xl'style={{borderColor:moduleColor,boxShadow:isHovered?`0 0 30px ${moduleColor}80, inset 0 0 20px ${moduleColor}20`:`0 0 10px ${moduleColor}40`,borderWidth:isHovered?'3px':'2px',background:isHovered?`radial-gradient(ellipse at center, ${moduleColor}10 0%, black 70%)`:'black'}}onMouseEnter={()=>setIsHovered(true)}onMouseLeave={()=>setIsHovered(false)}>{isLoading&&(<div className='absolute inset-0 z-20 bg-black/90 flex items-center justify-center rounded-2xl'><div className='text-5xl font-bold animate-pulse text-white'>{`loading...`}</div></div>)}<div className='flex-1 flex flex-col relative z-10'><div className='mb-4'><h3 className='font-bold text-4xl tracking-wider lowercase transition-all duration-300 text-white mb-3'style={{textShadow:isHovered?`0 0 15px ${moduleColor}80`:`0 0 5px ${moduleColor}40`,letterSpacing:'0.05em'}}>{module.name}</h3><div className='flex gap-4'><div className='flex flex-col gap-2 flex-1'><div className='flex items-center gap-2'><span className='text-xl lowercase font-bold text-white/60'>key</span><div className='border px-10 py-1 rounded-lg'style={{borderColor:`${moduleColor}50`,backgroundColor:`${moduleColor}10`}}><code className='text-xl font-mono text-white/80'>{shorten(module.key,4)}</code></div><div onClick={(e)=>e.stopPropagation()}><CopyButton code={module.key}/></div></div>{module.cid&&(<div className='flex items-center gap-2'><span className='text-xl lowercase font-bold text-white/60'>cid</span><div className='border px-10 py-1 rounded-lg'style={{borderColor:`${moduleColor}50`,backgroundColor:`${moduleColor}10`}}><code className='text-xl font-mono text-white/80'>{shorten(module.cid,4)}</code></div><CopyButton code={module.cid}/></div>)}<div className='flex items-center gap-2'><span className='text-xl lowercase font-bold text-white/60'>time</span><div className='border px-12 py-1 rounded-lg'style={{borderColor:`${moduleColor}50`,backgroundColor:`${moduleColor}10`}}><span className='text-xl font-mono text-white/80'>{time2str(module.time)}</span></div><CopyButton code={time2str(module.time)}/></div></div></div><div className='flex flex-wrap gap-2 min-h-[32px]'>{module.tags&&module.tags.length>0?(<>{module.tags.slice(0,8).map((tag,i)=>(<span key={i}className='text-lg border px-3 py-1 lowercase tracking-wide transition-all duration-200 hover:scale-110 text-white rounded-full'style={{borderColor:`${moduleColor}50`,backgroundColor:`${moduleColor}15`,boxShadow:isHovered?`0 0 10px ${moduleColor}40`:'none'}}>{tag}</span>))}{module.tags.length>8&&(<span className='text-lg px-3 py-1 text-white/60'>+{module.tags.length-8}</span>)}</>):(<span className='text-lg text-white/40 italic'>no tags</span>)}</div></div></div></div>)})
-ModuleCard.displayName='ModuleCard'
-export default ModuleCard
+'use client';
+
+import { memo, useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { CopyButton } from '@/app/components/CopyButton';
+import { ModuleType } from '@app/types/module';
+import { User, Clock3, Tag as TagIcon, Boxes } from 'lucide-react';
+
+interface ModuleCardProps { module: ModuleType }
+
+const ui = {
+  panel: '#0f0f11',
+  border: '#22232a',
+  text: '#eaeaea',
+  textDim: '#9ca3af',
+  chipBg: '#181a1f',
+};
+
+const shorten = (v?: string, len = 4) =>
+  !v ? '' : v.length <= len * 2 + 3 ? v : `${v.slice(0, len)}...${v.slice(-len)}`;
+
+const relTime = (t: number) => {
+  const d = new Date(t * 1000), diff = Date.now() - d.getTime();
+  if (diff < 60_000) return 'now';
+  if (diff < 3_600_000) return `${Math.floor(diff/60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff/3_600_000)}h`;
+  if (diff < 604_800_000) return `${Math.floor(diff/86_400_000)}d`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toLowerCase();
+};
+
+const epoch = (m: any) =>
+  typeof m?.updated_at === 'number' ? m.updated_at :
+  typeof m?.updated_at === 'string' ? Math.floor(new Date(m.updated_at).getTime()/1000) :
+  typeof m?.time === 'number' ? m.time : Math.floor(Date.now()/1000);
+
+const ownerOf = (m: any) => m?.owner || m?.creator || m?.author || m?.admin || 'unknown';
+
+const fnsOf = (m: any): string[] => {
+  const si = m?.schema?.input;
+  if (si && typeof si === 'object') return Object.keys(si);
+  if (Array.isArray(m?.functions)) return m.functions;
+  if (m?.functions && typeof m.functions === 'object') return Object.keys(m.functions);
+  if (m?.schema && typeof m.schema === 'object') return Object.keys(m.schema);
+  return [];
+};
+
+// gradient cover fallback
+const hueFrom = (s: string) => { let h = 0; for (let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h%360; };
+const coverDataUri = (a: string, b: string, w = 640, h = 64) => {
+  const h1 = hueFrom(a), h2 = (hueFrom(b) + 40) % 360;
+  const svg = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="hsl(${h1},70%,48%)"/>
+          <stop offset="100%" stop-color="hsl(${h2},65%,34%)"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)"/>
+    </svg>`
+  );
+  return `data:image/svg+xml,${svg}`;
+};
+
+const chip = 'inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] leading-none';
+const chipSolidStyle = (bg: string, br: string, fg: string) => ({ backgroundColor: bg, borderColor: br, color: fg });
+const chipMutedStyle = (br: string, fg: string) => ({ backgroundColor: 'transparent', borderColor: br, color: fg });
+
+const ModuleCard = memo(({ module }: ModuleCardProps) => {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  const time = useMemo(() => epoch(module as any), [module]);
+  const owner = useMemo(() => ownerOf(module as any), [module]);
+  const funcs = useMemo(() => fnsOf(module as any), [module]);
+
+  const onOpen = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation(); setBusy(true); router.push(`${module.name}`);
+  }, [router, module.name]);
+
+  const coverUrl =
+    (module as any)?.image ||
+    (module as any)?.banner ||
+    coverDataUri(owner || module.name || 'seed', module.name || owner || 'seed');
+
+  // shared edge-fade for scroll rows (softens edges + scrollbar)
+  const fadeMask: React.CSSProperties = {
+    WebkitMaskImage: 'linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent)',
+    maskImage: 'linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent)',
+  };
+
+  return (
+    <div
+      role="button" tabIndex={0}
+      onClick={onOpen as any}
+      onKeyDown={(e) => ((e.key === 'Enter' || e.key === ' ') ? onOpen(e) : null)}
+      className="relative flex flex-col overflow-hidden rounded-xl border"
+      style={{ backgroundColor: ui.panel, borderColor: ui.border }}
+      aria-label={`Open ${module.name}`}
+    >
+      {busy && (
+        <div className="absolute inset-0 z-20 m-0 flex items-center justify-center bg-black/60">
+          <div className="animate-pulse text-[11px] font-bold text-white">loading…</div>
+        </div>
+      )}
+
+      {/* row 1: name | time */}
+      <div className="flex items-center justify-between gap-2 px-3 pt-2">
+        <h3 className="truncate text-[13px] font-semibold leading-none" style={{ color: ui.text }} title={module.name}>
+          {module.name}
+        </h3>
+        <span className={chip} style={chipMutedStyle(ui.border, ui.textDim)} title={new Date(time*1000).toLocaleString()}>
+          <Clock3 className="h-3.5 w-3.5" /> {relTime(time)}
+        </span>
+      </div>
+
+      {/* row 2: key, cid, tags inline (subtle scrollbar) */}
+      <div
+        className="micro-scroll -mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 pt-1"
+        style={fadeMask}
+      >
+        <span className={chip} style={chipSolidStyle(ui.chipBg, ui.border, ui.text)} title={`key: ${module.key}`}>
+          <TagIcon className="h-3.5 w-3.5 opacity-90" /><code>{shorten(module.key, 6)}</code>
+        </span>
+        <CopyButton size="xs" code={module.key} />
+        {(module as any)?.cid && (
+          <>
+            <span className={chip} style={chipSolidStyle(ui.chipBg, ui.border, ui.text)} title={`cid: ${(module as any).cid}`}>
+              <Boxes className="h-3.5 w-3.5 opacity-90" /><code>{shorten((module as any).cid, 6)}</code>
+            </span>
+            <CopyButton size="xs" code={(module as any).cid} />
+          </>
+        )}
+        {module.tags?.length ? (
+          <>
+            {module.tags.slice(0, 12).map((t) => (
+              <span key={t} className={`${chip} border-dashed`} style={chipMutedStyle(ui.border, ui.textDim)} title={t}>
+                #{t}
+              </span>
+            ))}
+            {module.tags.length > 12 && (
+              <span className={chip} style={chipMutedStyle(ui.border, ui.textDim)}>+{module.tags.length - 12}</span>
+            )}
+          </>
+        ) : (
+          <span className={`${chip} border-dashed`} style={chipMutedStyle(ui.border, ui.textDim)}>#untagged</span>
+        )}
+      </div>
+
+      {/* row 3: desc (if any) | owner | functions (subtle scrollbar) */}
+      <div
+        className="micro-scroll -mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 pb-2 pt-1"
+        style={fadeMask}
+      >
+        {(module.description || (module as any).desc) && (
+          <span className="truncate text-[11px] leading-none" style={{ color: ui.textDim }}>
+            {module.description || (module as any).desc}
+          </span>
+        )}
+        <span className={chip} style={chipSolidStyle(ui.chipBg, ui.border, ui.text)} title={`owner: ${owner}`}>
+          <User className="h-3.5 w-3.5 opacity-90" /><code>{shorten(owner, 6)}</code>
+        </span>
+        <CopyButton size="xs" code={String(owner)} />
+
+        {!!funcs.length && (
+          <>
+            <span className="text-[10.5px] leading-none" style={{ color: ui.textDim }}>functions</span>
+            {funcs.slice(0, 14).map((fn) => (
+              <span
+                key={fn}
+                className="rounded border px-2 py-1 text-[10.5px] leading-none"
+                style={{ borderColor: ui.border, backgroundColor: ui.chipBg, color: ui.text }}
+                title={fn}
+              >
+                {fn}
+              </span>
+            ))}
+            {funcs.length > 14 && (
+              <span className="px-2 py-1 text-[10.5px]" style={{ color: ui.textDim }}>
+                +{funcs.length - 14}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* bottom image banner (tight height, no padding) */}
+      <div className="relative h-[64px] w-full">
+        <img
+          src={String(coverUrl)}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: 'saturate(1.05) contrast(1.02)' }}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/14 via-transparent to-transparent" />
+      </div>
+
+      {/* subtle, hover-only scrollbar styling */}
+      <style jsx>{`
+        .micro-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: transparent transparent;
+        }
+        .micro-scroll:hover {
+          scrollbar-color: rgba(255,255,255,0.14) transparent;
+        }
+        .micro-scroll::-webkit-scrollbar {
+          height: 6px;
+          background: transparent;
+        }
+        .micro-scroll::-webkit-scrollbar-thumb {
+          background: transparent;
+          border-radius: 9999px;
+        }
+        .micro-scroll:hover::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.12);
+        }
+        .micro-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+      `}</style>
+    </div>
+  );
+});
+
+ModuleCard.displayName = 'ModuleCard';
+export default ModuleCard;

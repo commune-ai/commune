@@ -366,7 +366,7 @@ class Server:
         name = name or mod
         params = {**(params or {}), **extra_params}
         if remote:
-            return c.fn('pm/serve')(mod=mod, params=params, name=name, fns=fns, port=port, key=key, auth=auth, serializer=serializer)
+            return c.fn('pm/serve')(mod=mod, params=params, name=name, fns=fns, port=port, key=key, cwd=cwd)
         if self.exists(name):
             self.kill(name) # kill the server if it exists
         mod = mod or 'mod'

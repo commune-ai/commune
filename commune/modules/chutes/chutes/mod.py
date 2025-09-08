@@ -21,5 +21,3 @@ class Server:
         """
         module = module or self.my_module_name
         return self.model.forward(f'what does this do? {c.code(module or my_module_name)}', stream=stream)
-
-    

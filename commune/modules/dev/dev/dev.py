@@ -86,6 +86,7 @@ class Dev:
                 mode: str = 'auto', 
                 mod=None,
                 steps =3,
+                use_tools = True,
                 memory = None,
                 trials=4,
                 **kwargs) -> Dict[str, str]:
@@ -94,7 +95,10 @@ class Dev:
         """
         output = ''
         content = ''
+        if mod != None: 
+            src = c.dp(mod)
         text = ' '.join(list(map(str, [text] + list(extra_text))))
+        print(f"Dev.forward text={text} src={src} steps={steps} mode={mode} mod={mod}", color='cyan')
         query = self.preprocess(text=text, src=src)
         model = model or self.model
         memory = memory or []
@@ -135,26 +139,33 @@ class Dev:
 
 
 
-    def preprocess(self, text, src='./'):
+    def preprocess(self, text, src='./', magic_prefix = f'@'):
 
         query = ''
         words = text.split(' ')
         fn_detected = False
         fns = []
+        step = {}
         for i, word in enumerate(words):
             query += word + ' '
             prev_word = words[i-1] if i > 0 else ''
             # restrictions can currently only handle one fn argument, future support for multiple
-            magic_prefix = f'@'
-            if word.startswith(magic_prefix) and not fn_detected:
+            if (not fn_detected) and word.startswith(magic_prefix) :
                 word = word[len(magic_prefix):]
-                fns += [{'tool': word, 'params': [], 'idx': i + 2}]
+                step = {'tool': c.fn(word), 'params': {}, 'idx': i + 2}
                 fn_detected=True
             else:
-                if fn_detected:
-                    fns[-1]['params'] += [word]
+                if fn_detected and '=' in word:
+                    key, value = word.split('=')[0], '='.join(word.split('=')[1:])
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        print(f"Could not parse {value} as JSON, using string.", color='yellow')
+                        continue
+                    fns[-1]['params'][key] = value
+                    query += str(step['fn'](**step['params']))
+                else:
                     fn_detected = False
-                    query += str(c.fn(fns[-1]['tool'])(*fns[-1]['params']))
 
         return query
 
@@ -263,7 +274,6 @@ class Dev:
 
 
     def add_docker_file(self, src='./'): 
-        
         return self.forward( 'add a docker file given the following and do it in one shot', src=src, steps=1)
 
 

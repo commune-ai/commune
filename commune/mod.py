@@ -16,6 +16,8 @@ nest_asyncio.apply()
 
 class Mod: 
 
+    endpoints = ['ask']
+
     def __init__(self, 
                   config = None,
                   **kwargs):
@@ -184,35 +186,7 @@ class Mod:
 
 
     anchor_names = ['module', 'mod', 'agent', 'block', 'server']
-    def dirpath(self, module=None) -> str:
-        """
-        get the directory path of the module
-        """
-        module = self.shortcuts.get(module, module)
-        module = (module or 'module').replace('/', '.')
-        if module in self.anchor_names:
-            return self.lib_path
-        else:
-            possible_core_path = self.core_path + '/' + module
-            possible_mods_path = self.mods_path + '/' + module.replace('.', '/')
-            if os.path.exists(possible_core_path):
-                dirpath = possible_core_path
-            elif os.path.exists(possible_mods_path):
-                dirpath = possible_mods_path
-            elif self.module_exists(module):
-                filepath = self.filepath(module)
-                dirpath =  os.path.dirname(filepath)
-            else: 
-                dirpath = self.mods_path + '/' + module.replace('.', '/')
-            # if ../x/x then remove x
-            if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
-                dirpath = '/'.join(dirpath.split('/')[:-1]) 
-            if dirpath.endswith('/src'):
-                dirpath = dirpath[:-4]  # remove the trailing /src
-            return dirpath
 
-    dp = dirpath
-    
     def modname(self, obj=None):
         obj = obj or Mod
         if  isinstance(obj, str):
@@ -794,7 +768,7 @@ class Mod:
 
     fn2cost = {}
 
-    def fn_schema(self, fn:str = '__init__', code=True, **kwargs)->dict:
+    def fn_schema(self, fn:str = '__init__', source=True, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''     
@@ -823,8 +797,8 @@ class Mod:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 0 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__ # attribute the cost to the function
         schema['name'] = fn_obj.__name__
-        if code:
-            schema.update(self.source(fn_obj))
+        if source:
+            schema['source'] = self.source(fn_obj)
         return schema
 
     fnschema = fn_schema
@@ -845,7 +819,7 @@ class Mod:
                              'end': len(sourcelines[0]) + sourcelines[1]
                              }
     
-    def schema(self, obj = None , verbose=False, code=True, **kwargs)->dict:
+    def schema(self, obj = None , verbose=False, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
@@ -855,7 +829,7 @@ class Mod:
             return self.fn_schema(obj, **kwargs)
         elif isinstance(obj, str):
             if '/' in obj :
-                return self.fn_schema(obj,  **kwargs)
+                return self.fn_schema(obj, **kwargs)
             elif self.module_exists(obj):
                 obj = self.mod(obj)
             elif hasattr(self, obj):
@@ -867,7 +841,7 @@ class Mod:
             obj = obj.__class__
         for fn in self.fns(obj):
             try:
-                schema[fn] = self.fn_schema(getattr(obj, fn), code=code, **kwargs)
+                schema[fn] = self.fn_schema(getattr(obj, fn),  **kwargs)
             except Exception as e:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
         return schema
@@ -990,14 +964,14 @@ class Mod:
 
     def info(self, 
             module:str='module',  # fam
-            code = False,
+            private = True,
             schema = True,
             keep_last_n : int = 10,
             relative=True,
             update: bool =False, 
             key=None,
             url = None, 
-            host = None,
+            owner = None,
             ai_describe: bool = False,
             tag_divider = '::',
             **kwargs):
@@ -1010,19 +984,17 @@ class Mod:
             module, tag = module.split('::')
         cid = self.cid(module)
         key = self.get_key(key or module)
-
-        host = host or self.get_key().address
+        owner = owner or self.get_key().address
         info =  {
                 'name': name, 
                 'key': key.address,  
-                'host': host,
+                'owner': owner,
                 'cid': cid,
                 'time': time.time(),
-                'code': self.code_map(module) if code else None
+                'code': None if private else self.code_map(module)
                 }
         if schema:
-
-            info['schema'] = self.schema(module )
+            info['schema'] = self.schema(module , source=bool(not private))
         if url: 
             info['url'] = url
         info['signature'] = self.sign(info, key=key)
@@ -1482,7 +1454,7 @@ class Mod:
     ltree = local_tree
     mtree = mods_tree
     
-    def check_info(self,info, features=['key', 'hash', 'time', 'founder', 'name', 'schema']):
+    def check_info(self,info, features=['key', 'hash', 'time', 'name', 'schema']):
         try:
             assert isinstance(info, dict), 'info is not a dictionary'
             for feature in features:
@@ -1496,6 +1468,35 @@ class Mod:
             return self.dirpath(mod)
         return os.getcwd()
 
+    def dirpath(self, module=None) -> str:
+        """
+        get the directory path of the module
+        """
+        module = self.shortcuts.get(module, module)
+        module = (module or 'module').replace('/', '.')
+        if module in self.anchor_names:
+            return self.lib_path
+        else:
+            possible_core_path = self.core_path + '/' + module
+            possible_mods_path = self.mods_path + '/' + module.replace('.', '/')
+            if os.path.exists(possible_core_path):
+                dirpath = possible_core_path
+            elif os.path.exists(possible_mods_path):
+                dirpath = possible_mods_path
+            elif self.module_exists(module):
+                filepath = self.filepath(module)
+                dirpath =  os.path.dirname(filepath)
+            else: 
+                dirpath = self.mods_path + '/' + module.replace('.', '/')
+            # if ../x/x then remove x
+            if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
+                dirpath = '/'.join(dirpath.split('/')[:-1]) 
+            if dirpath.endswith('/src'):
+                dirpath = dirpath[:-4]  # remove the trailing /src
+            return dirpath
+
+    dp = dirpath
+    
     def addmod(self, name= None, base_module : str = 'base', update=True):
         """
         make a new module
@@ -1575,7 +1576,7 @@ class Mod:
     def enter(self, image = 'commune'):
         return self.fn('pm/enter')(image)
 
-    def founder(self):
+    def owner(self):
         return self.get_key()
 
     def repo2path(self, search=None):
@@ -1596,11 +1597,14 @@ class Mod:
         context = self.context(path=self.core_path)
         return self.mod('agent')().ask(f'given the code {self.code(module)} and CONTEXT OF COMMUNE {context} anster wht following question: {query}', preprocess=False)
     
-    def ask(self, *args, module=None, mod=None, path='./' , ai=0,  **kwargs):
+    def ask(self, *args, module=None, mod=None, path='./' , context=False,  ai=0,  **kwargs):
         module = module or mod
         # commune_readmes = self.readmes(path=path)
         if module != None:
             args = [self.code(module)] + list(args)
+        if context:
+            context = self.context(path=path)
+            args = [f'CONTEXT OF COMMUNE {context}'] + list(args)
         return self.module("agent")().ask(*args, **kwargs) 
 
     def readmes(self,  path='./', search=None, avoid_terms=['/mods/']):

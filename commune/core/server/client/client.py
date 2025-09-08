@@ -42,14 +42,11 @@ class Client:
         url = self.get_url( url=url, fn=fn, mode=mode)
         key = self.get_key(key)
         fn = url.split('/')[-2]
-        
         c.print(f'Client({url} key={key.name})', color='yellow')
         # step 3: get the params
         params = params or {}
         params.update(extra_kwargs)   
-        # step 4: get the headers/auth if it is not provided
         headers = self.auth.forward({'fn': fn, 'params': params}, key=key, cost=cost)
-
         result = self.post(
             url=url, 
             params=params, 

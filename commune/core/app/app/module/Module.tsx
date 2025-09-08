@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Client } from '@/app/client/client'
 import { Loading } from '@/app/components/Loading'
 import { ModuleType } from '@/app/types/module'
@@ -8,43 +8,28 @@ import { useUserContext } from '@/app/context/UserContext'
 import {
   CodeBracketIcon,
   ServerIcon,
-  ArrowLeftIcon,
   ArrowPathIcon,
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  ChartBarIcon,
-  CubeIcon,
-  SparklesIcon,
-  CommandLineIcon,
+  TagIcon,
   GlobeAltIcon,
   ClockIcon,
-  HashtagIcon,
-  TagIcon,
-  LinkIcon,
-  DocumentDuplicateIcon,
-  ArrowTrendingUpIcon,
-  LockClosedIcon,
   KeyIcon,
   ComputerDesktopIcon,
+  CubeIcon,
 } from '@heroicons/react/24/outline'
 import { CopyButton } from '@/app/components/CopyButton'
 import { ModuleCode } from './ModuleCode'
 import ModuleSchema from './ModuleApi'
 import { ModuleApp } from './ModuleApp'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Key } from '../key'
 
-// Type definitions
-type TabType = 'app' | 'api' | 'transactions' | 'code'
+type TabType = 'app' | 'api' | 'code'
 
 interface ModuleProps {
   module_name: string
-  code: boolean
-  api: boolean
+  code?: boolean
+  api?: boolean
 }
 
-// Helper functions
 const shorten = (str: string): string => {
   if (!str || str.length <= 12) return str
   return `${str.slice(0, 8)}...${str.slice(-4)}`
@@ -54,14 +39,12 @@ const time2str = (time: number): string => {
   const d = new Date(time * 1000)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
-  
-  if (diff < 60000) return 'just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`
-  
-  return d.toLocaleDateString('en-US', { 
-    month: 'short', 
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
     day: 'numeric',
     year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
   })
@@ -69,52 +52,17 @@ const time2str = (time: number): string => {
 
 const text2color = (text: string): string => {
   if (!text) return '#00ff00'
-  
   let hash = 0
-  for (let i = 0; i < text.length; i++) {
-    hash = text.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  
+  for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash)
   const golden_ratio = 0.618033988749895
   const hue = (hash * golden_ratio * 360) % 360
   const saturation = 65 + (Math.abs(hash >> 8) % 35)
   const lightness = 50 + (Math.abs(hash >> 16) % 20)
-  
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 
-const generatePattern = (color: string, seed: string) => {
-  const svg = `
-    <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${color}" stroke-width="0.5" opacity="0.1"/>
-        </pattern>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
-      <rect width="400" height="400" fill="url(#grid)"/>
-      
-      ${Array.from({ length: 5 }, (_, i) => {
-        const x = (parseInt(seed.slice(i * 2, i * 2 + 2), 16) / 255) * 350 + 25
-        const y = (parseInt(seed.slice(i * 2 + 10, i * 2 + 12), 16) / 255) * 350 + 25
-        const r = 3 + (i % 3) * 2
-        return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="0.6" filter="url(#glow)"/>`
-      }).join('')}
-    </svg>
-  `
-  return `data:image/svg+xml;base64,${btoa(svg)}`
-}
-
 export default function Module({ module_name }: ModuleProps) {
-  // Access the auth context
-  const { keyInstance, user, authLoading } = useUserContext()
-  
+  const { keyInstance, authLoading } = useUserContext()
 
   const [module, setModule] = useState<ModuleType | undefined>()
   const [error, setError] = useState<string>('')
@@ -125,335 +73,192 @@ export default function Module({ module_name }: ModuleProps) {
 
   const fetchModule = useCallback(async (update = false) => {
     try {
-      if (update) {
-        setSyncing(true)
-      } else {
-        setLoading(true)
-      }
-
+      update ? setSyncing(true) : setLoading(true)
       const client = new Client(undefined, keyInstance)
-      // You can use the keyInstance here if needed for authenticated requests
-      const params = { 
-        module: module_name, 
-        update: update, 
-        code: true,
-      }
-
+      const params = { module: module_name, update, code: true }
       const foundModule = await client.call('module', params)
-
       if (foundModule) {
-        setModule(foundModule)
+        setModule(foundModule as ModuleType)
         setError('')
       } else {
         setError(`Module ${module_name} not found`)
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch module')
+      setError(err?.message || 'Failed to fetch module')
     } finally {
       setLoading(false)
       setSyncing(false)
     }
-  }, [module_name, keyInstance, user, syncing])
-
-  // if module is undefined, lets 
+  }, [module_name, keyInstance])
 
   useEffect(() => {
-    if (!hasFetched && !authLoading || module === undefined) {
+    if ((!hasFetched && !authLoading) || module === undefined) {
       setHasFetched(true)
       fetchModule(false)
     }
-  }, [hasFetched, fetchModule, authLoading])
+  }, [hasFetched, fetchModule, authLoading, module])
 
   const handleSync = useCallback(() => {
     fetchModule(true)
   }, [fetchModule])
 
-  // Show loading while auth is initializing
   if (authLoading || loading || module === undefined) return <Loading />
-  
-  const moduleColor = text2color(module.name)
-  const patternBg = generatePattern(moduleColor, module.key || module.name || 'default')
 
-  const tabs = [
+  const moduleColor = text2color(module.name)
+
+  const tabs: Array<{ id: TabType; label: string; icon: any }> = [
     { id: 'api', label: 'API', icon: ServerIcon },
     { id: 'app', label: 'APP', icon: ComputerDesktopIcon },
     { id: 'code', label: 'CODE', icon: CodeBracketIcon },
   ]
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-black via-gray-950 to-black'>
-      {/* Animated background */}
-      <div className='fixed inset-0 opacity-20'>
-        <div className='absolute inset-0' 
-             style={{ 
-               backgroundImage: `url(${patternBg})`,
-               backgroundSize: '400px 400px',
-               animation: 'slide 20s linear infinite'
-             }} />
-      </div>
-      
-      <div className='relative z-10'>
-        <div className='mx-auto max-w-7xl'>
-          {/* Enhanced Header */}
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className='space-y-4 px-6 pt-4 pb-6'
-          >
-            {/* Module Header */}
-            <div className='flex items-start gap-4'>
-              <motion.div 
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-                className='p-3 rounded-2xl'
-                style={{ 
-                  backgroundColor: `${moduleColor}15`,
-                  boxShadow: `0 0 30px ${moduleColor}30`
-                }}
-              >
-                <CubeIcon className='h-10 w-10' style={{ color: moduleColor }} />
-              </motion.div>
-              
-              <div className='flex-1'>
-                <h1 className='text-4xl font-bold mb-1' 
-                    style={{ 
-                      color: moduleColor,
-                      textShadow: `0 0 20px ${moduleColor}50`
-                    }}>
-                  {module.name}
-                </h1>
-                {/* Tags */}
-                {module.tags?.length >= 0 && (
-                  <div className='flex flex-wrap gap-2'>
-                    {module.tags.map((tag, i) => (
-                      <motion.span
-                        key={i}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.05 }}
-                        className='inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm'
-                        style={{ 
-                          backgroundColor: `${moduleColor}10`,
-                          color: moduleColor,
-                          border: `1px solid ${moduleColor}30`
-                        }}
-                      >
-                        <TagIcon className='h-3 w-3' />
-                        {tag}
-                      </motion.span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                className='group flex items-center gap-2 rounded-full border px-4 py-2 transition-all'
-                style={{ 
-                  borderColor: `${moduleColor}4D`,
-                  color: moduleColor,
-                  backgroundColor: syncing ? `${moduleColor}10` : 'transparent'
-                }}
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-              </button>
-            </div>
+    <div className="min-h-screen bg-black text-white m-0 p-0">
+      <div className="w-full">
+        {/* Compact Header Row (everything on one line, wraps as needed) */}
+        <div className="w-full px-3 py-2 border-b border-white/10">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-semibold leading-none"
+              style={{ color: moduleColor, backgroundColor: `${moduleColor}14`, border: `1px solid ${moduleColor}33` }}
+            >
+              <CubeIcon className="h-4 w-4" />
+              {module.name}
+            </span>
 
-            {/* Key Info Cards - Including Auth Info */}
-            <div className='grid grid-cols-2 md:grid-cols-3 gap-3'>
-              {module.key && (
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className='flex items-center gap-3 rounded-xl border bg-black/60 p-3 backdrop-blur-sm'
-                  style={{ borderColor: `${moduleColor}33` }}
-                >
-                  <KeyIcon className='h-5 w-5' style={{ color: moduleColor }} />
-                  <div className='flex-1'>
-                      {shorten(module.key)}
-                  </div>
-                  <CopyButton code={module.key} />
-                </motion.div>
-              )}
+            {/* Tags inline on same row */}
+            {Array.isArray(module.tags) && module.tags.map((tag, i) => (
+              <span
+                key={`${tag}-${i}`}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs leading-none border"
+                style={{ color: moduleColor, backgroundColor: `${moduleColor}0f`, borderColor: `${moduleColor}33` }}
+              >
+                <TagIcon className="h-3 w-3" />
+                {tag}
+              </span>
+            ))}
 
-              
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className='flex items-center gap-3 rounded-xl border bg-black/60 p-3 backdrop-blur-sm'
+            {/* Spacer to push attributes to the right if lots of tags */}
+            <div className="flex-1 min-w-[8px]" />
+
+            {/* Attributes (compact) */}
+            {module.key && (
+              <div
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs leading-none border bg-black/60"
                 style={{ borderColor: `${moduleColor}33` }}
               >
-                <ClockIcon className='h-5 w-5' style={{ color: moduleColor }} />
-                <div className='flex-1'>
-                    {time2str(module.time)}
-                </div>
-                                                      <CopyButton code={time2str(module.time)}/>
-
-              </motion.div>
-            </div>
-          </motion.div>
-
-          {/* Main Content */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className='mx-6 overflow-hidden rounded-3xl border bg-black/80 shadow-2xl backdrop-blur-md'
-            style={{ 
-              borderColor: `${moduleColor}33`,
-              boxShadow: `0 20px 60px ${moduleColor}15`
-            }}
-          >
-            {/* Enhanced Tabs */}
-            <div className='flex border-b backdrop-blur-sm' style={{ borderColor: `${moduleColor}20` }}>
-              {tabs.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id as TabType)}
-                  className='group relative flex-1 flex items-center justify-center gap-2 px-6 py-5 transition-all'
-                >
-                  {activeTab === id && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className='absolute inset-0'
-                      style={{ backgroundColor: `${moduleColor}10` }}
-                    />
-                  )}
-                  <Icon className='h-5 w-5 transition-transform group-hover:scale-110' 
-                       style={{ color: activeTab === id ? moduleColor : `${moduleColor}80` }} />
-                  <span className='font-medium' 
-                        style={{ color: activeTab === id ? moduleColor : `${moduleColor}80` }}>
-                    {label}
-                  </span>
-                  {activeTab === id && (
-                    <motion.div
-                      layoutId="activeTabBorder"
-                      className='absolute bottom-0 left-0 right-0 h-0.5'
-                      style={{ backgroundColor: moduleColor }}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Content */}
-            <AnimatePresence mode='wait'>
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className='p-8'
-              >
-                {activeTab === 'app' && (
-                  <div className='space-y-4'>
-                    {module.url_app ? (
-                      <ModuleApp module={module} moduleColor={moduleColor} />
-                    ) : (
-                      <div className='flex min-h-[400px] items-center justify-center'>
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className='text-center'
-                        >
-                          <ComputerDesktopIcon className='mx-auto h-16 w-16 mb-4' style={{ color: `${moduleColor}60` }} />
-                          <h3 className='text-xl font-semibold mb-2' style={{ color: moduleColor }}>No Application Available</h3>
-                          <p className='text-gray-400 mb-6'>This module doesn't have a web application interface yet.</p>
-                          {module.url && (
-                            <motion.a
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              href={module.url}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='inline-flex items-center gap-2 rounded-full border px-6 py-2 transition-all'
-                              style={{ 
-                                borderColor: `${moduleColor}4D`,
-                                color: moduleColor
-                              }}
-                            >
-                              <GlobeAltIcon className='h-4 w-4' />
-                              Visit Module Page
-                            </motion.a>
-                          )}
-                        </motion.div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {activeTab === 'transactions' && (
-                  <div className='space-y-4'>
-                    <h2 className='text-2xl font-bold mb-4'>Transactions</h2>
-                    <p className='text-gray-400'>No transactions available for this module.</p>
-                  </div>
-                )}
-                
-                {activeTab === 'code' && (
-                  <ModuleCode
-                    files={module.code}
-                    title='Source Code'
-                    showSearch={true}
-                    compactMode={false}
-                  />
-                )}
-                
-                {activeTab === 'api' && <ModuleSchema mod={module} />}
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-
-          {/* Enhanced Footer Actions */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className='flex flex-wrap items-center justify-center gap-4 p-6'
-          >
-            {module.url && (
-              <motion.a
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                href={module.url}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center gap-2 rounded-full border bg-black/80 px-8 py-3 backdrop-blur-sm transition-all'
-                style={{ 
-                  borderColor: `${moduleColor}4D`,
-                  color: moduleColor,
-                  boxShadow: `0 4px 20px ${moduleColor}20`
-                }}
-              >
-                <GlobeAltIcon className='h-5 w-5' />
-                <span className='font-medium'>Visit Module</span>
-              </motion.a>
+                <KeyIcon className="h-3 w-3" style={{ color: moduleColor }} />
+                <span className="truncate max-w-[140px]">{shorten(module.key)}</span>
+                <CopyButton size="xs" code={module.key} />
+              </div>
             )}
-            
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className='flex items-center gap-2 rounded-full border bg-black/80 px-8 py-3 backdrop-blur-sm transition-all'
-              style={{ 
-                borderColor: `${moduleColor}4D`,
-                color: moduleColor
-              }}
+
+            <div
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs leading-none border bg-black/60"
+              style={{ borderColor: `${moduleColor}33` }}
             >
-              <DocumentTextIcon className='h-5 w-5' />
-              <span className='font-medium'>Documentation</span>
-            </motion.button>
-          </motion.div>
+              <ClockIcon className="h-3 w-3" style={{ color: moduleColor }} />
+              <span>{time2str(module.time)}</span>
+              <CopyButton size="xs" code={time2str(module.time)} />
+            </div>
+
+            {/* Sync button — ultra compact */}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md border transition"
+              style={{ borderColor: `${moduleColor}4D`, color: moduleColor, backgroundColor: syncing ? `${moduleColor}10` : 'transparent' }}
+              title="Sync"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
+
+        {/* Compact Tabs */}
+        <div className="flex border-b border-white/10">
+          {tabs.map(({ id, label, icon: Icon }) => {
+            const active = activeTab === id
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className="group relative px-3 py-2 text-xs font-medium flex items-center gap-1"
+              >
+                {active && (
+                  <motion.div layoutId="activeTab" className="absolute inset-0" style={{ backgroundColor: `${moduleColor}10` }} />
+                )}
+                <Icon className="h-4 w-4 relative z-10" style={{ color: active ? moduleColor : `${moduleColor}80` }} />
+                <span className="relative z-10" style={{ color: active ? moduleColor : `${moduleColor}80` }}>
+                  {label}
+                </span>
+                {active && (
+                  <motion.div layoutId="activeTabBorder" className="absolute bottom-0 left-0 right-0 h-0.5" style={{ backgroundColor: moduleColor }} />
+                )}
+              </button>
+            )
+          })}
+          <div className="flex-1" />
+          {/* Optional: Visit button kept small and tight if url exists */}
+          {module.url && (
+            <a
+              href={module.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mx-2 my-1 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
+              style={{ borderColor: `${moduleColor}40`, color: moduleColor }}
+            >
+              <GlobeAltIcon className="h-4 w-4" />
+              Visit
+            </a>
+          )}
+        </div>
+
+        {/* Content — dense */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.15 }}
+            className="p-3"
+          >
+            {activeTab === 'app' && (
+              module.url_app ? (
+                <div className="rounded-md border border-white/10 overflow-hidden">
+                  <ModuleApp module={module} moduleColor={moduleColor} />
+                </div>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-sm text-white/70">
+                  <div className="text-center">
+                    <ComputerDesktopIcon className="h-10 w-10 mx-auto mb-2 opacity-70" />
+                    No Application Available
+                  </div>
+                </div>
+              )
+            )}
+
+            {activeTab === 'code' && (
+              <>
+                {/* force compact in child */}
+                <ModuleCode
+                  files={module.source?.code || {}}
+                  title=""
+                  showSearch={true}
+                  compactMode={true}
+                />
+              </>
+            )}
+
+            {activeTab === 'api' && (
+              <div className="rounded-md border border-white/10">
+                <ModuleSchema mod={module} />
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
-      
-      <style jsx>{`
-        @keyframes slide {
-          0% { transform: translate(0, 0); }
-          100% { transform: translate(-400px, -400px); }
-        }
-      `}</style>
     </div>
   )
 }
