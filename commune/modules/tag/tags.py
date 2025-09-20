@@ -5,7 +5,7 @@ class Tags:
     def forward(self, module='openrouter', goal='RETURN TAGS AS A LIST AS THE CONTENT'):
         text = f'''
         --CONTENT--
-        {c.code_map(module)}
+        {c.content(module)}
         --GOAL--
         {goal}
         --FORMAT--

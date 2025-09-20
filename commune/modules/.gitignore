@@ -319,3 +319,11 @@ venv.bak/
 # Vector Store
 embeddings.db
 
+
+/ipfs-service
+
+/ipfs-service
+
+commune/modules/ipfs-service
+
+commune/modules/https://github/com/mod-net/ipfs-service/git

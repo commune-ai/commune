@@ -20,7 +20,7 @@ class Edit:
         self.agent = c.module('agent')(model=self.model)
         self.models = self.agent.models()
         self.tools = {f.__name__: f for f in tools}
-        self.tool2schema = {f.__name__: c.fn_schema(f) for f in tools}
+        self.tool2schema = {f.__name__: c.fnschema(f) for f in tools}
 
     def forward(self,
                 text='edit the file',

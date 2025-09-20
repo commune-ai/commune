@@ -7,7 +7,7 @@ from typing import List, Dict, Union, Optional, Any
 print = c.print
 class SelectFiles:
 
-    def __init__(self, provider='model.openrouter'):
+    def __init__(self, model='openai/gpt-5-nano', provider='model.openrouter'):
         """
         Initialize the Find module.
         
@@ -16,7 +16,7 @@ class SelectFiles:
             default_provider: Provider to use if no model is provided
             default_model: Default model to use for ranking
         """
-        self.model = c.module(provider)()
+        self.model = c.module(provider)(model=model)
 
     def forward(self,  
               path: Union[List[str], Dict[Any, str]] = './',  

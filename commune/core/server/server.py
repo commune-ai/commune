@@ -27,7 +27,6 @@ class Server:
         auth = 'server.auth', # the auth to use
         **_kwargs):
         
-        self.app = FastAPI()
         self.store = c.mod('store')(path)
         self.verbose = verbose
         self.pm = c.mod(pm)() # sets the mod to the pm
@@ -58,26 +57,25 @@ class Server:
         else:
             # if the fn is not callable, return it
             result = fn_obj
-
         if c.is_generator(result):
             def generator_wrapper(generator):
-                _gen_result =  ''
+                gen_result =  {'data': [], 'start_time': time.time(), 'end_time': None, 'cost': 0}
                 for item in generator:
                     print(item, end='')
-                    _gen_result += str(item)
+                    gen_result['data'].append(item)
                     yield item
-
                 # save the transaction between the headers and server for future auditing
+                server_auth = self.auth.headers(data={'fn': fn, 'params': params, 'result': gen_result})
 
                 self.tracker.forward(
-                    mod=self.mod.info['name'],
+                    mod=self.name,
                     fn=fn, # 
                     params=params, # params of the inputes
-                    result=_gen_result,
-                    schema=self.mod.info['schema'][fn],
+                    result=gen_result,
+                    schema=self.schema[fn],
                     client=request['client'],
-                    server=self.auth.headers(data={'fn': fn, 'params': params, 'result': _gen_result}, key=self.key),
-                    )
+                    server=server_auth, 
+                    key=self.key)
             # if the result is a generator, return a stream
             return  EventSourceResponse(generator_wrapper(result))
         else:
@@ -86,16 +84,16 @@ class Server:
             result = self.serializer.forward(result) # serialize the result
             fn = request['fn']
             params = request['params']
-
-            server_auth = self.auth.generate(data={"fn": fn, "params": params, "result": result}, key=self.key)
+            server_auth = self.auth.generate(data={"fn": fn, "params": params, "result": result})
             tx = self.tracker.forward(
-                mod=self.mod.info['name'],
+                mod=self.name,
                 fn=fn, # 
                 params=params, # params of the inputes
                 result=result,
-                schema=self.mod.info['schema'].get(fn, {}),
+                schema=self.schema[fn],
                 client=request['client'], # client auth
-                )
+                server= server_auth , 
+                key=self.key)
             return result
         raise Exception('Should not reach here')
 
@@ -105,7 +103,7 @@ class Server:
         # params
         # headers
         headers = dict(request.headers)    
-        server_cost = float(self.mod.info['schema'].get(fn, {}).get('cost', 0))
+        server_cost = float(self.schema.get(fn, {}).get('cost', 0))
         client_cost = float(headers.get('cost', 0))
         assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
         self.auth.verify(headers) # verify the headers
@@ -126,7 +124,6 @@ class Server:
                 helper_fns : List[str] = ['info', 'forward'],# the helper fns
                 hide_private_fns: bool = True, # whether to include private fns
                 fn_attributes : List[str] =['endpoints',  'fns', 'expose',  'expoed', 'functions'],  # the attributes that can contain the fns
-                code: bool = False, # whether to include the code in the schema
         ):
         """
         sets the fns of the server
@@ -138,18 +135,17 @@ class Server:
                 if hasattr(self.mod, fa) and isinstance(getattr(self.mod, fa), list):
                     fns = getattr(self.mod, fa) 
                     break
-    
         # does not start with _ and is not a private fn
         if hide_private_fns:
             fns = [fn for fn in fns if not fn.startswith('_') ]
         fns = list(set(fns + helper_fns))
-        schema = self.mod.info['schema']
-
-        self.mod.info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
-        self.fns = sorted(list(self.mod.info['schema'].keys()))
+        schema = c.schema(self.mod, public=self.public)
+        self.schema= {fn: schema[fn] for fn in fns if fn in schema}
+        self.fns = sorted(list(self.schema.keys()))
         return schema
         
     def get_port(self, port:Optional[int]=None):
+        
         port = port or c.free_port()
         return port
 
@@ -208,7 +204,6 @@ class Server:
             mod, user = user.split('/')
         path = f'results/{mod}/{fn}/{user}'
         return len( self.store.paths(path)) 
-
 
     def role(self, user) -> str:
         """
@@ -358,6 +353,7 @@ class Server:
               cwd = None, # the cwd to run the server in
               remote = False, # whether to run the server remotely
               host = '0.0.0.0',
+              public=False,
               server_mode = 'http',
               **extra_params 
               ):
@@ -374,50 +370,28 @@ class Server:
             if '::' in mod:
                 name = mod
                 mod = '::'.join(name.split('::')[:-1])
+        self.public = public
         self.mod = c.mod(mod)(**(params or {}))
         self.name = name = name or mod 
         self.key = c.get_key(key or self.name)
-        # add CORS middleware
-        self.app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
         # add the endpoints
-        info = c.info(mod, key=self.key)
-        self.url = f"{server_mode}://{host}:{port}"
-        info['url'] = self.url
-        self.mod.info = info
         self.set_fns(fns) 
+        self.info = c.info(mod, key=self.key, public=self.public, schema=False)
+        self.info['schema'] = self.schema
+        self.info['url'] = f"{server_mode}://{host}:{port}"
+        self.mod.info = self.info
+
+        # start the server
         def server_fn(fn: str, request: Request):
             try:
                 return self.forward(fn, request)
             except Exception as e:
                 return c.detailed_error(e)
+        # add CORS middleware
+        self.app = FastAPI()
+        self.app.add_middleware(CORSMiddleware,allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
         self.app.post("/{fn}")(server_fn)
-
-        c.print(f'Serving({self.mod.info})', color='green')
-        self.store.put(f'servers/{self.name}', self.mod.info)
-        uvicorn.run(self.app, 
-                    host='0.0.0.0', 
-                    port=port, 
-                    loop='asyncio')
+        c.print(f'Serving({self.info})', color='green')
+        self.store.put(f'servers/{self.name}', self.info)
+        uvicorn.run(self.app,  host='0.0.0.0', port=port, loop='asyncio')
         return {'success':True, 'message':f'Set mod to {self.name}'}
-
-    def get_info(self, name:str, timeout:int = 60, interval:int = 1):
-        elapsed_seconds = 0
-        while elapsed_seconds < timeout:
-            try:
-                info = c.call(name + '/info')
-                if 'key' in info:
-                    return info
-            except Exception as e:
-                print(c.detailed_error(e))
-            time.sleep(interval)
-            elapsed_seconds += interval
-            print(f'waiting for {name} to be available')
-        raise TimeoutError(f"Timeout waiting for {name} to be available after {timeout} seconds")
-
-   

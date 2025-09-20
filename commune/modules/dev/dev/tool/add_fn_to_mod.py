@@ -108,7 +108,7 @@ class Tool:
         c.print(f"Successfully added function '{fn_name}' to {file_path}", color='green')
         return new_content
 
-    def fn_schema(self, fn: str = '__init__', code=True, **kwargs) -> dict:
+    def fnschema(self, fn: str = '__init__', code=True, **kwargs) -> dict:
         '''
         Get function schema of function in self
         '''
@@ -140,22 +140,22 @@ class Tool:
         schema = {}
         obj = obj or 'module'
         if callable(obj):
-            return self.fn_schema(obj, **kwargs)
+            return self.fnschema(obj, **kwargs)
         elif isinstance(obj, str):
             if '/' in obj:
-                return self.fn_schema(obj, **kwargs)
+                return self.fnschema(obj, **kwargs)
             elif self.module_exists(obj):
                 obj = self.mod(obj)
             elif hasattr(self, obj):
                 obj = getattr(self, obj)
-                schema = self.fn_schema(obj, **kwargs)
+                schema = self.fnschema(obj, **kwargs)
             else:
                 raise Exception(f'{obj} not found')
         elif hasattr(obj, '__class__'):
             obj = obj.__class__
         for fn in self.fns(obj):
             try:
-                schema[fn] = self.fn_schema(getattr(obj, fn), **kwargs)
+                schema[fn] = self.fnschema(getattr(obj, fn), **kwargs)
             except Exception as e:
                 self.print(f'Error {e} {fn}', color='red', verbose=verbose)
         return schema

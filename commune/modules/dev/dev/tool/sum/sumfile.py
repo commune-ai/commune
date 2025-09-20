@@ -23,12 +23,11 @@ class SumFile:
     result_format = f'{anchors[0]}(LIST(DICT(obj:str, desc:str))){anchors[1]}'
     cache_dir: str = '~/.summarize/cache'
 
-    def __init__(self, model='model.openrouter'):
-        self.model = c.module(model)()
+    def __init__(self, model='openai/gpt-5-nano', provider='model.openrouter'):
+        self.model = c.mod(provider)(model=model)
 
     def abspath(self, path: str) -> str:
         return os.path.abspath(os.path.expanduser(path))
-
 
     def forward(self,  
               path: str = __file__, # Path to the file containing options or a file  

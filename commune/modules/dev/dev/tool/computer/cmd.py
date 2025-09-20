@@ -28,121 +28,14 @@ class Cmd:
         
     def forward(
         self,
-        command: Union[str, List[str]],
-        capture_output: bool = True,
-        text: bool = True,
-        check: bool = False,
-        timeout: Optional[float] = None,
-        cwd: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
-        shell: Optional[bool] = None,
-        verbose: bool = True
-    ) -> Dict[str, Any]:
+        cmd: Union[str, List[str]], **kwargs) -> Dict[str, Any]:
         """
         Execute a shell command and return the results.
-        
-        Args:
-            command: Command to execute (string or list of arguments)
-            capture_output: Whether to capture stdout/stderr
-            text: Whether to return strings instead of bytes
-            check: Whether to raise an exception on non-zero exit code
-            timeout: Maximum time to wait for command completion (in seconds)
-            cwd: Working directory for command execution (overrides instance setting)
-            env: Environment variables (overrides instance setting)
-            shell: Whether to use shell execution (overrides instance setting)
-            verbose: Whether to print command and output information
-            
-        Returns:
-            Dictionary containing:
-            - success: Whether the command executed successfully
-            - returncode: Exit code of the command
-            - stdout: Standard output (if captured)
-            - stderr: Standard error (if captured)
-            - command: The command that was executed
         """
         # Use instance defaults if not specified
-        cwd = cwd if cwd is not None else self.cwd
-        env = env if env is not None else self.env
-        shell = shell if shell is not None else self.shell
-        
-        # Process the command
-        if isinstance(command, str) and not shell:
-            command = shlex.split(command)
-        
-        if verbose:
-            c.print(f"Executing: {command}", color="cyan")
-        
-        try:
-            # Execute the command
-            result = subprocess.run(
-                command,
-                capture_output=capture_output,
-                text=text,
-                check=check,
-                timeout=timeout,
-                cwd=cwd,
-                env=env,
-                shell=shell
-            )
-            
-            # Prepare the result dictionary
-            output = {
-                "success": result.returncode == 0,
-                "returncode": result.returncode,
-                "command": command
-            }
-            
-            # Add stdout/stderr if captured
-            if capture_output:
-                output["stdout"] = result.stdout
-                output["stderr"] = result.stderr
-                
-                if verbose:
-                    if result.stdout:
-                        c.print("STDOUT:", color="green")
-                        c.print(result.stdout)
-                    if result.stderr:
-                        c.print("STDERR:", color="red")
-                        c.print(result.stderr)
-            
-            if verbose:
-                status = "Success" if output["success"] else f"Failed (code: {result.returncode})"
-                c.print(f"Command execution: {status}", color="green" if output["success"] else "red")
-                
-            return output
-            
-        except subprocess.TimeoutExpired as e:
-            if verbose:
-                c.print(f"Command timed out after {timeout} seconds", color="red")
-            return {
-                "success": False,
-                "error": "timeout",
-                "command": command,
-                "timeout": timeout,
-                "message": str(e)
-            }
-            
-        except subprocess.SubprocessError as e:
-            if verbose:
-                c.print(f"Command execution error: {e}", color="red")
-            return {
-                "success": False,
-                "error": "subprocess_error",
-                "command": command,
-                "message": str(e)
-            }
-            
-        except Exception as e:
-            if verbose:
-                c.print(f"Unexpected error: {e}", color="red")
-            return {
-                "success": False,
-                "error": "unexpected",
-                "command": command,
-                "message": str(e)
-            }
+        result = os.system(cmd, **kwargs)
+        return result
 
-        return {}
     
     def pipe(
         self,

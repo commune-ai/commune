@@ -455,7 +455,6 @@ class PM:
         text = c.cmd('docker images')
         rows = []
         for i, line in enumerate(text.split('\n')):
-            print(line)
             if not line.strip():
                 continue
             if i == 0:
@@ -471,8 +470,8 @@ class PM:
 
     def logs(self,
              name: str,
-             sudo: bool = False,
              follow: bool = False, f = None,
+             sudo: bool = False,
              verbose: bool = False,
              tail: int = 100,
              since: Optional[str] = None) -> str:
@@ -563,7 +562,6 @@ class PM:
                     mem_usage, mem_limit = row.pop('MEM USAGE / LIMIT').split('/')
                     row['MEM_USAGE'] = mem_usage
                     row['MEM_LIMIT'] = mem_limit
-                c.print(row)
                 row['ID'] = row.pop('CONTAINER ID')
 
                 for prefix in ['NET', 'BLOCK']:

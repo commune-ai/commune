@@ -133,10 +133,10 @@ class Cli:
             if hasattr(module_obj, argv[0]):
                 fn = argv.pop(0)
             elif argv[0].endswith('/'):
-                # scenario 4: the fn name is of another module so we will look it up in the fn2module
+                # scenario 4: the fn name is of another module so we will look it up in the fn2mod
                 module = argv.pop(0)[:-1]
             elif argv[0].startswith('/'):
-                # scenario 5: the fn name is of another module so we will look it up in the fn2module
+                # scenario 5: the fn name is of another module so we will look it up in the fn2mod
                 fn = argv.pop(0)[1:]
             elif len(argv[0].split('/')) > 1:
                 # scenario 6: first argument is a path to a function c module/fn *args **kwargs
@@ -147,13 +147,13 @@ class Cli:
                 module = argv.pop(0)
                 fn = argv.pop(0)
             else:
-                # scenario 8: the fn name is of another module so we will look it up in the fn2module
+                # scenario 8: the fn name is of another module so we will look it up in the fn2mod
                 # and then get the function from the module
                 fn = argv.pop(0)
-                fn2module = c.fn2module()
-                if not fn in fn2module:
+                fn2mod = c.fn2mod()
+                if not fn in fn2mod:
                     raise ValueError(f'Function {fn} not found in module {module}')
-                module = fn2module[fn]
+                module = fn2mod[fn]
         else:
             # scenario 2: no arguments, use the default function
             fn = self.default_fn

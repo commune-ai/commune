@@ -248,7 +248,7 @@ class Plot(c.Module):
       
 
     @classmethod
-    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
+    def process_kwargs(cls, kwargs:dict, fnschema:dict):
         
         for k,v in kwargs.items():
             if v == 'None':
@@ -267,7 +267,7 @@ class Plot(c.Module):
                         v = json.loads(v)
                     else:
                         v = {}               
-                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                elif k in fnschema['input'] and fnschema['input'][k] == 'str':
                     if v.startswith("f'") or v.startswith('f"'):
                         v = c.ljson(v)
                     else:

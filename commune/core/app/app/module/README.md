@@ -26,7 +26,7 @@ const files = {
 <ModuleExplorer files={files} />
 ```
 
-### ModuleCode
+### ModuleContent
 
 A collapsible code display component with:
 - Syntax highlighting based on file extension

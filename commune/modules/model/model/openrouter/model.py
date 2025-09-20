@@ -51,7 +51,7 @@ class OpenRouter:
         prompt: str =  None,
         system_prompt: str = None,
         stream: bool = False,
-        model:str = 'anthropic/claude-opus-4',
+        model:str = None,
         max_tokens: int = 10000000,
         temperature: float = 1.0,
         **kwargs
@@ -69,6 +69,7 @@ class OpenRouter:
         Returns:
         Generator[str] | str: A generator for streaming responses or the full streamed response.
         """
+        model = model or self.model
         prompt = prompt or system_prompt
         if len(extra_text) > 0:
             message = message + ' '.join(extra_text)
@@ -149,7 +150,8 @@ class OpenRouter:
         if len(keys) > 0:
             return random.choice(keys)
         else:
-            raise ValueError(f"No API key found. Please set the {env_varname} environment variable or add a key using add_key method.")
+            return ''
+            print(f"No API key found in store.")
 
     def keys(self):
         """

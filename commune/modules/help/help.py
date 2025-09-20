@@ -1,10 +1,10 @@
 import commune as c
 class Help:
     def forward(self, *args, module=None):
-        code_map = c.context(module)
+        content = c.context(module)
 
         prompt = f'''
-        and the code map: {code_map}
+        and the code map: {content}
         help the user with the question: {text}
         '''
         return c.mod('openrouter')().forward(prompt)

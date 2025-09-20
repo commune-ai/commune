@@ -66,7 +66,7 @@ class Vali:
         assert hasattr(task, 'forward'), f'Task {task} does not have a forward method'
         self.task = task
         task_path = task.__module__ + '.' + task.__class__.__name__
-        task_code = c.code_map(task_path)
+        task_code = c.content(task_path)
         task_hash = c.hash(task_code)
         self.task.info  = {
             'name': task.__class__.__name__.lower(),

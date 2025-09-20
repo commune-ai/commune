@@ -78,6 +78,7 @@ class Tx:
         assert self.verify(tx)
         # 
         tx_path = f'{tx["client"]["key"]}/{tx["server"]["key"]}/{fn}_{auths["client"]["time"]}'
+        c.print('tx', tx)
         self.store.put(tx_path, tx)
         return tx
 

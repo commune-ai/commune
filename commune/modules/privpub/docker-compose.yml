@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sr25519-demo:
+    build: .
+    container_name: sr25519-hard-derive
+    command: demo --index 42
+    
+  sr25519-derive:
+    build: .
+    container_name: sr25519-derive
+    environment:
+      - PARENT_MINI_HEX=0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - INDEX=100
+    command: derive --parent-mini-hex ${PARENT_MINI_HEX} --index ${INDEX}
+    
+  sr25519-verify:
+    build: .
+    container_name: sr25519-verify
+    environment:
+      - PARENT_PK=0x
+      - CHILD_PK=0x
+      - INDEX=0
+      - CC=0x
+      - SIG=0x
+    command: verify --parent-pk-hex ${PARENT_PK} --child-pk-hex ${CHILD_PK} --index ${INDEX} --cc-hex ${CC} --sig-hex ${SIG}

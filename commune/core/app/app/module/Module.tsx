@@ -17,16 +17,16 @@ import {
   CubeIcon,
 } from '@heroicons/react/24/outline'
 import { CopyButton } from '@/app/components/CopyButton'
-import { ModuleCode } from './ModuleCode'
+import { ModuleContent } from './ModuleContent'
 import ModuleSchema from './ModuleApi'
 import { ModuleApp } from './ModuleApp'
 import { motion, AnimatePresence } from 'framer-motion'
 
-type TabType = 'app' | 'api' | 'code'
+type TabType = 'app' | 'api' | 'content'
 
 interface ModuleProps {
   module_name: string
-  code?: boolean
+  content?: boolean
   api?: boolean
 }
 
@@ -75,7 +75,7 @@ export default function Module({ module_name }: ModuleProps) {
     try {
       update ? setSyncing(true) : setLoading(true)
       const client = new Client(undefined, keyInstance)
-      const params = { module: module_name, update, code: true }
+      const params = { module: module_name, update:update, content: true , public: true, schema: true}
       const foundModule = await client.call('module', params)
       if (foundModule) {
         setModule(foundModule as ModuleType)
@@ -106,12 +106,12 @@ export default function Module({ module_name }: ModuleProps) {
 
   const moduleColor = text2color(module.name)
 
-  const tabs: Array<{ id: TabType; label: string; icon: any }> = [
-    { id: 'api', label: 'API', icon: ServerIcon },
-    { id: 'app', label: 'APP', icon: ComputerDesktopIcon },
-    { id: 'code', label: 'CODE', icon: CodeBracketIcon },
+  const tabs: Array<{ id: TabType; icon: any }> = [
+    { id: 'api', icon: ServerIcon },
+    { id: 'app',  icon: ComputerDesktopIcon },
+    { id: 'content', icon: CodeBracketIcon },
   ]
-
+  
   return (
     <div className="min-h-screen bg-black text-white m-0 p-0">
       <div className="w-full">
@@ -149,7 +149,7 @@ export default function Module({ module_name }: ModuleProps) {
               >
                 <KeyIcon className="h-3 w-3" style={{ color: moduleColor }} />
                 <span className="truncate max-w-[140px]">{shorten(module.key)}</span>
-                <CopyButton size="xs" code={module.key} />
+                <CopyButton size="xs" content={module.key} />
               </div>
             )}
 
@@ -159,7 +159,7 @@ export default function Module({ module_name }: ModuleProps) {
             >
               <ClockIcon className="h-3 w-3" style={{ color: moduleColor }} />
               <span>{time2str(module.time)}</span>
-              <CopyButton size="xs" code={time2str(module.time)} />
+              <CopyButton size="xs" content={time2str(module.time)} />
             </div>
 
             {/* Sync button — ultra compact */}
@@ -177,7 +177,7 @@ export default function Module({ module_name }: ModuleProps) {
 
         {/* Compact Tabs */}
         <div className="flex border-b border-white/10">
-          {tabs.map(({ id, label, icon: Icon }) => {
+          {tabs.map(({ id, icon: Icon }) => {
             const active = activeTab === id
             return (
               <button
@@ -190,7 +190,7 @@ export default function Module({ module_name }: ModuleProps) {
                 )}
                 <Icon className="h-4 w-4 relative z-10" style={{ color: active ? moduleColor : `${moduleColor}80` }} />
                 <span className="relative z-10" style={{ color: active ? moduleColor : `${moduleColor}80` }}>
-                  {label}
+                  {id}
                 </span>
                 {active && (
                   <motion.div layoutId="activeTabBorder" className="absolute bottom-0 left-0 right-0 h-0.5" style={{ backgroundColor: moduleColor }} />
@@ -238,17 +238,12 @@ export default function Module({ module_name }: ModuleProps) {
                 </div>
               )
             )}
-
-            {activeTab === 'code' && (
-              <>
-                {/* force compact in child */}
-                <ModuleCode
-                  files={module.source?.code || {}}
-                  title=""
-                  showSearch={true}
-                  compactMode={true}
-                />
-              </>
+            {activeTab === 'content' && (
+              <ModuleContent
+                files={module.content || {}}
+                showSearch={true}
+                compactMode={false}
+              />
             )}
 
             {activeTab === 'api' && (

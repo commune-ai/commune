@@ -7,7 +7,8 @@ import commune as c
 
 class Auth:
 
-    def __init__(self, key=None, 
+    def __init__(self, 
+                key=None, 
                 crypto_type='sr25519', 
                 hash_type='sha256',    
                 max_age=60, 
@@ -22,9 +23,9 @@ class Auth:
         :param signature_keys: the keys to use for signing 
         """
         self.signature_keys = signature_keys
-        self.key = self.get_key(key, crypto_type=crypto_type)
-        self.hash_type = hash_type
         self.crypto_type = crypto_type
+        self.key = c.get_key(key=key, crypto_type=crypto_type)
+        self.hash_type = hash_type
         self.signature_keys = signature_keys
         self.max_age = max_age
 
@@ -45,11 +46,11 @@ class Auth:
         assert all(k in headers for k in self.signature_keys), f'Missing keys in headers {headers}'
         return json.dumps({k: headers[k] for k in self.signature_keys}, separators=(',', ':'))
 
-    def forward(self,  data: Any,  key=None, crypto_type=None, cost=0) -> dict:
+    def forward(self,  data: Any,  key=None, cost=0) -> dict:
         """
         Generate the headers with the JWT token
         """
-        key = self.get_key(key, crypto_type=crypto_type)
+        key = self.get_key(key)
         result = {
             'data': self.hash(data),
             'time': str(time.time()),
@@ -61,6 +62,17 @@ class Auth:
 
     headers = generate = forward
 
+    def get_key(self, key=None):
+        """
+        Get the key to use for signing
+        """
+        if key is None:
+            key = self.key
+        else:
+            key = c.get_key(key, crypto_type=self.crypto_type)
+        assert hasattr(key, 'key_address'), f'Invalid key {key}'
+        return key
+
     def verify(self, headers: str, data:Optional[Any]=None, max_age=1000) -> bool:
         """
         Verify and decode a JWT token
@@ -71,7 +83,7 @@ class Auth:
         age = abs(time.time() - float(headers['time']))
         max_age = max_age or self.max_age
         assert age < max_age, f'Token is stale {age} > {max_age}'
-        verified = self.key.verify(self.get_sig_data(headers), signature=headers['signature'], address=headers['key'], crypto_type=crypto_type)
+        verified = self.key.verify(self.get_sig_data(headers), signature=headers['signature'], address=headers['key'])
         assert verified, f'Invalid signature {headers}'
         if data != None:
             assert headers['data'] == self.hash(data), f'Invalid data {data}'
@@ -106,21 +118,17 @@ class Auth:
         else:
             raise ValueError(f'Reverse hash not supported for {self.hash_type}')
 
-    def get_key(self, key=None, crypto_type=None):
-        crypto_type =  crypto_type or self.crypto_type
-        if not hasattr(self, 'key'):
-            self.key = c.get_key(key, crypto_type=crypto_type)
         if key is None:
             key = self.key
         else:
-            key = c.get_key(key, crypto_type=crypto_type)
+            key = c.get_key(key, crypto_type=self.crypto_type)
         assert hasattr(key, 'key_address'), f'Invalid key {key}'
         return key
 
     def test(self, key='test.auth', crypto_type='sr25519'):
         data = {'fn': 'test', 'params': {'a': 1, 'b': 2}}
         auth = Auth(key=key, crypto_type=crypto_type)
-        headers = auth.forward(data, key=key, crypto_type=crypto_type)
+        headers = auth.forward(data, key=key)
         assert auth.verify(headers)
         return {'headers': headers}
 

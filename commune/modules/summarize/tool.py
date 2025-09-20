@@ -106,7 +106,7 @@ class Tool:
             Dict[str, str]: The schema for the specified tool.
         """
         fn = self.fn
-        schema =  c.fn_schema(getattr( c.module(tool), fn))
+        schema =  c.fnschema(getattr( c.module(tool), fn))
         schema['input'].pop('self', None)
         params_format = ' '.join([f'<{k.upper()}>{v["type"]}</{k.upper()}>' for k,v in schema['input'].items()]) 
         fn_format = f'FN::{fn.upper()}'

@@ -263,7 +263,7 @@ class StreamlitModule(c.Module):
     def function2streamlit(cls, 
                            module = None,
                            fn:str = '__init__',
-                           fn_schema = None, 
+                           fnschema = None, 
                            extra_defaults:dict=None,
                            cols:list=None,
                            skip_keys = ['self', 'cls']):
@@ -276,32 +276,32 @@ class StreamlitModule(c.Module):
             module = c.module(module)
         extra_defaults = {} if extra_defaults is None else extra_defaults
         
-        if fn_schema == None:
+        if fnschema == None:
 
-            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            fnschema = module.schema(defaults=True, include_parents=True)[fn]
             if fn == '__init__':
                 config = module.config(to_munch=False)
                 extra_defaults = config
             kwargs = {}
-            fn_schema['default'].pop('self', None)
-            fn_schema['default'].pop('cls', None)
-            fn_schema['default'].update(extra_defaults)
-            fn_schema['default'].pop('config', None)
-            fn_schema['default'].pop('kwargs', None)
+            fnschema['default'].pop('self', None)
+            fnschema['default'].pop('cls', None)
+            fnschema['default'].update(extra_defaults)
+            fnschema['default'].pop('config', None)
+            fnschema['default'].pop('kwargs', None)
             
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        fnschema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
         if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+            cols = [1 for i in list(range(int(len(fnschema['input'])**0.5)))]
         cols = st.columns(cols)
 
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
+        for i, (k,v) in enumerate(fnschema['default'].items()):
             
-            optional = fn_schema['default'][k] != 'NA'
+            optional = fnschema['default'][k] != 'NA'
             fn_key = k 
             if fn_key in skip_keys:
                 continue
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
+            if k in fnschema['input']:
+                k_type = fnschema['input'][k]
                 if 'Munch' in k_type or 'Dict' in k_type:
                     k_type = 'Dict'
                 if k_type.startswith('typing'):
@@ -316,13 +316,13 @@ class StreamlitModule(c.Module):
             col_idx = col_idx % (len(cols))
             kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}.{random_word}')
      
-        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        kwargs = cls.process_kwargs(kwargs, fnschema)       
         
         return kwargs
 
    
     @classmethod
-    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
+    def process_kwargs(cls, kwargs:dict, fnschema:dict):
         
         for k,v in kwargs.items():
             if v == 'None':
@@ -341,7 +341,7 @@ class StreamlitModule(c.Module):
                         v = json.loads(v)
                     else:
                         v = {}               
-                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                elif k in fnschema['input'] and fnschema['input'][k] == 'str':
                     if v.startswith("f'") or v.startswith('f"'):
                         v = c.ljson(v)
                     else:
@@ -577,7 +577,7 @@ class StreamlitModule(c.Module):
     def function2streamlit(cls, 
                            module = None,
                            fn:str = '__init__',
-                           fn_schema = None, 
+                           fnschema = None, 
                            extra_defaults:dict=None,
                            cols:list=None,
                            skip_keys = ['self', 'cls'],
@@ -596,34 +596,34 @@ class StreamlitModule(c.Module):
         extra_defaults = {} if extra_defaults is None else extra_defaults
         kwargs = {}
 
-        if fn_schema == None:
+        if fnschema == None:
 
-            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            fnschema = module.schema(defaults=True, include_parents=True)[fn]
             if fn == '__init__':
                 config = module.config(to_munch=False)
                 extra_defaults = config
-            st.write(fn_schema)
-            fn_schema['default'].pop('self', None)
-            fn_schema['default'].pop('cls', None)
-            fn_schema['default'].update(extra_defaults)
-            fn_schema['default'].pop('config', None)
-            fn_schema['default'].pop('kwargs', None)
+            st.write(fnschema)
+            fnschema['default'].pop('self', None)
+            fnschema['default'].pop('cls', None)
+            fnschema['default'].update(extra_defaults)
+            fnschema['default'].pop('config', None)
+            fnschema['default'].pop('kwargs', None)
             
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        fnschema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
         if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+            cols = [1 for i in list(range(int(len(fnschema['input'])**0.5)))]
         if len(cols) == 0:
             return kwargs
         cols = st.columns(cols)
 
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
+        for i, (k,v) in enumerate(fnschema['default'].items()):
             
-            optional = fn_schema['default'][k] != 'NA'
+            optional = fnschema['default'][k] != 'NA'
             fn_key = k 
             if fn_key in skip_keys:
                 continue
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
+            if k in fnschema['input']:
+                k_type = fnschema['input'][k]
                 if 'Munch' in k_type or 'Dict' in k_type:
                     k_type = 'Dict'
                 if k_type.startswith('typing'):
@@ -641,7 +641,7 @@ class StreamlitModule(c.Module):
                 kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')
             else:
                 kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
-        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        kwargs = cls.process_kwargs(kwargs, fnschema)       
         
         return kwargs
     

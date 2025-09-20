@@ -616,7 +616,8 @@ class RaydiumScraper:
             print(f"\n✗ Test failed with error: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            
+            return c.detailed_error(e)
 
 
 if __name__ == "__main__":

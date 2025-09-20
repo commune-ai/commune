@@ -87,7 +87,7 @@ export const UserProfile = ({ user, isOpen, onClose, keyInstance, onLogout }: Us
           {/* Header */}
           <div className="px-4 py-3 border-b border-green-500/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CopyButton code={keyInstance.address as string} />
+              <CopyButton content={keyInstance.address as string} />
               <code className="text-xs text-green-400/90">
                 {keyInstance.address.slice(0, 8)}…{keyInstance.address.slice(-6)}
               </code>

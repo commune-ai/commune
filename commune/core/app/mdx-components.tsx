@@ -17,7 +17,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         <div className='ml-20'>
           <code {...props}>{props.children}</code>
         </div>
-        <CopyButton code={props.children as string} />
+        <CopyButton content={props.children as string} />
       </div>
 
       //     </div>

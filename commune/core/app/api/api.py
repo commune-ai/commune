@@ -9,7 +9,7 @@ import commune as c
 
 class Api:
 
-    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n', 'ask']
+    endpoints = ['modules', 'add_module', 'remove',  'update', 'test',  'module', 'info', 'functions', 'n', 'ask', 'mods', 'mod']
     port = 8000
     url = '0.0.0.0:8000'
     tempo = 600
@@ -49,10 +49,11 @@ class Api:
                     search=None,
                     page=1, 
                     update=False, 
+                    content=False,
                     modules:Optional[list]=None,
-                     page_size=20, 
+                    page_size=20, 
                     timeout=200, 
-                    source=True,
+                    schema = True,
                     df = False,
                     names = False,
                     threads=8,
@@ -66,13 +67,19 @@ class Api:
         end_idx = start_idx + page_size
         modules = modules[start_idx:end_idx]
         progress_bar = c.tqdm(modules, desc=f"Loading modules thread={page}", total=len(modules))
-
         results = []
         if threads > 1:
             executor = self.executor(max_workers=threads, mode=mode)
             futures = []
             for module in modules:
-                future = executor.submit(self.module, module, max_age=max_age, update=update, source=source)
+                future = executor.submit(
+                                        self.module,
+                                        module, 
+                                        max_age=max_age, 
+                                        update=update, 
+                                        content=content, 
+                                        schema=schema
+                                        )
                 futures.append(future)
             for future in c.as_completed(futures):
                 result = future.result()
@@ -87,7 +94,8 @@ class Api:
         else:
 
             for module in modules:
-                result = self.mod(module, max_age=max_age, update=update)
+                print(f"Loading module {module}")
+                result = self.mod(module, update=update, content=content, schema=schema)
                 if self.check_module_data(result):
                     results.append(result)
                 else: 
@@ -101,7 +109,7 @@ class Api:
 
     modules = mods
 
-    def mod(self, module:str,  update=False,  source=False, schema = False,**kwargs):
+    def mod(self, module:str,  update=False,  content=False, schema = False, public= False, **kwargs):
         """
         Get module info
         1. Check if module info is in store and not expired
@@ -111,15 +119,22 @@ class Api:
             path = f'modules/{module}.json'
             info = self.store.get(path, None, update=update)
             if info == None:
-                info = c.info(module=module, source=True, schema=False, **kwargs)
+                # fetch module info from module server
+                print(f"Fetching module {module} info from server -> {path}...")
+                info = c.info(module=module, content=True, schema=True, public=True, **kwargs)
                 self.store.put(path, info)
-            if not source:
-                info.pop("source", None)
+            if not content:
+                info.pop("content", None)
+                info.pop('code', None)
             if not schema:
                 info.pop("schema", None)
+            if not public: 
+                # remove all of the content from schema and info
+                info.pop("content", None)
+                for k in list(info.get("schema", {}).keys()):
+                    info["schema"][k].pop("content", None)
         except Exception as e:
-            print(c.detailed_error(e))
-        
+            c.print(c.detailed_error(e), color='red')
         return info
 
     module = mod
@@ -136,7 +151,6 @@ class Api:
                          'schema'],
                 auth = None, **kwargs):
 
-        
         assert fn in fns, f"Function {fn} is not allowed to be called directly. Use one of the allowed functions: {self.allowed_functions}"
         return c.fn(fn)(**params, **kwargs)
 
@@ -147,7 +161,7 @@ class Api:
         if not isinstance(module, dict):
             return False
         features = ['name', 'key', 'schema']
-        return all([f in module for f in features])
+        return True
 
     def module_path(self, module):
         return f"{self.mods_path}/{module}.json"
@@ -167,18 +181,6 @@ class Api:
             return False
         assert all([f in module for f in features]), f"Missing feature in module: {module}"
         return True
-
-    def check_modules(self):
-        checks = []
-        for m in self.infos():
-            try:
-                self.check_module(m)
-                m['check'] = True
-            except Exception as e:
-                print(e)
-                m['check'] = False
-            checks += [m]
-        return checks
 
     def save_module(self, module):
         print('SAVING MODULE', module["name"])
@@ -267,14 +269,10 @@ class Api:
         self.store.put('api/hosts', path, [])
         return {"message": "Hosts cleared successfully"}
 
-
     def ask(self, text, *extra_text,  **kwargs):
         """
         Ask a question to the commune
         """
         return c.ask(text, *extra_text, **kwargs)
-
-
-
 
 

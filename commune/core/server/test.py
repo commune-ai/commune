@@ -5,9 +5,19 @@ Server = c.mod('server')
 class ServerTestMixin(Server):
     def test_server(self, 
                         server = 'module::test_serving', 
-                        key="test_deployer"):
+                        key="test_deployer", 
+                        trials=3):
             c.serve(server, key=key)
-            info = self.get_info(server)
+            info = {}
+            for i in range(trials): 
+                try:
+                    info = c.call(server+'/info')
+                    if 'schema' in info: 
+                        break
+                except  Exception as e: 
+                    c.print('Exception in server test',e)
+                    pass
+                c.sleep(1)
             assert info['key'] == c.key(key).ss58_address
             c.kill(server)
             return {'success': True, 'msg': 'server test passed'}

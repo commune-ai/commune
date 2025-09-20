@@ -54,7 +54,7 @@ class Base:
         """
         Get SOL balance for an address.
         Args:
-            address: Base58 encoded public key (uses own address if None)
+            address: Base58 encoded content key (uses own address if None)
         Returns:
             Balance in SOL
         """
@@ -71,7 +71,7 @@ class Base:
         """
         Transfer SOL to another address.
         Args:
-            to_address: Recipient's base58 encoded public key
+            to_address: Recipient's base58 encoded content key
             amount_sol: Amount of SOL to transfer
         Returns:
             Transaction signature
@@ -104,9 +104,9 @@ class Base:
     
     def sol_get_address(self):
         """
-        Get the public key address of the current keypair.
+        Get the content key address of the current keypair.
         Returns:
-            Base58 encoded public key
+            Base58 encoded content key
         """
         return str(self.keypair.pubkey())
     

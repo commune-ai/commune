@@ -340,7 +340,7 @@ export const ModuleSchema = ({ mod }: { mod: any }) => {
                           <span className="text-xs font-semibold" style={{ color: error ? ui.danger : ui.text }}>
                             {error ? 'Error' : 'Response'}
                           </span>
-                          <CopyButton code={JSON.stringify(response || error, null, 2)} />
+                          <CopyButton content={JSON.stringify(response || error, null, 2)} />
                         </div>
                         <pre
                           className="micro-scroll-y max-h-64 overflow-auto rounded-md p-3 text-xs"
@@ -374,7 +374,7 @@ export const ModuleSchema = ({ mod }: { mod: any }) => {
                         <span className="text-xs" style={{ color: ui.textDim }}>
                           Function source
                         </span>
-                        <CopyButton code={filteredSchema[selectedFunction]?.code || ''} />
+                        <CopyButton content={filteredSchema[selectedFunction]?.code || ''} />
                       </div>
                       <pre className="p-3 text-xs" style={{ color: ui.text }}>
                         {filteredSchema[selectedFunction]?.code || 'No code available'}

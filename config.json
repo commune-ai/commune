@@ -23,6 +23,10 @@
                 },
 
     "expose" : ["forward", "info"],
-    "port_range": [50050, 50150]
+    "port_range": [50050, 50150],
+    "links": {
+        "ipfs-service": "https://github.com/mod-net/ipfs-service.git"
+
+    }
             
 }

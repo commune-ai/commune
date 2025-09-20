@@ -8,7 +8,7 @@ import {
   MusicalNoteIcon, ArchiveBoxIcon, DocumentChartBarIcon, ClipboardDocumentIcon
 } from '@heroicons/react/24/outline';
 
-interface ModuleCodeProps {
+interface ModuleContentProps {
   files: Record<string, string>;
   title?: string;
   showSearch?: boolean;
@@ -210,9 +210,8 @@ function FileTreeItem({
   );
 }
 
-export const ModuleCode: React.FC<ModuleCodeProps> = ({
+export const ModuleContent: React.FC<ModuleContentProps> = ({
   files,
-  title = 'Code Viewer',
   showSearch = true,
   showFileTree = true,
   compactMode = false,
@@ -369,9 +368,6 @@ export const ModuleCode: React.FC<ModuleCodeProps> = ({
       {/* Header */}
       <div className="px-4 py-3" style={{ backgroundColor: ui.panel, borderBottom: `1px solid ${ui.border}` }}>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-base font-semibold" style={{ color: ui.text }}>
-            {title}
-          </h2>
           <div className="flex items-center gap-4 text-xs" style={{ color: ui.textDim }}>
             <span>{stats.fileCount} files</span>
             <span>{stats.totalLines} lines</span>
@@ -500,7 +496,7 @@ export const ModuleCode: React.FC<ModuleCodeProps> = ({
                     <span>{section.size}</span>
                     <span>{section.lineCount} lines</span>
                     <span className="font-mono" style={{ color: ui.text }}>#{section.hash}</span>
-                    <CopyButton code={section.content} />
+                    <CopyButton content={section.content} />
                   </div>
                 </div>
 
@@ -574,4 +570,4 @@ export const ModuleCode: React.FC<ModuleCodeProps> = ({
   );
 };
 
-export default ModuleCode;
+export default ModuleContent;

@@ -56,7 +56,7 @@ class Dev:
             src={src} # THE SOURCE FILES YOU ARE TRYING TO MODIFY
             query={query} # THE QUERY YOU ARE TRYING TO ANSWER
             steps={steps} # THE MAX STEPS YOU ARE ALLOWED TO TAKE IF IT IS 1 YOU MUST DO IT IN ONE SHOT OR ELSE YOU WILL NOT BE ABLE TO REALIZE IT
-            tool2schema={tool2schema} # THE TOOLS YOU ARE ALLOWED TO USE 
+            toolbelt={toolbelt} # THE TOOLS YOU ARE ALLOWED TO USE 
             memory={memory} # THE HISTORY OF THE AGENT
             OUTPUT_FORMAT={output_format} # THE OUTPUT FORMAT YOU MUST FOLLOW STRICTLY NO FLUFF BEEFORE OR AFTER
             --OUTPUT--
@@ -67,10 +67,10 @@ class Dev:
 
     def __init__(self, 
                  provider: str = 'model.openrouter', 
-                 model: Optional[str] = 'anthropic/claude-opus-4',
+                 model: Optional[str] = 'openai/gpt-5',
                  safety = True,
                  **kwargs):
-        self.provider = c.mod(provider)(model=provider)
+        self.provider = c.mod(provider)(model=model)
         self.safety = safety
         self.model=model
 
@@ -120,7 +120,7 @@ class Dev:
                         goal=self.goal,
                         src=src,
                         query=query,
-                        tool2schema=self.tool2schema(),
+                        toolbelt=self.toolbelt(),
                         memory=memory,
                         steps=steps,
                         output_format=self.output_format
@@ -132,9 +132,7 @@ class Dev:
                     memory.append(plan)
                 except Exception as e:
                     result = c.detailed_error(e)
-                    raise e
                     memory.append(result)
-                    continue
         return plan
 
 
@@ -243,21 +241,21 @@ class Dev:
         return result
 
         
-    def tool2schema(self) -> Dict[str, str]:
+    def toolbelt(self) -> Dict[str, str]:
         """
         Map each tool to its schema.
         
         Returns:
             Dict[str, str]: Dictionary mapping tool names to their schemas.
         """
-        tool2schema = {}
+        toolbelt = {}
         for t in self.tools():
             try:
-                tool2schema[t.replace('.', '/')] = self.schema(t)
+                toolbelt[t.replace('.', '/')] = self.schema(t)
             except Exception as e:
                 c.print(f"Error getting schema for tool {t}: {e}", color='red')
                 continue
-        return tool2schema
+        return toolbelt
     
     def schema(self, tool: str, fn='forward') -> Dict[str, str]:
         """

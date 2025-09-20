@@ -942,16 +942,13 @@ def random_port(*args, **kwargs):
     import commune as c
     return c.choice(c.free_ports(*args, **kwargs))
 
-
 def free_port(ports = None,
                 port_range: List[int] = None , 
                 ip:str =None, 
                 avoid_ports = None,
                 random_selection:bool = True) -> int:
     import commune as c
-    
     '''
-    
     Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
     '''
     avoid_ports = avoid_ports if avoid_ports else []
@@ -1003,11 +1000,8 @@ def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int,
         
     return used_ports
 
-
-
 def port_free(*args, **kwargs) -> bool:
     return not port_used(*args, **kwargs)
-
 
 def get_port(port:int = None)->int:
     port = port if port is not None and port != 0 else free_port()

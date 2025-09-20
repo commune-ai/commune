@@ -2062,7 +2062,7 @@ class Chain:
 
         return self.call(module="SubspaceModule", fn="transfer_multiple", params=params, key=key )
 
-    def wallets(self,  update=False, max_age=None, mode='df', min_value=0):
+    def wallets(self,  update=False, max_age=None, mode='df', min_value=0, search=None):
         """
         an overview of your wallets
         """
@@ -2072,13 +2072,15 @@ class Chain:
         wallets = []
         wallet_names = set(key2address.keys())
         for k in wallet_names:
+            if search != None and search not in k:
+                continue
             if not k in key2address:
                 continue
             address = key2address[k]
             balance = my_balances.get(k, 0)
             stake = my_stake.get(k, 0)
             total = balance + stake
-            if total < min_value:
+            if total <= min_value:
                 continue
             wallets.append({'name': k , 'address': address, 'balance': balance, 'stake': stake, 'total': total})
 

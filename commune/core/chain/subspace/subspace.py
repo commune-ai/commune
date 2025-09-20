@@ -2093,7 +2093,7 @@ class Subspace:
             name = name or address2key.get(key.ss58_address)
         key =  c.get_key(key or name)
         if url == None:
-            self.get_module_url(name, public=public)
+            self.get_module_url(name, content=public)
 
         params = {
             "network_name": self.get_subnet_name(net or subnet),

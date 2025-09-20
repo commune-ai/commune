@@ -23,7 +23,7 @@ class Score:
         elif c.path_exists(module):
             code = c.file2text(module)
         elif c.module_exists(module):
-            code = c.code_map(module)
+            code = c.content(module)
         return code
     def forward(self, module:str, **kwargs):
         code = self.get_code(module)

@@ -323,3 +323,9 @@ venv.bak/
 # Vector Store
 embeddings.db
 
+
+# MOD SECTION (section where modules are added/removed from gitignore when c addmod or c rmmod is used)
+
+commune/modules/ipfs-service
+
+commune/modules/modsdk

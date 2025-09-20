@@ -15,7 +15,7 @@ class Selector:
               min_score=0,
               max_score=9,
               threshold=5,
-              model='anthropic/claude-3.5-sonnet',
+              model='openai/gpt-5-nano',
               context = None):
 
         model = model or self.model
