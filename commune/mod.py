@@ -1324,6 +1324,7 @@ class Mod:
     def simplify_path(self, 
                         path:str,
                         avoid_terms=['modules', 'core', 'src', 'mod', 'bloc', 'module'],
+                        anchor_filenames = ['mod', 'server', 'agent']
                         ):
 
         path = path.replace('/', '.')
@@ -1351,7 +1352,14 @@ class Mod:
                 chunks.pop(-1)
         if len(chunks) == 0:
             chunks = ['module']
-        return '.'.join(chunks)
+
+        if len(chunks) > 1:
+            for anchor in anchor_filenames:
+                if chunks[-1] == anchor:
+                    chunks = chunks[:-1]
+                    break
+        result = '.'.join(chunks)
+        return result
 
     def logs(self, *args, **kwargs):
         return self.fn('pm/logs')(*args, **kwargs)

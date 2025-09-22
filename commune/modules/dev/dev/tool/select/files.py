@@ -7,7 +7,7 @@ from typing import List, Dict, Union, Optional, Any
 print = c.print
 class SelectFiles:
 
-    def __init__(self, model='openai/gpt-5-nano', provider='model.openrouter'):
+    def __init__(self, model='x-ai/grok-4-fast:free-nano', provider='model.openrouter'):
         """
         Initialize the Find module.
         

@@ -67,7 +67,7 @@ class Dev:
 
     def __init__(self, 
                  provider: str = 'model.openrouter', 
-                 model: Optional[str] = 'openai/gpt-5',
+                 model: Optional[str] = 'anthropic/claude-opus-4.1',
                  safety = True,
                  **kwargs):
         self.provider = c.mod(provider)(model=model)
@@ -101,14 +101,15 @@ class Dev:
         print(f"Dev.forward text={text} src={src} steps={steps} mode={mode} mod={mod}", color='cyan')
         query = self.preprocess(text=text, src=src)
         model = model or self.model
-        memory = memory or []
         if mod != None:
             src = c.dp(mod)
         if src != None:
             content = self.content(src, query=query)
         else:
             print("No src provided, using empty content.", color='yellow')
-        
+
+
+        memory = memory or []
         memory.append(content)
         plan = []
         for step in range(steps):
@@ -131,8 +132,7 @@ class Dev:
                         return plan
                     memory.append(plan)
                 except Exception as e:
-                    result = c.detailed_error(e)
-                    memory.append(result)
+                    memory.append(c.detailed_error(e))
         return plan
 
 
@@ -241,7 +241,7 @@ class Dev:
         return result
 
         
-    def toolbelt(self) -> Dict[str, str]:
+    def toolbelt(self, verbose=True) -> Dict[str, str]:
         """
         Map each tool to its schema.
         
@@ -253,7 +253,7 @@ class Dev:
             try:
                 toolbelt[t.replace('.', '/')] = self.schema(t)
             except Exception as e:
-                c.print(f"Error getting schema for tool {t}: {e}", color='red')
+                c.print(f"Error getting schema for tool {t}: {e}", color='red', verbose=verbose)
                 continue
         return toolbelt
     

@@ -1,5 +1,5 @@
 import commune as c 
-class Mcp:
+class Base:
     """
     A base class that provides fundamental functionality for commune modules.
     """

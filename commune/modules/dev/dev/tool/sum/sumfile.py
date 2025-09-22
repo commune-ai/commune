@@ -23,7 +23,7 @@ class SumFile:
     result_format = f'{anchors[0]}(LIST(DICT(obj:str, desc:str))){anchors[1]}'
     cache_dir: str = '~/.summarize/cache'
 
-    def __init__(self, model='openai/gpt-5-nano', provider='model.openrouter'):
+    def __init__(self, model='x-ai/grok-4-fast:free-nano', provider='model.openrouter'):
         self.model = c.mod(provider)(model=model)
 
     def abspath(self, path: str) -> str:
