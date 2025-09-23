@@ -28,15 +28,22 @@ class SelectFiles:
 
         if mod:
             path = c.dirpath(mod)
-        results = c.fn('dev.tool.select/')(
+        files = c.fn('dev.tool.select/')(
             query=query,
             options= c.files(path),
             n=n,
             **kwargs
         )
-        results =  [os.path.expanduser(file) for file in results]
+        files =  [os.path.expanduser(file) for file in files]
         if content:
-            results = {f:self.get_text(f) for f in results}
+            results = []
+            for f in files:
+                try:
+                    results[f] = self.get_text(f)
+                except Exception as e:
+                    print(f"Error reading file {f}: {e}", color="red")
+        else: 
+            results = files
         return results
 
     def get_text(self, path: str) -> str:

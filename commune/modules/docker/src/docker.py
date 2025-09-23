@@ -30,6 +30,14 @@ class Docker:
                 c.cmd(f'docker rmi {image}')
             except Exception as e:
                 c.print(f"Error removing image {image}: {e}", color='red')
+
+    def ensure_docker(self):
+        try:
+            self.version()
+            return True
+        except Exception as e:
+            raise EnvironmentError("Docker is not installed or not running. Please install and start Docker.") from e
+            return False
         
 
     def build(self,
@@ -154,9 +162,22 @@ class Docker:
         command_str = ' '.join(docker_cmd)
         print(f'Running command: {command_str}')
         return c.cmd(command_str, verbose=True)
-     enter(self, contianer): 
+    def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'
         os.system(cmd)
+
+
+    def version(self) -> str:
+        """
+        Get the Docker version.
+
+        Returns:
+            str: The Docker version.
+        """
+        try:
+            return c.cmd('docker --version', verbose=False)
+        except Exception as e:
+            return f"Error getting Docker version: {e}"
 
 
     def exists(self, name: str) -> bool:
