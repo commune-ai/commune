@@ -133,10 +133,7 @@ class SelectFiles:
             if verbose:
                 print(f"Found {filtered_options} relevant options", color="green")
             # Allow user to select files by index if requested
-            results =  [os.path.expanduser(option[1]) for option in filtered_options]
-            if content:
-                results = [self.get_text(f) for f in results]
-            
+            files =  [os.path.expanduser(option[1]) for option in filtered_options]
         except json.JSONDecodeError as e:
             if verbose:
                 print(f"JSON parsing error: {e}", color="red")
@@ -145,6 +142,16 @@ class SelectFiles:
                 print(f"Retrying... ({trials} attempts left)", color="yellow")
                 return self.forward(options, query, n, trials - 1, min_score, max_score, threshold, model, context, temperature, allow_selection, verbose)
             raise ValueError(f"Failed to parse LLM response as JSON: {e}")
+        
+
+
+        for i, path in enumerate(results):
+            try:
+                results[i] = self.get_text(path)
+            except Exception as e:
+                if verbose:
+                    print(f"Error reading file {path}: {e}", color="red")
+                results[i] = f"Error reading file {path}: {e}"
 
         return results
 

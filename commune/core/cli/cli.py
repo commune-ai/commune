@@ -147,13 +147,7 @@ class Cli:
                 module = argv.pop(0)
                 fn = argv.pop(0)
             else:
-                # scenario 8: the fn name is of another module so we will look it up in the fn2mod
-                # and then get the function from the module
-                fn = argv.pop(0)
-                fn2mod = c.fn2mod()
-                if not fn in fn2mod:
-                    raise ValueError(f'Function {fn} not found in module {module}')
-                module = fn2mod[fn]
+                raise ValueError(f'Function {fn} not found in module: {module}')
         else:
             # scenario 2: no arguments, use the default function
             fn = self.default_fn

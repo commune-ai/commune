@@ -20,6 +20,7 @@ class Api:
                 background:bool = False, 
                 path='~/.commune/api', **kwargs):
         self.store = c.mod('store')(path)
+        print(c.mod('chain'))
         self.chain = c.mod('chain')()
 
     def paths(self):

@@ -2,24 +2,22 @@
 {
     "name": "commune",
     "version": "0.1.0",
-    "description": "A Python package for commune utilities",
+    "desc": "A Python package for commune utilities",
     "shortcuts": {
                     "or" : "model.openrouter",
                     "wallet": "chain.wallet",
                     "r" :  "remote",
                     "ch" :  "chain",
-                    "chain": "chain", 
                     "local": "server",
                     "mc" : "modchain",
-                    "pm": "server.pm",
+                    "pm": "server/pm",
                     "client": "server.client",
-                    "auth": "server.auth",
-                    "tracker": "server.tracker",
-                    "serializer": "server.serializer",
-                    "middleware": "server.middleware",
-                    "api": "app.api",
-                    "openrouter": "model.openrouter",
-                    "substrate": "chain.substrate"
+                    "auth": "server/auth",
+                    "tracker": "server/tracker",
+                    "serializer": "server/serializer",
+                    "middleware": "server/middleware",
+                    "api": "app/api",
+                    "openrouter": "model/openrouter"
                 },
 
     "expose" : ["forward", "info"],

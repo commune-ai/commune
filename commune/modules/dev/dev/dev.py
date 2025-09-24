@@ -220,9 +220,12 @@ class Dev:
 
     tool_prefix = 'dev.tool'
 
-    def tools(self, search=None, ignore_terms=['docker_image'], include_terms=[], update=False) -> List[str]:
+    tools_prefix = f"{__file__.split('/')[-2]}/tool"
 
-        tools =  [t.replace(self.tool_prefix + '.','') for t in  c.mods(search=self.tool_prefix, update=update)]
+    def tools(self, search=None, ignore_terms=['docker_image', 'content', 'select/files'], tools_prefix=tools_prefix, include_terms=[], update=False) -> List[str]:
+        tool_files = c.files(os.path.dirname(__file__), search=tools_prefix)
+        tools = [f.split(tools_prefix)[-1].replace('.py', '')[1:] for f in tool_files]
+        print(tools)
         def filter_tool(tool: str) -> bool:
             global search
             if any(ignore in tool for ignore in ignore_terms):

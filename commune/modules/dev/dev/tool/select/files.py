@@ -36,12 +36,9 @@ class SelectFiles:
         )
         files =  [os.path.expanduser(file) for file in files]
         if content:
-            results = []
+            results = {}
             for f in files:
-                try:
-                    results[f] = self.get_text(f)
-                except Exception as e:
-                    print(f"Error reading file {f}: {e}", color="red")
+                results[f] = self.get_text(f)
         else: 
             results = files
         return results

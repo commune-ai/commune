@@ -16,7 +16,8 @@ nest_asyncio.apply()
 
 class Mod: 
 
-    languages=['py', 'rs', 'ts', 'js', 'go']
+    file_types = ['py']
+    anchor_names = ['mod', 'server', 'agent', 'module']
     endpoints = ['ask']
 
     def __init__(self, 
@@ -94,37 +95,12 @@ class Mod:
         """
         # Load the module
         module = module or 'module'
+        if module in [self.name, 'module', 'mod']:
+            return Mod
         if not isinstance(module, str):
             return module
-        # Try to load the module
-        if module in ['module', 'commune', 'mod']:
-            return Mod
-        module = module.replace('/', '.')
-        module = self.shortcuts.get(module, module)
-        tree = self.tree(update=update)
-        obj_path = tree.get(module, module)
-        try:
-            obj = self.obj(obj_path)
-        except Exception as e:
-            #  case 1 if there is one module that ends with the module name, use that
-            tree = self.tree(update=True)
-            tree_options = [v for k,v in tree.items() if k.endswith(module)]
-            if len(tree_options) == 1:
-                obj = tree_options[0]
-            else:
-                # if there is one module that contains the module name, use that
-                tree_options = [v for k,v in tree.items() if module in k]
-                if len(tree_options) == 1:
-                    obj = tree_options[0]
-                else:
-                    raise e
-            obj = self.obj(obj)
-        if params != None:
-            if isinstance(params, dict):
-                obj = obj(**params)
-            elif isinstance(params, list):
-                obj = obj(*params)
-
+        module = module.replace('.', '/')
+        obj =  self.get_anchor_object(module)
         return obj
 
     get_module   = module = mod
@@ -189,7 +165,6 @@ class Mod:
         dockerfiles = [f for f in os.listdir(dirpath) if f.startswith('Dockerfile')]
         return [os.path.join(dirpath, f) for f in dockerfiles]
 
-    anchor_names = ['module', 'mod', 'block']
 
     def modname(self, obj=None):
         obj = obj or Mod
@@ -443,7 +418,6 @@ class Mod:
         """
         return self.secret(key=key, seed=seed, update=True, tempo=tempo, **kwargs)
 
-
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
         Set the config as well as its local params
@@ -468,14 +442,13 @@ class Mod:
     def search(self, search:str = None, **kwargs):
         return self.objs(search=search, **kwargs)
 
-    def get_config(self, module=None, mode='dict', fn='__init__', file_types=['json', 'yaml', 'yml']) -> 'Munch':
+    def get_config(self, module=None, mode='dict', fn='__init__', config_file_types=['json', 'yaml', 'yml']) -> 'Munch':
         """
         check if there is a config 
         """
         path = None
         dirpath_options = [ self.lib_path , self.root_path,  self.pwd()]
-
-        path_options = [os.path.join(dp, f'config.{file_type}') for dp in dirpath_options for file_type in file_types]
+        path_options = [os.path.join(dp, f'config.{file_type}') for dp in dirpath_options for file_type in config_file_types]
         for p in path_options:
             if os.path.exists(p):
                 path = p
@@ -758,7 +731,7 @@ class Mod:
         return inspect.getsource(fn)       
 
 
-    def fnschema(self, fn:str = '__init__', content=True, **kwargs)->dict:
+    def fnschema(self, fn:str = '__init__', content=True, avoid_arguments = ['self', 'cls'],**kwargs)->dict:
         '''
         Get function schema of function in self
         ''' 
@@ -770,10 +743,11 @@ class Mod:
         # INPUT SCHEMA
         schema['input'] = {}
         for k,v in dict(fn_signature._parameters).items():
-            schema['input'][k] = {
-                    'value': "_empty"  if v.default == inspect._empty else v.default, 
-                    'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
-            }
+            if k in avoid_arguments:
+                schema['input'][k] = {
+                        'value': "_empty"  if v.default == inspect._empty else v.default, 
+                        'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
+                }
 
         # OUTPUT SCHEMA
         schema['output'] = {
@@ -805,7 +779,7 @@ class Mod:
                 obj = self.mod(obj)
             elif hasattr(self, obj):
                 obj = getattr(self, obj)
-                schema = self.fnschema(obj, content=content **kwargs)
+                schema = self.fnschema(obj, content=content, **kwargs)
             else: 
                 raise  Exception(f'{obj} not found')
         elif hasattr(obj, '__class__'):
@@ -846,11 +820,6 @@ class Mod:
 
     codemap =  cm =  content
 
-    def code_files(self, module=None):
-        return list(self.content(module))
-
-    cf = code_files
-
     def cid(self, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return self.hash(self.content(module=module, search=search,**kwargs))
 
@@ -880,24 +849,6 @@ class Mod:
         if not include_hidden: 
             fns = [f for f in fns if not f.startswith('__') and not f.startswith('_')]
         return fns
-
-    def mod2fns(self,max_age=30, update=False, core=True) -> List[str]:
-        module2schema = self.module2schema(max_age=max_age, update=update, core=core)
-        mod2fns = {}
-        for module in module2schema:
-            mod2fns[module] = list(module2schema[module].keys())
-        return mod2fns
-    
-    def fn2mod(self, max_age=30, update=False, core=True) -> List[str]:
-        mod2fns = self.mod2fns(max_age=max_age, update=update, core=core)
-        fn2mod = {}
-        for module in mod2fns:
-            for fn in mod2fns[module]:
-                if fn in fn2mod and len(fn2mod[fn]) < len(module):
-                    continue
-                else:
-                    fn2mod[fn] = module
-        return fn2mod
 
     def mods(self, search=None,  startswith=None, endswith=None, **kwargs)-> List[str]:  
         return list(self.tree(search=search, endswith=endswith, startswith=startswith , **kwargs).keys())
@@ -1000,11 +951,6 @@ class Mod:
         fn = self.fn(fn)
         return isinstance(fn, property)
 
-    def tools(self):
-        return self.fn('dev/tools')()
-    def tool(self, tool_name:str):
-        return self.fn(f'dev/tool')(tool_name)
-    
     _executors = {}
     
     def submit(self, 
@@ -1017,7 +963,6 @@ class Mod:
                 mode:str='thread',
                 max_workers : int = 100,
                 ):
-
         executor = self.executor(mode=mode, max_workers=max_workers)
         args = args or []
         kwargs = kwargs or {}
@@ -1197,8 +1142,13 @@ class Mod:
 
         """
         Get the classes for each path inside the path variable
+        params:
+        - path: The path to search for classes
+        - depth: The maximum depth to search
+        - tolist: Whether to return a list of classes or a dict
 
-        Args:
+        returns:
+        - if tolist is True, returns a list of classes
         """
         class_suffix = ':', 
         class_prefix = 'class '
@@ -1320,99 +1270,13 @@ class Mod:
             module_path = os.path.join(self.mods_path, module)
             module_exists = os.path.exists(module_path) and os.path.isdir(module_path)
         return module_exists
-    
-    def simplify_path(self, 
-                        path:str,
-                        avoid_terms=['modules', 'core', 'src', 'mod', 'bloc', 'module'],
-                        anchor_filenames = ['mod', 'server', 'agent']
-                        ):
-
-        path = path.replace('/', '.')
-        chunks = path.split('.')
-        if len(chunks) < 2:
-            return None
-        # remove the last chunk if it is empty (for object_path)
-        chunks = chunks[:-1]
-        path = ''
-        for chunk in chunks:
-            if chunk in path:
-                continue
-            path += chunk + '.'
-        chunks = path.split('.')
-        if self.name in chunks[0]:
-            chunks = chunks[1:]
-        if chunks[-1] == '':
-            chunks = chunks[:-1]
-        for avoid in avoid_terms:
-            if avoid in chunks: 
-                idx_list = [i for i, x in enumerate(chunks) if x == avoid]
-                for idx in reversed(idx_list):
-                    chunks.pop(idx) 
-            if len(chunks) > 1 and avoid in chunks[-1]:
-                chunks.pop(-1)
-        if len(chunks) == 0:
-            chunks = ['module']
-
-        if len(chunks) > 1:
-            for anchor in anchor_filenames:
-                if chunks[-1] == anchor:
-                    chunks = chunks[:-1]
-                    break
-        result = '.'.join(chunks)
-        return result
-
+        
     def logs(self, *args, **kwargs):
         return self.fn('pm/logs')(*args, **kwargs)
     
-    def local_tree(self , depth=10, **kwargs):
-        pwd = os.getcwd()
-        if os.path.expanduser('~') == pwd:
-            depth = 2
-        return self.get_tree(pwd, depth=depth , **kwargs)
-
     def locals(self, **kwargs):
         return list(self.get_tree(self.pwd(), **kwargs).keys())
 
-    def core_tree(self, **kwargs):
-        return {**self.get_tree(self.core_path,  **kwargs)}
-    def mods_tree(self, **kwargs):
-        return self.get_tree(self.mods_path, depth=10,  **kwargs)
-    
-    def tree(self,  search=None, max_age=None, update=False, **kwargs):
-        params = {'search': search, 'max_age': max_age, 'update': update, **kwargs}
-        tree = { 
-                **self.mods_tree(**params), 
-                **self.local_tree(**params),  
-                **self.core_tree(**params) 
-                }
-        return tree
-
-    def get_tree(self, path='./', depth = 10, max_age=None, update=False,
-                    search=None, startswith=None, endswith=None,  **kwargs):
-        """
-        Get the tree of the mods in the path
-        a tree is a dictionary of the form {modname: module_path}
-        the modname is based on the directory path 
-        """
-        path = self.abspath(path)
-        path_hash = self.hash(path)
-        cache_path = 'tree/'+self.hash(os.path.abspath(path))
-        tree = self.get(cache_path, None, max_age=max_age, update=update)
-        if tree == None:
-            class_paths = self.classes(path, depth=depth)
-            simple_paths = [self.simplify_path(p) for p in class_paths]
-            tree = dict(zip(simple_paths, class_paths))
-            self.put(cache_path, tree)
-        if startswith != None:
-            tree = {k:v for k,v in tree.items() if k.startswith(startswith)}
-        if endswith != None:
-            tree = {k:v for k,v in tree.items() if k.endswith(endswith)}
-        if search != None:
-            tree = {k:v for k,v in tree.items() if search in k}
-        return tree
-    
-    ltree = local_tree
-    mtree = mods_tree
     
     def check_info(self,info, features=['key', 'hash', 'time', 'name', 'schema']):
         try:
@@ -1428,13 +1292,19 @@ class Mod:
             return self.dirpath(mod)
         return os.getcwd()
 
-    def get_path_name(self, f, path):
+    def get_path_name(self, f):
         f = self.abspath(f)
-        for language in ['py']:
+        for language in self.file_types:
             suffix = '.' + language
             if f.endswith(suffix):
                 f = f.split(suffix)[0]
                 break
+        if f.startswith(self.core_path):
+            path = self.core_path
+        elif f.startswith(self.mods_path):
+            path = self.mods_path
+        elif f.startswith(os.getcwd()):
+            path = os.getcwd()
         if f.startswith(path):
             f = f[len(path):]
         if f.startswith('/'):
@@ -1451,29 +1321,99 @@ class Mod:
             result = result[:-1]
         return result
 
-    def get_filetree(self, path=None, search=None, depth=4, file_types = ['py', 'md', 'ts', 'js', 'rs']): 
-        path = path or self.core_path
-        files = self.files(path, depth=depth)
-        print(files, path)
-        folders = {self.get_path_name(f, path=path):f for f in files}
+    def get_anchor_file(self, path):
+
+        """
+        desc:
+            get the tree of the module
+            get the path from the tree
+            search for the anchor file in the path
+            assume the potential anchor files can be in the last two folders 
+            names like model/openrouter/model.py or model/openrouter/openrouter.py
+            return the first anchor file found
+            return None if no anchor file is found
+
+        parms: 
+            path : the path to search for the anchor file
+            file_types : the file types to search for
+        returns:
+            the anchor file path if found
+        """
+        path = path.replace('.', '/')
+        tree = self.tree()
+        anchor_names = self.anchor_names.copy()
+        # IF FOR SOME REASON WE ARE SPECIFYING A PATH THAT IS A FILE (NOT IN THE TREE AS THE TREE ONLY HAS FOLDERS)
+        if path not in tree :
+            # check if the path is a substring of any of the keys in the tree
+            folder_prefix = '/'.join(path.split('/')[:-1])
+            filename = path.split('/')[-1]
+            if folder_prefix in tree:
+                # so the folder prefix exists, check if the file exists in the folder
+                file_prefix =  tree[folder_prefix] + '/' + filename
+                for fp in [file_prefix + '.' + ft for ft in self.file_types]:
+                    if os.path.exists(fp):
+                        return fp
+        path = tree.get(path, path)
+        anchor_names += [path.split('/')[-1]]
+        if len(path.split('/')) > 1:
+            anchor_names += [path.split('/')[-2]]
+        for f in self.files(path, depth=2):
+            if any([f.endswith('/' + an + '.' + ft) for an in anchor_names for ft in self.file_types]):
+                return f
+        return None
+
+    def get_anchor_object(self, path):
+        anchor_file = self.get_anchor_file(path)
+        if anchor_file:
+            classes =  self.classes(anchor_file)
+            assert len(classes) > 0, f'No classes found in {anchor_file}'
+            if len(classes) > 1:
+                raise Exception(f'Multiple classes found in {anchor_file}, please specify the class name. Classes: {classes}')
+            return self.obj(classes[0])
+        else: 
+            tree = self.tree()
+            k_options = [k for k in tree.keys() if path in k]
+            if len(k_options) == 1:
+                return self.get_anchor_object(k_options[0])
+            raise Exception(f'No anchor file found in {path} or {k_options}')
+        
+
+    def get_tree(self, path=None, search=None, depth=4, root_names = ['mod', 'module'], update=False,  **kwargs): 
+        if not hasattr(self, '_cached_trees'):
+            self._cached_trees = {}
+        cache_path =  f'tree/'+self.hash(path)
+        if not update and cache_path in self._cached_trees:
+            tree =  self._cached_trees[cache_path]
+        else:
+            path = path or self.core_path
+            files = [f for f in self.files(path, depth=depth) if any([f.endswith('.' + ft) for ft in self.file_types])]
+            folders = list(set([os.path.dirname(f) for f in files]))
+            tree = {self.get_path_name(f):f for f in folders}
+            self.shortcuts.update({rn: self.name for rn in root_names})
+            self._cached_trees[cache_path] = tree
+
+        for k,v in self.shortcuts.items():
+            if v in tree:
+                tree[k] = tree[v]
         if search:
-            folders = {k:v for k,v in folders.items() if search in k}
-        return folders
+            search = search.replace('.', '/')
+            tree = {k:v for k,v in tree.items() if search in k}
+        return tree
 
-    def core_filetree(self, search=None): 
-        return self.get_filetree(self.core_path, search=search) 
+    def core_tree(self, search=None): 
+        return self.get_tree(self.core_path, search=search) 
 
-    def mods_filetree(self, search=None): 
-        return self.get_filetree(self.mods_path, search=search)
+    def mods_tree(self, search=None): 
+        return self.get_tree(self.mods_path, search=search)
 
-    def local_filetree(self, search=None):
-        return self.get_filetree(os.getcwd(), search=search)
+    def local_tree(self, search=None):
+        return self.get_tree(os.getcwd(), search=search)
 
-    def filetree(self, search=None):
+    def tree(self, search=None, **kwargs):
         return {
-            **self.mods_filetree(search=search),
-            **self.local_filetree(search=search),
-            **self.core_filetree(search=search),
+            **self.mods_tree(search=search),
+            **self.local_tree(search=search),
+            **self.core_tree(search=search),
                 }
 
     def dirpath(self, module=None) -> str:
@@ -1790,11 +1730,6 @@ class Mod:
         """
         from_path = self.dirpath(from_module)
         to_path = self.dirpath(to_module)
-        result =  { 
-                'from': {'module': from_module, 'path': from_path}, 
-                'to': {'path': to_path, 'module': to_module}
-                }
-
         return self.mv(from_path, to_path)
 
     mv_mod = mvmod
@@ -1809,7 +1744,6 @@ class Mod:
         self.rm_module_gitignore(module)
         self.tree(update=1)
         return {'success': True, 'msg': 'removed module'}
-
 
     def address2key(self, *args, **kwargs):
         return self.fn('key/address2key')(*args, **kwargs)
