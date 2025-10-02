@@ -18,7 +18,6 @@ class Repo(c.Module):
         if path == None:
             path = c.home_path
         repos = []
-        c.print(path)
         for root, dirs, files in os.walk(path):
             if any([avoid in root for avoid in avoid_strings]):
                 continue

@@ -1,0 +1,45 @@
+version: '3.9'
+
+x-env: &default-env
+  # Override from .env
+  EVM_RPC_HTTP: ${EVM_RPC_HTTP}
+  CHAIN_ID: ${CHAIN_ID}
+  LOCAL_CHAIN_ID: ${LOCAL_CHAIN_ID:-31337}
+
+services:
+  # Local hardhat chain + deploy + seed
+  chain:
+    profiles: ["local"]
+    build:
+      context: ./contracts
+      dockerfile: Dockerfile
+    container_name: neon-chain
+    environment:
+      <<: *default-env
+    command: ["bash", "-lc", "pnpm i && pnpm dev:chain"]
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./contracts:/app
+      - ./web:/app_web
+
+  # Web UI
+  web:
+    profiles: ["local", "test", "main"]
+    build:
+      context: ./web
+    container_name: neon-web
+    depends_on:
+      - chain
+    environment:
+      <<: *default-env
+      # When local: addresses are written by the bootstrap into web/.env.local
+      NEXT_PUBLIC_RPC_HTTP: ${EVM_RPC_HTTP}
+      NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+    command: ["bash", "-lc", "pnpm i && pnpm dev"]
+
+# Test/main profiles do NOT run chain service; they only run the frontend against your RPC

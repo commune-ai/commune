@@ -42,11 +42,9 @@ class PM:
         daemon = daemon if d is None else d
         module = module or 'module'
         port = port or c.free_port()
-        fn = 'server/serve'
         params['remote'] = 0
         params['port'] = port
-        params_cmd = self.params2cmd(params)
-        cmd = f"c server/serve {module} {params_cmd}"
+        cmd = f"c server/serve {module} { self.params2cmd(params)}"
         if not remote:
             return os.system(cmd)
         if '::' in module:
@@ -474,6 +472,7 @@ class PM:
              sudo: bool = False,
              verbose: bool = False,
              tail: int = 100,
+             head: int = None,
              since: Optional[str] = None) -> str:
         """
         Get container logs with advanced options.
@@ -914,8 +913,6 @@ class PM:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
 
-        
-
     def get_port(self, name: str) -> Dict[int, int]:
         """
         Get the exposed ports of a container as a dictionary.
@@ -975,19 +972,27 @@ class PM:
     def urls(self, search=None, mode='http') -> List[str]:
         return list(self.namespace(search=search).values())
 
-    def start_docker_daemon(self):
+    def start_docker_daemon(self, wait_time=5):
         """
         Start the Docker daemon if it is not already running.
         
         Returns:
             str: Status message indicating whether the daemon was started or was already running.
         """
-
-        try:
-            c.cmd('systemctl start docker')
-            return "Docker daemon started successfully."
-        except Exception as e:
-            return f"Error starting Docker daemon: {str(e)}"
+        import sys
+        # if macos
+        if sys.platform == 'darwin':
+            c.cmd('open /Applications/Docker.app')
+        elif sys.platform == 'win32':
+            c.cmd('Start-Process "C:\\Program Files\\Docker\\Docker\\Docker Desktop')
+        elif sys.platform == 'linux':
+            c.cmd('systemctl is-active --quiet docker')
+        for i in range(wait_time):
+            if self.is_docker_daemon_on():
+                return "Docker daemon is running."
+            print(f"Waiting for Docker daemon to start... ({i+1}/{wait_time})")
+            c.sleep(1)
+        raise RuntimeError("Docker daemon is not running. Please start Docker and try again.")
 
     def is_docker_daemon_on(self):
         """
@@ -996,9 +1001,7 @@ class PM:
         Returns:
             bool: True if the Docker daemon is running, False otherwise.
         """
-
         return not("Is the docker daemon running?" in c.cmd('docker info', verbose=False))
-
 
     def compose_files(self, mod = 'mod', depth=3) -> List[str]:
         """

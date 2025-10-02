@@ -1,0 +1,21 @@
+{
+  "name": "neon-contracts",
+  "private": true,
+  "version": "2.1.0",
+  "scripts": {
+    "build": "hardhat compile",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "dev:chain": "hardhat node --hostname 0.0.0.0 & sleep 4 && hardhat run scripts/00_local_bootstrap.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "ethers": "^6.13.2"
+  }
+}

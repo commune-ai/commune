@@ -21,14 +21,18 @@ class MCP:
     Provides core functionality for module management, communication, and execution.
     """
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: Optional[Dict] = None, goal = None):
         """Initialize the MCP module with optional configuration."""
         self.config = config or {}
         self.name = self.__class__.__name__.lower()
         self.path = Path(__file__).parent
         self._modules = {}
         self._tools = {}
-        
+        self.categories = {}
+        self.goal = goal 
+        self.history = []
+        self.state = {}
+
     @classmethod
     def module_info(cls) -> Dict[str, Any]:
         """Get information about this module."""
@@ -102,19 +106,6 @@ class MCP:
     def __str__(self) -> str:
         return self.name
 
-
-class Agent(MCP):
-    """
-    Agent class that extends MCP for autonomous operations.
-    Inspired by Mr. Robot's approach to problem-solving.
-    """
-    
-    def __init__(self, goal: str = None, **kwargs):
-        super().__init__(**kwargs)
-        self.goal = goal
-        self.history = []
-        self.state = {}
-    
     def think(self, context: Any) -> Dict:
         """Process context and generate thoughts."""
         thought = {
@@ -148,17 +139,6 @@ class Agent(MCP):
         from datetime import datetime
         return datetime.now().isoformat()
 
-
-class Toolbelt(MCP):
-    """
-    Toolbelt class for managing and organizing tools.
-    A Leonardo-style workshop of digital instruments.
-    """
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.categories = {}
-    
     def add_category(self, name: str, description: str = ""):
         """Add a new tool category."""
         self.categories[name] = {
@@ -193,78 +173,45 @@ class Toolbelt(MCP):
         return matches
 
 
-def create_module(name: str, base_class: type = MCP, methods: Dict = None) -> type:
-    """
-    Factory function to create new module classes dynamically.
-    
-    Args:
-        name: Name of the new module class
-        base_class: Base class to inherit from (default: MCP)
-        methods: Dictionary of method names to functions
-    
-    Returns:
-        New module class
-    """
-    methods = methods or {}
-    return type(name, (base_class,), methods)
+    @classmethod
+    def create_module(cls, name: str, methods: Dict = None) -> type:
+        """
+        Factory function to create new module classes dynamically.
+        
+        Args:
+            name: Name of the new module class
+            base_class: Base class to inherit from (default: MCP)
+            methods: Dictionary of method names to functions
+        
+        Returns:
+            New module class
+        """
+        methods = methods or {}
+        return type(name, (MCP,), methods)
 
-
-def commune():
-    """
-    Main entry point for the commune system.
-    Simple, elegant, powerful.
-    """
-    print("""
-    ╔═══════════════════════════════════════╗
-    ║         COMMUNE MCP SYSTEM            ║
-    ║    'Simplicity is the ultimate        ║
-    ║         sophistication'                ║
-    ║           - Leonardo da Vinci          ║
-    ╚═══════════════════════════════════════╝
-    """)
-    
-    # Initialize base system
-    base = MCP()
-    print(f"\n✓ MCP Base initialized: {base}")
-    
-    # Create an agent
-    agent = Agent(goal="Build amazing things")
-    print(f"✓ Agent created with goal: {agent.goal}")
-    
-    # Create a toolbelt
-    tools = Toolbelt()
-    print(f"✓ Toolbelt ready")
-    
-    print("\n🚀 System ready. Let's build something beautiful.\n")
-    
-    return {
-        'base': base,
-        'agent': agent,
-        'tools': tools
-    }
-
-
-if __name__ == "__main__":
-    # Run the commune system
-    system = commune()
-    
-    # Example usage
-    print("Example Usage:")
-    print("-" * 40)
-    
-    # Get module info
-    info = MCP.module_info()
-    print(f"Module: {info['name']}")
-    print(f"Methods: {', '.join(info['methods'][:5])}...")
-    
-    # Create a custom module
-    CustomModule = create_module(
-        'CustomModule',
-        MCP,
-        {'custom_method': lambda self: "Hello from custom module!"}
-    )
-    
-    custom = CustomModule()
-    print(f"\nCustom module created: {custom}")
-    
-    print("\n✨ MCP system is running. Build something amazing! ✨")
+    @staticmethod
+    def test():
+        """
+        Main entry point for the commune system.
+        Simple, elegant, powerful.
+        """
+        print("""
+        ╔═══════════════════════════════════════╗
+        ║         COMMUNE MCP SYSTEM            ║
+        ║    'Simplicity is the ultimate        ║
+        ║         sophistication'                ║
+        ║           - Leonardo da Vinci          ║
+        ╚═══════════════════════════════════════╝
+        """)
+        
+        # Initialize base system
+        base = MCP()
+        print(f"\n✓ MCP Base initialized: {base}")
+        
+        # Create an agent
+        
+        print("\n🚀 System ready. Let's build something beautiful.\n")
+        
+        return {
+            'base': base,
+        }

@@ -1343,7 +1343,7 @@ class Chain:
         return 1
 
 
-    def module_exists(self, key, subnet=0):
+    def mod_exists(self, key, subnet=0):
         key_address = self.get_key(key).key_address
         return any([key_address == m['key'] for m in self.mods(subnet=subnet)])
 

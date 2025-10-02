@@ -1,0 +1,8 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+html,body{height:100%;background:#0a0b0f;color:#e2e8f0}
+body:before{content:"";position:fixed;inset:0;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 3px,transparent 4px);mix-blend-mode:overlay;pointer-events:none;z-index:10}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border:1px solid #1e293b;border-radius:.75rem;background:#0b0e17;color:#e2e8f0;transition:all .2s}
+.btn-primary{background:linear-gradient(90deg,rgba(34,211,238,.2),rgba(255,46,166,.2));box-shadow:0 0 24px rgba(34,211,238,.25)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 0 24px rgba(255,46,166,.2)}
+.card{background:#0b0e17;border:1px solid #1e293b;border-radius:1rem;padding:1rem;box-shadow:0 0 24px rgba(34,211,238,.12)}
+.input,.select{width:100%;background:#0a0b0f;border:1px solid #1e293b;border-radius:.75rem;padding:.6rem .75rem;color:#e2e8f0}

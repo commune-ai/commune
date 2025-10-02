@@ -1,0 +1,39 @@
+version: '3.9'
+
+x-env: &shared
+  EVM_RPC_HTTP: ${EVM_RPC_HTTP}
+  CHAIN_ID: ${CHAIN_ID}
+  LOCAL_CHAIN_ID: ${LOCAL_CHAIN_ID:-31337}
+
+services:
+  chain:
+    profiles: ["local"]
+    build:
+      context: ./contracts
+      dockerfile: Dockerfile
+    container_name: modufi-chain
+    environment:
+      <<: *shared
+    command: ["bash", "-lc", "pnpm i && pnpm dev:chain"]
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./contracts:/app
+      - ./web:/app_web
+
+  web:
+    profiles: ["local", "test", "main"]
+    build:
+      context: ./web
+    container_name: modufi-web
+    depends_on:
+      - chain
+    environment:
+      <<: *shared
+      NEXT_PUBLIC_RPC_HTTP: ${EVM_RPC_HTTP}
+      NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+    command: ["bash", "-lc", "pnpm i && pnpm dev -p 3000"]

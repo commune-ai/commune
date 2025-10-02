@@ -167,7 +167,6 @@ class Key:
         
 
     def get_path(self, path:str) -> str:
-        path = str(path)
         if not path.startswith(self.storage_path):
             path = self.storage_path + '/' + path
         return path
@@ -224,19 +223,11 @@ class Key:
         defines the path for each key
         """
         crypto_type = self.get_crypto_type(crypto_type)
-        key_paths  = c.ls(self.storage_path)
+        key_paths  = c.glob(self.storage_path)
         key2path = {}
         for p in key_paths:
-            files = c.glob(f'{p}/{crypto_type}')
-            if len(files) >= 1:
-                file2age = {f:os.path.getmtime(f) for f in files}
-                files = [k for k,v in sorted(file2age.items(), key=lambda item: item[1])]
-                # get the latest file
-                p = files[0]
-                # delete the others
-                for f in files[1:]:
-                    os.remove(f)
-                name = p.split('/')[-3]
+            if '/'+crypto_type+'/' in p:
+                name = p.split('/'+crypto_type+'/')[0].split(self.storage_path)[-1].strip('/')
                 key2path[name] = p         
         return key2path
     
@@ -277,7 +268,7 @@ class Key:
         crypto_type = self.get_crypto_type(crypto_type)
         key2path = self.key2path(crypto_type=crypto_type)
         if f'/{crypto_type}/' in key:
-            key = key.split(f'/')[-3]
+            key = key.split(f'/{crypto_type}/')[0].split(self.storage_path)[-1].strip('/')
         if key in key2path or key in key2path.values():
             return True
         return False

@@ -260,22 +260,24 @@ def bytes2str( data: bytes, mode: str = 'utf-8') -> str:
             return data
         return bytes.decode(data, mode)
 
-def python2str( input):
+def python2str( x):
     from copy import deepcopy
     import json
-    input = deepcopy(input)
-    input_type = type(input)
+    x = deepcopy(x)
+    input_type = type(x)
     if input_type == str:
-        return input
-    if input_type in [dict]:
-        input = json.dumps(input)
+        return x
+    elif input_type in [dict]:
+        x = json.dumps(x)
     elif input_type in [bytes]:
-        input = bytes2str(input)
+        x = bytes2str(x)
     elif input_type in [list, tuple, set]:
-        input = json.dumps(list(input))
+        x = json.dumps(list(x))
     elif input_type in [int, float, bool]:
-        input = str(input)
-    return input
+        x = str(x)
+    elif x == None: 
+        return str(x)
+    return str(x)
 
 def bytes2dict(data: bytes) -> str:
     import json

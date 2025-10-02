@@ -5,7 +5,7 @@ class Vibe:
     task = 'make a dank tweet about this for the vibes include the path and score it out of 100 vibes and include'
 
     def forward(self, module:str='module', task=task, update=False):
-        assert c.module_exists(module), f'module {module} does not exist'
+        assert c.mod_exists(module), f'module {module} does not exist'
         code = c.code(module)
         code_hash = c.hash(code)
         path = self.get_path(f'{module}/{code_hash}')

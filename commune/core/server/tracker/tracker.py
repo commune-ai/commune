@@ -146,8 +146,9 @@ class Tx:
             server= None,
             n = None,
             max_age:float = 3600, 
-            features:list = ['mod', 'fn', 'params', 'cost', 'duration',  'age', 'client'],
-            shorten_features = ['client']
+            features:list = ['mod', 'fn', 'params', 'cost', 'duration',  'age', 'client', 'server', 'time', 'hash'],
+            shorten_features = ['client', 'server',  'hash'],
+            index = 'hash'
             ):
         path = None
         if client is not None:
@@ -172,7 +173,8 @@ class Tx:
         addres2key = c.address2key()
         df['params'] = df['params'].apply(self.transform_params)
         df['cost'] = df['schema'].apply(lambda x: x['cost'] if 'cost' in x else 0)
-        df['client'] = df['client'].apply(lambda x: addres2key.get(x['key'], x['key']))
+        df['client'] = df['client'].apply(lambda x: x['key'])
+        df['server'] = df['server'].apply(lambda x: x['key'])
         shorten_fn = lambda x: x if len(x) <= 10 else x[:4] + '...' + x[-4:]
         for f in shorten_features:
             if f in df.columns:
@@ -181,8 +183,10 @@ class Tx:
         df = df.sort_values(by='time', ascending=False)
         if n is not None:
             df = df.head(n)
+        df = df[features] if features is not None else df
+        df = df.set_index(index, drop=True)
             
-        return df[features]
+        return df
 
     def n(self):
         """

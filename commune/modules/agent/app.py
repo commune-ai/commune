@@ -194,7 +194,6 @@ class App:
         history =  []
         for i, path in enumerate(paths):
             try:
-                print(paths)
                 h = c.get(path)
                 h.update(h.pop('data'))
                 h['datetime'] = c.time2datetime(h.pop('time'))

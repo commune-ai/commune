@@ -30,6 +30,7 @@ class Mod:
 
     def sync(self, mod=None, verbose=False, config = None):
 
+
         self.root_path =os.path.dirname(__file__)
         self.lib_path  = self.libpath = self.repo_path  = self.repopath = os.path.dirname(self.root_path) # the path to the repo
         self.core_path = self.root_path + '/core' # the path to the core
@@ -46,6 +47,7 @@ class Mod:
         self.port_range = self.config['port_range']
         self.expose = self.endpoints = self.config['expose']
         self.shortcuts = self.config['shortcuts']
+        self.anchor_names.append(self.name)
         
         if mod is not None:
             print(f'Syncing module {mod}')
@@ -99,7 +101,7 @@ class Mod:
             return Mod
         if not isinstance(module, str):
             return module
-        module = module.replace('.', '/')
+        module = self.get_name(module)
         obj =  self.get_anchor_object(module)
         return obj
 
@@ -115,8 +117,8 @@ class Mod:
         return fn_obj(**params)
 
     def go(self, module=None, **kwargs):
-        module = module or 'module'
-        if self.module_exists(module):
+        module = module or self.name
+        if self.mod_exists(module):
             path = self.dirpath(module)
         else:
             repo2path = self.repo2path()
@@ -198,10 +200,13 @@ class Mod:
         return config_path
 
     def storage_dir(self, module=None):
-        module = self.mod(module)
-        return os.path.abspath(os.path.expanduser(f'~/.commune/{self.modname(module)}'))
+        if module == None: 
+            module = 'module'
+        else:
+            module = self.modname(module)
+        return os.path.abspath(os.path.expanduser(f'~/.commune/{module}'))
     
-    def is_admin(self, key:str) -> bool:
+    def is_owner(self, key:str) -> bool:
         return self.get_key().key_address == key
 
     def is_home(self, path:str = None) -> bool:
@@ -241,7 +246,7 @@ class Mod:
         parser.add_argument('--params', dest='params', help='key word arguments to the function', type=str, default=params) 
         argv = parser.parse_args()
         params = argv.params
-        module = argv.module.replace('/', '.')
+        module = self.get_name(argv.module)
         fn = argv.fn
         args, kwargs = [], {}
         if isinstance(params, str):
@@ -333,12 +338,18 @@ class Mod:
         """
         Lists all files in the path
         """
-        # if self.module_exists(path):
+        # if self.mod_exists(path):
         #     path = self.dirpath(path)
         files =self.glob(path, **kwargs)
         if not include_hidden:
             files = [f for f in files if not '/.' in f]
         files = list(filter(lambda f: not any([at in f for at in avoid_terms]), files))
+        if len(files) == 0 and self.mod_exists(path):
+            files = self.files(self.dp(path), relative=True)
+        if relative: 
+            cwd = os.getcwd()
+            files = [f.replace(path + '/', '') if f.startswith(cwd) else f for f in files]
+
         if search != None:
             files = [f for f in files if search in f]
         return files
@@ -359,6 +370,7 @@ class Mod:
 
     def size(self, module) -> int:
         return len(str(self.content(module)))
+
     def verify(self, data, signature=None, address=None, key=None, **kwargs ) -> bool:  
         key = self.get_key(key)
         return key.verify(data=data, signature=signature, address=address, **kwargs)
@@ -712,38 +724,24 @@ class Mod:
     def sleep(self, period):
         time.sleep(period) 
 
-    def fn2code(self, module=None)-> Dict[str, str]:
-        module = self.mod(module)
-        functions = self.fns(module)
-        fn_code_map = {}
-        for fn in functions:
-            try:
-                fn_code_map[fn] = self.code(getattr(module, fn))
-            except Exception as e:
-                self.print(f'Error {e} {fn}', color='red', verbose=False)
-        return fn_code_map
-    
-    def fn_code(self,fn:str, module=None,**kwargs) -> str:
-        '''
-        Returns the code of a function
-        '''
-        fn = self.fn(fn)      
-        return inspect.getsource(fn)       
 
-
-    def fnschema(self, fn:str = '__init__', content=True, avoid_arguments = ['self', 'cls'],**kwargs)->dict:
+    def fnschema(self, fn:str = '__init__', public=True, avoid_arguments = ['self', 'cls'],**kwargs)->dict:
         '''
         Get function schema of function in self
         ''' 
-        schema = {}
+        public = bool(public)
         fn_obj = self.fn(fn)
         if not callable(fn_obj):
             return {'fn_type': 'property', 'type': type(fn_obj).__name__}
+        
         fn_signature = inspect.signature(fn_obj)
-        # INPUT SCHEMA
-        schema['input'] = {}
+
+        schema = {'input': {}, 'output': {}, 'docs': '', 'cost': 0, 'name': '', 'content': '' , 'public': public}
+
         for k,v in dict(fn_signature._parameters).items():
-            if k in avoid_arguments:
+            if k  in avoid_arguments:
+                continue
+            else:
                 schema['input'][k] = {
                         'value': "_empty"  if v.default == inspect._empty else v.default, 
                         'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
@@ -757,36 +755,37 @@ class Mod:
         schema['docs'] = fn_obj.__doc__
         schema['cost'] = 0 if not hasattr(fn_obj, '__cost__') else fn_obj.__cost__ # attribute the cost to the function
         schema['name'] = fn_obj.__name__
-        if content:
+        if public:
             schema['content'] = inspect.getsource(fn_obj)
         return schema
 
     fnschema = fnschema
 
-    def schema(self, obj = None ,  content = False, verbose=False, public=False, **kwargs)->dict:
+    def schema(self, obj = None , fns=None, public=False,  verbose=False, **kwargs)->dict:
         '''
         Get function schema of function in self
         '''   
         schema = {}
-        content = public or content
         obj = obj or 'module'
+        public = bool(public)
         if callable(obj):
-            return self.fnschema(obj, content=content, **kwargs)
+            return self.fnschema(obj, public=public, **kwargs)
         elif isinstance(obj, str):
             if '/' in obj :
-                return self.fnschema(obj, content=content,  **kwargs)
-            elif self.module_exists(obj):
+                return self.fnschema(obj, public=public,  **kwargs)
+            elif self.mod_exists(obj):
                 obj = self.mod(obj)
             elif hasattr(self, obj):
                 obj = getattr(self, obj)
-                schema = self.fnschema(obj, content=content, **kwargs)
+                schema = self.fnschema(obj, public=public, **kwargs)
             else: 
                 raise  Exception(f'{obj} not found')
         elif hasattr(obj, '__class__'):
             obj = obj.__class__
+        fns = fns or self.fns(obj)
         for fn in self.fns(obj):
             try:
-                schema[fn] = self.fnschema(getattr(obj, fn), content=content,  **kwargs)
+                schema[fn] = self.fnschema(getattr(obj, fn), public=public,  **kwargs)
             except Exception as e:
                 self.print(self.detailed_error(e), color='red', verbose=verbose)
         return schema
@@ -852,11 +851,10 @@ class Mod:
 
     def mods(self, search=None,  startswith=None, endswith=None, **kwargs)-> List[str]:  
         return list(self.tree(search=search, endswith=endswith, startswith=startswith , **kwargs).keys())
+
     modules = mods
     def get_mods (self, search=None, **kwargs):
         return self.mods (search=search, **kwargs)
-
-    
 
     def core_mods(self) -> List[str]:
         return list(self.core_tree().keys())
@@ -883,16 +881,15 @@ class Mod:
             update: bool =False, 
             key=None,
             url = None, 
-            content =  False, # whether to include the source code of the module
-            public = False, # whether to include the source code of the functions in the schema
+            public =  False, # whether to include the source code of the module
             owner = None, # what is the key that is hosting this module
-            ai_describe: bool = False,
+            fns = None, # which functions to include in the schema
             tag_divider = '::',
             **kwargs):
         """
         Get the info of a module, including its schema, key, cid, and code if specified.
         """
-        
+        module = self.get_name(module or 'module')
         name = module
         if tag_divider in module:
             module, tag = module.split('::')
@@ -905,23 +902,20 @@ class Mod:
                 'owner': owner,
                 'cid': cid,
                 'time': time.time(),
+                'public': bool(public),
                 }
-        if content and public:
+        if public:
             info['content'] = self.content(module)
         if schema:
-            info['schema'] = self.schema(module , content=public)
+            try:
+                info['schema'] = self.schema(module , public=public, fns=fns)
+            except Exception as e:
+                self.print(f'InfoSchemaError({e})', color='red')
+                info['schema'] = {}
         if url: 
             info['url'] = url
         info['signature'] = self.sign(info, key=key)
         assert self.verify_info(info), f'Invalid signature {info["signature"]}'
-        if ai_describe :
-            if 'desc' not in info:
-                prompt = 'given decribe this module in a few sentences, the module is a python module with the following schema: ' + json.dumps(info['schema'])
-                desc = ''
-                for ch in self.ask(prompt):
-                    print(ch, end='', flush=True)
-                    desc += ch
-                info['desc'] = desc
         return  info
 
     card = info 
@@ -1003,16 +997,14 @@ class Mod:
                 fn_obj = getattr( self.module(fn[:-1])(), default_fn)
             elif '/' in fn:
                 module, fn = fn.split('/')
-                if self.module_exists(module):
+                if self.mod_exists(module):
                     module = self.module(module)()
-                elif self.is_python_module(module):
-                    module = self.import_module(module)
                 else:
                     raise Exception(f'Mod {module} not found')  
                 fn_obj = getattr(module, fn)
             elif self.object_exists(fn):
                 fn_obj =  self.obj(fn)
-            elif self.module_exists(fn):
+            elif self.mod_exists(fn):
                 fn_obj = self.module(fn)().forward
 
         else:
@@ -1022,9 +1014,6 @@ class Mod:
         return fn_obj
     
     get_fn = fn
-
-
-    
 
     def get_args(self, fn) -> List[str]:
         """
@@ -1075,6 +1064,19 @@ class Mod:
             self.put(path, pwd)
             self.print('Generating new password', color='blue')
         return pwd
+
+    def mod2readme(self): 
+        mod2readme = {}
+        for mod in self.mods():
+            dp = self.dirpath(mod)
+            files = self.files(dp)
+            mod2readme[mod] = [f for f in files if f.endswith('.md')]
+            if len(mod2readme[mod]) == 0:
+                del mod2readme[mod]
+            else:
+                mod2readme[mod] = self.get_text(mod2readme[mod][0])
+        return len(str(mod2readme))
+            
 
     def mnemonic(self, words=24):
         """
@@ -1257,20 +1259,20 @@ class Mod:
         """enter mods path in vscode"""
         return self.cmd(f'code {self.mods_path}')
     
-    def module_exists(self, module:str, **kwargs) -> bool:
+    def mod_exists(self, module:str, **kwargs) -> bool:
         '''
         Returns true if the module exists
         '''
         try:
-            module = self.module(module, **kwargs)
-            module_exists = True
+            module = self.get_name(module)
+            mod_exists = module in self.tree()
         except Exception as e:
-            module_exists =  False
-        if not module_exists:
+            mod_exists =  False
+        if not mod_exists:
             module_path = os.path.join(self.mods_path, module)
-            module_exists = os.path.exists(module_path) and os.path.isdir(module_path)
-        return module_exists
-        
+            mod_exists = os.path.exists(module_path) and os.path.isdir(module_path)
+        return mod_exists
+
     def logs(self, *args, **kwargs):
         return self.fn('pm/logs')(*args, **kwargs)
     
@@ -1319,6 +1321,7 @@ class Mod:
                 result += f_chunk + '/'
         if result.endswith('/'):
             result = result[:-1]
+        result = result.replace('/', '.')
         return result
 
     def get_anchor_file(self, path):
@@ -1339,20 +1342,18 @@ class Mod:
         returns:
             the anchor file path if found
         """
-        path = path.replace('.', '/')
+        path = path.replace('/', '.')
         tree = self.tree()
         anchor_names = self.anchor_names.copy()
         # IF FOR SOME REASON WE ARE SPECIFYING A PATH THAT IS A FILE (NOT IN THE TREE AS THE TREE ONLY HAS FOLDERS)
         if path not in tree :
-            # check if the path is a substring of any of the keys in the tree
-            folder_prefix = '/'.join(path.split('/')[:-1])
-            filename = path.split('/')[-1]
-            if folder_prefix in tree:
-                # so the folder prefix exists, check if the file exists in the folder
-                file_prefix =  tree[folder_prefix] + '/' + filename
-                for fp in [file_prefix + '.' + ft for ft in self.file_types]:
-                    if os.path.exists(fp):
-                        return fp
+            tree = self.tree(folders=False)
+            if not path in tree:
+                key_options = [k for k in tree.keys() if path in k]
+                if len(key_options) >= 1:
+                    path =  key_options[0]
+            else:
+                return tree[path]
         path = tree.get(path, path)
         anchor_names += [path.split('/')[-1]]
         if len(path.split('/')) > 1:
@@ -1362,58 +1363,77 @@ class Mod:
                 return f
         return None
 
+
+    def get_name(self, name=None):
+        name = name or 'mod'
+        name = name.replace('/', '.')
+        return name
+
     def get_anchor_object(self, path):
+        path = self.get_name(path)
         anchor_file = self.get_anchor_file(path)
         if anchor_file:
             classes =  self.classes(anchor_file)
             assert len(classes) > 0, f'No classes found in {anchor_file}'
-            if len(classes) > 1:
-                raise Exception(f'Multiple classes found in {anchor_file}, please specify the class name. Classes: {classes}')
             return self.obj(classes[0])
         else: 
-            tree = self.tree()
+            tree = self.tree(folders=False)
             k_options = [k for k in tree.keys() if path in k]
-            if len(k_options) == 1:
+            if len(k_options) >= 1:
                 return self.get_anchor_object(k_options[0])
             raise Exception(f'No anchor file found in {path} or {k_options}')
         
-
-    def get_tree(self, path=None, search=None, depth=4, root_names = ['mod', 'module'], update=False,  **kwargs): 
+    def get_tree(self, 
+                path:Optional[str]=None, 
+                search:Optional[str]=None, 
+                depth=2, 
+                root_names = ['mod', 'module'], 
+                avoid_prefixes = ['__', '_'],
+                avoid_suffixes = ['__', '/utils'],
+                folders:bool = True, 
+                update=False,  
+                **kwargs): 
         if not hasattr(self, '_cached_trees'):
             self._cached_trees = {}
-        cache_path =  f'tree/'+self.hash(path)
+        cache_path =  f'{self.hash(path)}/{depth}/{folders}/{",".join(root_names)}/{",".join(self.file_types)}'
         if not update and cache_path in self._cached_trees:
             tree =  self._cached_trees[cache_path]
         else:
             path = path or self.core_path
-            files = [f for f in self.files(path, depth=depth) if any([f.endswith('.' + ft) for ft in self.file_types])]
-            folders = list(set([os.path.dirname(f) for f in files]))
-            tree = {self.get_path_name(f):f for f in folders}
-            self.shortcuts.update({rn: self.name for rn in root_names})
+            paths = [f for f in self.files(path, depth=depth) if any([f.endswith('.' + ft) for ft in self.file_types])]
+            if folders :
+                paths = list(set([os.path.dirname(f) for f in paths]))
+            tree = {self.get_path_name(f):f for f in paths}
+            filter_k = lambda k: all(not k.startswith(prefix) for prefix in avoid_prefixes) and all(not k.endswith(suffix) for suffix in avoid_suffixes)
+            tree = {self.get_name(k):v for k,v in tree.items() if filter_k(k)}
             self._cached_trees[cache_path] = tree
-
-        for k,v in self.shortcuts.items():
-            if v in tree:
-                tree[k] = tree[v]
+            self.shortcuts.update({rn: self.name for rn in root_names})
+            for k,v in self.shortcuts.items():
+                v = self.get_name(v)
+                k = self.get_name(k)
+                if v in tree:
+                    tree[k] = tree[v]
         if search:
-            search = search.replace('.', '/')
+            search = self.get_name(search)
             tree = {k:v for k,v in tree.items() if search in k}
+
+        tree = dict(sorted(tree.items()))
         return tree
 
-    def core_tree(self, search=None): 
-        return self.get_tree(self.core_path, search=search) 
+    def core_tree(self, search=None, depth=5,  **kwargs): 
+        return self.get_tree(self.core_path, search=search, depth=depth, **kwargs) 
 
-    def mods_tree(self, search=None): 
-        return self.get_tree(self.mods_path, search=search)
+    def mods_tree(self, search=None,  depth=6, **kwargs): 
+        return self.get_tree(self.mods_path, search=search, depth=depth, **kwargs)
 
-    def local_tree(self, search=None):
-        return self.get_tree(os.getcwd(), search=search)
+    def local_tree(self, search=None, depth=4, **kwargs):
+        return self.get_tree(os.getcwd(), depth=depth,  search=search, **kwargs )
 
     def tree(self, search=None, **kwargs):
         return {
-            **self.mods_tree(search=search),
-            **self.local_tree(search=search),
-            **self.core_tree(search=search),
+            **self.mods_tree(search=search, **kwargs),
+            **self.local_tree(search=search, **kwargs),
+            **self.core_tree(search=search, **kwargs),
                 }
 
     def dirpath(self, module=None) -> str:
@@ -1421,24 +1441,22 @@ class Mod:
         get the directory path of the module
         """
         module = self.shortcuts.get(module, module)
-        module = (module or 'module').replace('/', '.')
+        module = self.get_name(module)
         if module in self.anchor_names:
             return self.lib_path
         else:
             possible_core_path = self.core_path + '/' + module
             possible_mods_path = self.mods_path + '/' + module.replace('.', '/')
+            possible_local_path = os.getcwd() + '/' + module.replace('.', '/')
             if os.path.exists(possible_core_path):
                 dirpath = possible_core_path
             elif os.path.exists(possible_mods_path):
                 dirpath = possible_mods_path
-            elif self.module_exists(module):
-                filepath = self.filepath(module)
-                dirpath =  os.path.dirname(filepath)
-            else: 
+            elif os.path.exists(possible_local_path):
+                dirpath = possible_local_path
+            else:
+                print(f'Warning: Module {module} not found, using mods path')
                 dirpath = self.mods_path + '/' + module.replace('.', '/')
-            # if ../x/x then remove x
-            if dirpath.split('/')[-1] == dirpath.split('/')[-2]:
-                dirpath = '/'.join(dirpath.split('/')[:-1]) 
             if dirpath.endswith('/src'):
                 dirpath = dirpath[:-4]  # remove the trailing /src
             return dirpath
@@ -1472,8 +1490,37 @@ class Mod:
             self.put_text(gitignore_path, gitignore)
         return {'name': name, 'path': gitignore_path, 'msg': 'Added to .gitignore'}
 
+
+    def from_path(self,  name=None, path=None):
+        """
+        make a new module from a json file at path
+        params:
+            path: path to the json file
+            name: name of the module
+        returns:    
+            dict with name, path, msg, files
+        """
+        path = path or './new_mod.json'
+        if not path:
+            path = input('Path to JSON file')
+        if not name:
+            name = input('Name of the module')
+        
+        json_content = self.get_json(path)
+        dirpath = self.abspath(self.mods_path +'/'+ name.replace('.', '/'))
+        if os.path.exists(dirpath):
+            raise Exception(f'Module {name} already exists at {dirpath}')
+        print(f'Creating module {name} at {dirpath}')
+        os.makedirs(dirpath, exist_ok=True)
+        
+        for k,v in json_content.items():
+            k_path =  dirpath + '/' +  k
+            self.put_text(k_path, v)
+            print(f'Wrote {k_path}')
+        return {'name': name, 'path': dirpath, 'msg': 'Mod Created from JSON', 'files': list(json_content.keys())}
+
     
-    def addmod(self,  name= None, base_module : str = 'base', update=True, repo=None):
+    def addmod(self, name= None, update=True, path=None):
         """
         make a new module
         """
@@ -1490,6 +1537,8 @@ class Mod:
             # add the commune/module/{name} into the gitignore path if it is not already there
             self.add_module_gitignore(name)
         else:
+
+            base_module : str = 'base'
             dirpath = self.abspath(self.mods_path +'/'+ name.replace('.', '/'))
             module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
             content = self.content(base_module)
@@ -1611,13 +1660,6 @@ class Mod:
             module = module.replace(double_lib_name, lib_name)
         return import_module(module)
 
-    def is_python_module(self, module:str = 'commune.utils'):
-        try:
-            module = self.import_module(module)
-            return True
-        except Exception as e:
-            return False
-
     def kill(self, server:str = 'commune'):
         return self.fn('pm/kill')(server)
 
@@ -1669,26 +1711,26 @@ class Mod:
 
     def link(self, module:str = 'ipfs-service', update=False):
         links = self.links()
-        if self.module_exists(module) and update: 
+        if self.mod_exists(module) and update: 
             self.rm_mod(module)
         if not module in links: 
             return {'msg': f'Module {module} not in links ', 'links': links}
-        elif self.module_exists(module):
+        elif self.mod_exists(module):
             return {'msg': f'Module {module} already exists', 'links': links}
         else: 
             return self.addmod(links[module], update=update)
 
     def unlink(self, module:str = 'ipfs-service'):
-        if self.module_exists(module):
+        if self.mod_exists(module):
             return self.rm_mod(module)
         else:
             return {'msg': f'Module {module} does not exist'}
             
     def test_link(self, module:str = 'ipfs-service'):
         self.unlink(module)
-        assert not self.module_exists(module), f'Module {module} still exists'
+        assert not self.mod_exists(module), f'Module {module} still exists'
         self.link(module)
-        assert self.module_exists(module), f'Module {module} does not exist'
+        assert self.mod_exists(module), f'Module {module} does not exist'
         return {'msg': f'Module {module} linked successfully'}
 
     def push(self, path = None, comment=None):
@@ -1758,7 +1800,8 @@ class Mod:
             assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
         elif 'github.com' in module:
             code_link = module
-            module = (name or module.split('/')[-1].replace('.git', '')).replace('/', '.')
+            module = self.get_name(name or module.split('/')[-1].replace('.git', ''))
+
             # clone ionto the mods path
             to_path = self.mods_path + '/' + module
             cmd = f'git clone {code_link} {self.mods_path}/{module}'
@@ -1808,20 +1851,8 @@ class Mod:
     def txs(self, *args, **kwargs) -> 'Callable':
         return self.fn('server/txs')( *args, **kwargs)
 
-    def sand(self):
-        auth = self.mod('auth')()
-        data = {
-            'fn': 'sand',
-            'params': {
-                'module': self.name,
-                'args': [],
-                'kwargs': {}
-            }
-        }
-        token = auth.generate(data)
-        return auth.verify(token)
+    def sand(self, path='./state.json'):
+        return self.get_json(path)
 
 if __name__ == "__main__":
     Mod().run()
-
-

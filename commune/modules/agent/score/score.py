@@ -22,7 +22,7 @@ class Score:
             c.cmd(f'rm -rf {tmp_dir}/.git')
         elif c.path_exists(module):
             code = c.file2text(module)
-        elif c.module_exists(module):
+        elif c.mod_exists(module):
             code = c.content(module)
         return code
     def forward(self, module:str, **kwargs):

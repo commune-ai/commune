@@ -30,7 +30,7 @@ class Api:
         return len(self.names(search=search))
 
     def names(self, search=None, **kwargs):
-        return  c.mods(search=search, **kwargs)
+        return  [m.split('.')[0] for m in c.mods(search=search, **kwargs)]
 
     def executor(self,  max_workers=8, mode='thread'):
         if mode == 'process':
@@ -105,7 +105,7 @@ class Api:
         if df:
             results = c.df(results)
         if names:
-            results = [m['name'] for m in results]
+            results = [m['name'] for m in results if 'name' in m]
         return results
 
     modules = mods
@@ -116,6 +116,7 @@ class Api:
         1. Check if module info is in store and not expired
         2. If not, fetch module info from module server
         """
+        module = module.replace('.', '/')
         try:
             path = f'modules/{module}.json'
             info = self.store.get(path, None, update=update)
@@ -135,7 +136,7 @@ class Api:
                 for k in list(info.get("schema", {}).keys()):
                     info["schema"][k].pop("content", None)
         except Exception as e:
-            c.print(c.detailed_error(e), color='red')
+            c.print(module,c.detailed_error(e), color='red')
         return info
 
     module = mod
@@ -207,11 +208,11 @@ class Api:
         return result
 
     def remove(self, module: str):
-        assert self.module_exists(module), "Module not found"
+        assert self.mod_exists(module), "Module not found"
         os.remove(self.module_path(module))
         return {"message": f"Module {module} removed successfully"}
 
-    def module_exists(self, module: str):
+    def mod_exists(self, module: str):
         return os.path.exists(self.module_path(module))
 
     def sync(self, max_age=10000, page_size=32, threads=8):

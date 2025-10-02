@@ -30,7 +30,12 @@ class Cli:
         # ---- MODULE/FN ----\
         time_string = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time_start))
         argv = self.get_argv(argv)
-        argv, module, fn = self.get_module_fn(module, fn, argv)
+        module_fn_info = self.get_module_fn(module, fn, argv)
+        if  isinstance(module_fn_info, dict) and 'error' in module_fn_info:
+            self.print(module_fn_info, color='red')
+            return module_fn_info
+        else:
+            argv, module, fn = module_fn_info
         argv, init_params = self.get_init_params(argv)
         argv, params = self.get_fn_params(argv)
         fn_obj = getattr(c.mod(module)(**init_params), fn)
@@ -41,9 +46,9 @@ class Cli:
         c.print(f'Result(duration={duration}s)\n')
         if self.track_tx:
             self.tx.forward(module=module, fn=fn, params=params, result=result, **kwargs)
-        self.print_result(result)
+        self.print(result)
 
-    def print_result(self, result:Any):
+    def print(self, result:Any, color='green'):
         is_generator = self.is_generator(result)
         if is_generator:
             
@@ -53,7 +58,7 @@ class Cli:
                 else:
                     c.print(item, end='')
         else:
-            c.print(result)
+            c.print(result, color=color)
 
     def get_schema(self, module, fn, verbose=False):
         try:
@@ -142,12 +147,12 @@ class Cli:
                 # scenario 6: first argument is a path to a function c module/fn *args **kwargs
                 module = '/'.join((argv[0].split('/')[:-1]))
                 fn = argv.pop(0).split('/')[-1]
-            elif len(argv) >= 2 and c.module_exists(argv[0]):
+            elif len(argv) >= 2 and c.mod_exists(argv[0]):
                 # scenario 7: first argument is the module name c module fn *args **kwargs
                 module = argv.pop(0)
                 fn = argv.pop(0)
             else:
-                raise ValueError(f'Function {fn} not found in module: {module}')
+                return {'error': f'Function {fn} not found in module {module}'}
         else:
             # scenario 2: no arguments, use the default function
             fn = self.default_fn
@@ -231,3 +236,5 @@ class Cli:
             else:
                 new_argv.append(arg)
         return new_argv, init_params
+
+

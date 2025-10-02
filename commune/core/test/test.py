@@ -34,7 +34,7 @@ class Test:
         """
         Check if the module has a test module
         """
-        return c.module_exists(module + '.test')
+        return c.mod_exists(module + '.test')
 
     def has_test_fns(self, module):
         return bool('test' in c.fns(module))

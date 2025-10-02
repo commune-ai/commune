@@ -25,6 +25,7 @@ class Server:
         serializer = 'server.serializer', # the serializer to use
         tracker = 'server.tracker', # the tracker to use
         auth = 'server.auth', # the auth to use
+        sudo_roles = ['admin'], # the roles that can access all functions
         **_kwargs):
         
         self.store = c.mod('store')(path)
@@ -34,6 +35,7 @@ class Server:
         self.serializer = c.mod(serializer)() # sets the serializer
         self.tracker = c.mod(tracker)()
         self.auth = c.mod(auth)()
+        self.sudo_roles = sudo_roles
     
     def forward(self, fn:str, request: Request):
         """
@@ -42,9 +44,9 @@ class Server:
         request = self.get_request(fn=fn, request=request) # get the request
         fn = request['fn']
         params = request['params']
+        cost = float(self.schema.get(fn, {}).get('cost', 0))
         print(request, color='blue', verbose=self.verbose)
         # NOW RUN THE FUNCTION
-
         fn_obj = getattr(self.mod, fn) # get the function object from the mod
         if callable(fn_obj):
             if len(params) == 2 and 'args' in params and 'kwargs' in params :
@@ -60,12 +62,14 @@ class Server:
         if c.is_generator(result):
             def generator_wrapper(generator):
                 gen_result =  {'data': [], 'start_time': time.time(), 'end_time': None, 'cost': 0}
+                print(f'Starting generator for fn {fn} with params {params}', color='green', verbose=self.verbose)
                 for item in generator:
                     print(item, end='')
                     gen_result['data'].append(item)
                     yield item
+                print(f'Ending generator for fn {fn} with params {params}', color='green', verbose=self.verbose)
                 # save the transaction between the headers and server for future auditing
-                server_auth = self.auth.headers(data={'fn': fn, 'params': params, 'result': gen_result})
+                server_auth = self.auth.headers(data={'fn': fn, 'params': params, 'result': gen_result, 'cost': cost})
 
                 self.tracker.forward(
                     mod=self.name,
@@ -81,6 +85,7 @@ class Server:
         else:
 
             # save the transaction between the headers and server for future auditing
+            print(f'Function {fn} with params {params} returned {result}', color='green', verbose=self.verbose)
             result = self.serializer.forward(result) # serialize the result
             fn = request['fn']
             params = request['params']
@@ -97,24 +102,31 @@ class Server:
             return result
         raise Exception('Should not reach here')
 
+
+    @property
+    def roles(self):
+        if not hasattr(self, '_roles'):
+            self._roles = self.get_roles()
+        return self._roles
+
     def get_request(self, fn:str, request) -> float:
         if fn == '':
             fn = 'info'
         # params
         # headers
         headers = dict(request.headers)    
-        server_cost = float(self.schema.get(fn, {}).get('cost', 0))
+        cost = float(self.schema.get(fn, {}).get('cost', 0))
         client_cost = float(headers.get('cost', 0))
-        assert client_cost >= server_cost, f'Insufficient cost {client_cost} for fn {fn} with cost {server_cost}'
+        assert client_cost >= cost, f'Insufficient cost {client_cost} for fn {fn} with cost {cost}'
         self.auth.verify(headers) # verify the headers
         loop = asyncio.get_event_loop()
         params = loop.run_until_complete(request.json())
         params = json.loads(params) if isinstance(params, str) else params
         assert self.auth.hash({"fn": fn, "params": params}) == headers['data'], f'Invalid data hash for {params}'
         role = self.role(headers['key']) # get the role of the user
-        if role not in ['admin', 'owner']:
+        if role not in self.sudo_roles:
             assert fn in self.fns, f"Function {fn} not in fns={self.fns}"
-        return {'fn': fn, 'params': params, 'client': headers}
+        return {'fn': fn, 'params': params, 'client': headers, 'role': role, 'cost': cost}
 
     def txs(self, *args, **kwargs) -> Union[pd.DataFrame, List[Dict]]:
         return  self.tracker.txs( *args, **kwargs)
@@ -174,7 +186,6 @@ class Server:
             print(f'Updating mods from {self.mods_path}', color='yellow')
             futures  = [c.submit(c.call, {"fn":url + '/info'}, timeout=timeout, mode='thread') for url in urls]
             mods =  c.wait(futures, timeout=timeout)
-            print(mods)
             print(f'Found {len(mods)} mods', color='green')
             mods = list(filter(module_filter, mods))
             self.store.put(self.mods_path, mods)
@@ -207,33 +218,29 @@ class Server:
 
     def role(self, user) -> str:
         """
-        get the role of the address ( admin, owner, local, public)
+        get the role of the address ( owner, local, public)
         """
         assert not self.is_blacklisted(user), f"Address {user} is blacklisted"
         role = 'public'
-        if c.is_admin(user):
-            # can call any fn
-            role =  'admin'
-        elif hasattr(self, 'mod') and user == self.key.key_address:
+        if c.is_owner(user):
             # can call any fn
             role =  'owner'
         else:
-            # non admin roles (cant call every fn)
-            roles = self.roles(max_age=60, update=False)
-            if user in roles:
+            # non admin roles (cant call every fn)            
+            # check if the user has a role
+            if user in self.roles:
                 role = roles[user]
+
 
             if not hasattr(self, 'address2key'):
                 self.address2key = c.address2key()
-            
             if user in self.address2key:
                 role =  'local'
             else:
                 role = 'public' # default role is public
-
         return role
 
-    def roles(self, max_age:int = 60, update:bool = False):
+    def get_roles(self, max_age:int = 60, update:bool = False):
         """
         get the roles of the addresses
         """
@@ -373,10 +380,11 @@ class Server:
         self.public = public
         self.mod = c.mod(mod)(**(params or {}))
         self.name = name = name or mod 
-        self.key = c.get_key(key or self.name)
+        self.key = c.key(key or self.name)
         # add the endpoints
         self.set_fns(fns) 
         self.info = c.info(mod, key=self.key, public=self.public, schema=False)
+        self.info['name'] = self.name
         self.info['schema'] = self.schema
         self.info['url'] = f"{server_mode}://{host}:{port}"
         self.mod.info = self.info
