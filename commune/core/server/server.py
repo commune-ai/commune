@@ -194,6 +194,7 @@ class Server:
 
         if search != None:
             mods = [m for m in mods if search in m['name']]
+       
         return mods
 
     def n(self, search=None, **kwargs):

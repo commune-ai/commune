@@ -24,7 +24,6 @@ class PM:
         # if not self.is_docker_daemon_on():
         #     self.start_docker_daemon()
 
-        
 
     def serve(self, 
                 module='api', 
@@ -51,6 +50,11 @@ class PM:
             name = self.name2process(name or module)
             module = module.split('::')[0]
         name = name or module
+        if image == None:
+            obj = c.mod(module)
+            if hasattr(obj, 'image'):
+                image = getattr(obj, 'image')
+            
         lib_path = c.lib_path
         storage_path = c.storage_path
         docker_lib_path = c.lib_path.replace(c.home_path, '/root')
@@ -63,8 +67,7 @@ class PM:
             mod_path = c.dirpath(module)
             docker_mods_path = mod_path.replace(c.home_path, '/root')
             volumes[mod_path] = docker_mods_path
- 
-        cwd = cwd or c.dp(module)
+        cwd = cwd or c.dirpath(module)
         params = {
             'name': name, 
             'image': image,
@@ -140,6 +143,12 @@ class PM:
                 if file.lower() == 'dockerfile':
                     dockerfiles.append(os.path.join(root, file))
         return dockerfiles
+
+    def dockerfile(self, mod='mod'):
+        path = self.dockerfile_path(mod)
+        if path is None:
+            return None
+        return self.dockerfiles(mod)[0]
 
     def has_dockerfile(self, mod='mod'):
         """
@@ -780,8 +789,6 @@ class PM:
             Dict[str, str]: Result of the operation.
         """
         return self.kill(name)
-
-    
 
     def list(self, all: bool = False) -> pd.DataFrame:
         """

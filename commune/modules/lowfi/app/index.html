@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stablecoin Yield Aggregator</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 40px; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .stat-card h3 { color: #667eea; font-size: 0.9em; text-transform: uppercase; margin-bottom: 10px; }
+        .stat-card .value { font-size: 2em; font-weight: bold; color: #333; }
+        .main-panel { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 2px solid #eee; }
+        .tab { padding: 15px 30px; cursor: pointer; border: none; background: none; font-size: 1.1em; color: #666; transition: all 0.3s; }
+        .tab.active { color: #667eea; border-bottom: 3px solid #667eea; font-weight: bold; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 8px; color: #333; font-weight: 600; }
+        .input-group input { width: 100%; padding: 15px; border: 2px solid #eee; border-radius: 8px; font-size: 1em; transition: border 0.3s; }
+        .input-group input:focus { outline: none; border-color: #667eea; }
+        .btn { padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1.1em; cursor: pointer; transition: transform 0.2s; width: 100%; font-weight: bold; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .info { background: #f0f4ff; padding: 15px; border-radius: 8px; margin-top: 20px; color: #667eea; }
+        .wallet-info { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .wallet-info span { font-weight: bold; color: #667eea; }
+        .strategy-list { margin-top: 20px; }
+        .strategy-item { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .pool-progress { background: #eee; height: 30px; border-radius: 15px; overflow: hidden; margin-top: 10px; }
+        .pool-progress-bar { background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); height: 100%; transition: width 0.5s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Stablecoin Yield Aggregator</h1>
+            <p>Maximize your stablecoin yields with automated strategies</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Value Locked</h3>
+                <div class="value" id="tvl">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Yield Generated</h3>
+                <div class="value" id="totalYield">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <h3>Your Balance</h3>
+                <div class="value" id="userBalance">0.00 YAT</div>
+            </div>
+            <div class="stat-card">
+                <h3>Pool Shares Remaining</h3>
+                <div class="value" id="poolShares">21M</div>
+            </div>
+        </div>
+
+        <div class="main-panel">
+            <div class="wallet-info" id="walletInfo">
+                <span>Wallet:</span> Not Connected
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('deposit')">Deposit</button>
+                <button class="tab" onclick="switchTab('withdraw')">Withdraw</button>
+                <button class="tab" onclick="switchTab('harvest')">Harvest</button>
+                <button class="tab" onclick="switchTab('pool')">Pool Info</button>
+            </div>
+
+            <div id="deposit" class="tab-content active">
+                <div class="input-group">
+                    <label>Amount to Deposit (USDC)</label>
+                    <input type="number" id="depositAmount" placeholder="0.00" step="0.01">
+                </div>
+                <button class="btn" onclick="deposit()">Deposit & Earn Yield</button>
+                <div class="info">
+                    💡 Your stablecoins will be distributed across multiple yield strategies. 10% of generated yield goes to the 21M share pool.
+                </div>
+            </div>
+
+            <div id="withdraw" class="tab-content">
+                <div class="input-group">
+                    <label>Shares to Withdraw</label>
+                    <input type="number" id="withdrawAmount" placeholder="0.00" step="0.01">
+                </div>
+                <button class="btn" onclick="withdraw()">Withdraw</button>
+                <div class="info">
+                    💡 Withdraw your deposited funds plus accumulated yield at any time.
+                </div>
+            </div>
+
+            <div id="harvest" class="tab-content">
+                <h3 style="margin-bottom: 20px;">Active Strategies</h3>
+                <div class="strategy-list" id="strategyList">
+                    <div class="strategy-item">
+                        <div>
+                            <strong>Aave V3</strong><br>
+                            <small>Allocation: 50%</small>
+                        </div>
+                        <div>APY: ~5.2%</div>
+                    </div>
+                    <div class="strategy-item">
+                        <div>
+                            <strong>Compound V3</strong><br>
+                            <small>Allocation: 30%</small>
+                        </div>
+                        <div>APY: ~4.8%</div>
+                    </div>
+                    <div class="strategy-item">
+                        <div>
+                            <strong>Curve</strong><br>
+                            <small>Allocation: 20%</small>
+                        </div>
+                        <div>APY: ~6.1%</div>
+                    </div>
+                </div>
+                <button class="btn" onclick="harvestYield()" style="margin-top: 20px;">Harvest All Yields</button>
+                <div class="info">
+                    💡 Harvesting collects yield from all strategies and distributes 10% to the pool.
+                </div>
+            </div>
+
+            <div id="pool" class="tab-content">
+                <h3>21 Million Share Pool</h3>
+                <div class="pool-progress">
+                    <div class="pool-progress-bar" id="poolProgressBar" style="width: 0%">0%</div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <p><strong>Total Pool Shares:</strong> <span id="totalPoolShares">0</span> / 21,000,000</p>
+                    <p><strong>Your Pool Shares:</strong> <span id="userPoolShares">0</span></p>
+                </div>
+                <button class="btn" onclick="claimPoolShares()" style="margin-top: 20px;">Claim Pool Shares</button>
+                <div class="info">
+                    💡 10% of all yield is used to mint shares up to 21M total. Pool shares represent ownership in the protocol.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

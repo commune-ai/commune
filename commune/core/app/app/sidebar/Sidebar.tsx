@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Home, Package, Info, Mail, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { Home, Package, Info, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 
 interface SidebarProps {
   isExpanded: boolean
@@ -8,23 +8,15 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
-  const [isAnimating, setIsAnimating] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isSearchFocused, setIsSearchFocused] = useState(false)
-
-  useEffect(() => {
-    setIsAnimating(true)
-    const timer = setTimeout(() => setIsAnimating(false), 300)
-    return () => clearTimeout(timer)
-  }, [isExpanded])
 
   const navItems = [
-    { icon: Home, label: 'HOME', href: '/search' },
-    { icon: Package, label: 'EXPLORER', href: '/modules' },
+    { icon: Home, label: 'HOME', href: '/' },
+    { icon: Package, label: 'MODULES', href: '/modules' },
     { icon: Info, label: 'ABOUT', href: '/about' },
   ]
 
-  const filteredNavItems = navItems.filter(item => 
+  const filteredNavItems = navItems.filter(item =>
     item.label.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -34,7 +26,6 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
         isExpanded ? 'w-64' : 'w-16'
       }`}
     >
-      {/* Toggle Button */}
       <button
         onClick={onToggleExpand}
         className="absolute -right-3 top-20 bg-black border border-green-500 rounded-full p-1 hover:bg-green-500 hover:text-black transition-colors z-10"
@@ -42,7 +33,6 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
         {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      {/* Logo/Header */}
       <div className="p-4 border-b border-green-500">
         <h2 className={`text-green-500 font-mono uppercase transition-all duration-300 ${
           isExpanded ? 'text-xl' : 'text-sm text-center'
@@ -51,20 +41,15 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
         </h2>
       </div>
 
-      {/* Search Bar */}
       {isExpanded && (
         <div className="p-4 border-b border-green-500">
-          <div className={`relative flex items-center border ${
-            isSearchFocused ? 'border-green-400' : 'border-green-500'
-          } rounded-lg transition-colors`}>
+          <div className="relative flex items-center border border-green-500 rounded-lg">
             <Search size={16} className="absolute left-3 text-green-500" />
             <input
               type="text"
               placeholder="SEARCH..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
               className="w-full bg-transparent text-green-500 placeholder-green-500/50 pl-10 pr-8 py-2 focus:outline-none font-mono text-sm uppercase"
             />
             {searchQuery && (
@@ -79,7 +64,6 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
         </div>
       )}
 
-      {/* Navigation */}
       <nav className="p-4">
         <ul className="space-y-4">
           {filteredNavItems.map((item) => {
@@ -92,9 +76,7 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
                 >
                   <Icon size={20} className="flex-shrink-0" />
                   {isExpanded && (
-                    <span className={`transition-opacity duration-300 ${
-                      isAnimating ? 'opacity-0' : 'opacity-100'
-                    }`}>
+                    <span className="transition-opacity duration-300">
                       {item.label}
                     </span>
                   )}
@@ -102,14 +84,8 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
               </li>
             )
           })}
-          {filteredNavItems.length === 0 && isExpanded && (
-            <li className="text-green-500/50 font-mono text-sm uppercase text-center">
-              NO RESULTS
-            </li>
-          )}
         </ul>
       </nav>
-
     </div>
   )
 }

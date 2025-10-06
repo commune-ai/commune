@@ -18,7 +18,7 @@ class ServerTestMixin(Server):
                 except  Exception as e: 
                     c.print('Exception in server test',e)
    
-                c.sleep(1)
+                c.sleep(2)
             raise Exception(f"Failed to connect to server {server} after {trials} trials, last info: {info}")
 
     def test_executor(self):

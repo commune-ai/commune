@@ -4,6 +4,8 @@
     "version": "0.1.0",
     "desc": "A Python package for commune utilities",
     "shortcuts": {
+                    "exe": "server.executor",
+                    "executor": "server.executor",
                     "or" : "model.openrouter",
                     "wallet": "chain.wallet",
                     "r" :  "remote",

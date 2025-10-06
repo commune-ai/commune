@@ -4,7 +4,7 @@ import './globals.css'
 import { Header } from './header/Header'
 import { UserProvider } from './context/UserContext'
 import { SearchProvider } from './context/SearchContext'
-import { Sidebar } from './sidebar/Sidebar'
+import { ClientSidebar } from './sidebar/ClientSidebar'
 import "react-responsive-modal/styles.css"
 import "@/app/globals.css"
 
@@ -24,19 +24,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-
       <body className={`${inter.className} h-full relative bg-black`}>
         <UserProvider>
           <SearchProvider>
-          <Header />
-                          {/* <Sidebar /> */}
-
-          {/* Main content area */}
-          <main className="pt-28">
-            <div className="min-h-screen">
+            <Header />
+            <ClientSidebar>
               {children}
-            </div>
-          </main>
+            </ClientSidebar>
           </SearchProvider>
         </UserProvider>
       </body>

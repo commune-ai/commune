@@ -8,7 +8,7 @@ import commune as c
 import random
 
 class OpenRouter:
-    api_key_path = 'apikeys' # path to store api keys (relative to storage_path)
+    api_path = 'apikeys' # path to store api keys (relative to storage_path)
     env_varname = 'OPENROUTER_API_KEY' # environment variable name for api key
     def __init__(
         self,
@@ -30,6 +30,9 @@ class OpenRouter:
             api_key (API_KEY): The API key for authentication.
             url (str, optional): can be used for openrouter api calls
             timeout (float, optional): The timeout value for the client. Defaults to None.
+            model (str, optional): The model to use. Defaults to 'gpt-3.5-turbo'.
+            prompt (str, optional): The system prompt to use. Defaults to None.
+            path (str, optional): The path to store the API keys and history. Defaults to
             max_retries (int, optional): The maximum number of retries for the client. Defaults to None.
         """
         self.store = c.mod('store')(path)
@@ -145,7 +148,7 @@ class OpenRouter:
         if env_varname in os.environ:
             return os.environ[env_varname]
 
-        keys = self.store.get(self.api_key_path, [])
+        keys = self.store.get(self.api_path, [])
         if len(keys) > 0:
             return random.choice(keys)
         else:
@@ -156,19 +159,19 @@ class OpenRouter:
         """
         Get the list of API keys
         """
-        return self.store.get(self.api_key_path, [])
+        return self.store.get(self.api_path, [])
 
     def add_key(self, key):
-        keys = self.store.get(self.api_key_path, [])
+        keys = self.store.get(self.api_path, [])
         keys.append(key)
         keys = list(set(keys))
-        self.store.put(self.api_key_path, keys)
+        self.store.put(self.api_path, keys)
         return keys
 
     def rm_key(self, key):
-        keys = self.store.get(self.api_key_path, [])
+        keys = self.store.get(self.api_path, [])
         keys = [k for k in keys if k != key]
-        self.store.put(self.api_key_path, keys)
+        self.store.put(self.api_path, keys)
         return keys
 
     def model2info(self, search: str = None, path='models', max_age=100, update=False):
@@ -183,7 +186,6 @@ class OpenRouter:
     
     def models(self, search: str = None, path='models', max_age=60, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
-
     
     def model_infos(self, search: str = None, path='models', max_age=0, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).values())
@@ -239,8 +241,6 @@ class OpenRouter:
     
         else:
             raise ValueError('Cannot compute cost for non-chat models yet.')
-
-    
     def test(self):
         response  =  self.forward('Hello, how are you?', stream=False)
         print(response)
@@ -249,3 +249,5 @@ class OpenRouter:
         stream_response = self.forward('Hello, how are you?', stream=True)
         print(next(stream_response))
         return {'status': 'success'}
+
+

@@ -28,23 +28,19 @@ export default function Modules() {
 
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [sort, setSort] = useState<SortKey>('recent')
+  const [maxCols, setMaxCols] = useState(4)
 
-  // Slider: desired MAX columns (1..4). Grid auto-fits up to this count.
-  const [maxCols, setMaxCols] = useState(3)
-  const incCols = () => setMaxCols((c) => Math.min(4, c + 1))
-  const decCols = () => setMaxCols((c) => Math.max(1, c - 1))
+  const incCols = () => setMaxCols((c) => Math.min(6, c + 1))
+  const decCols = () => setMaxCols((c) => Math.max(2, c - 1))
 
-  // Choose a minimum card width by density target
   const cardMinPx = useMemo(() => {
-    const map: Record<number, number> = { 1: 720, 2: 500, 3: 360, 4: 280 }
-    return map[Math.min(4, Math.max(1, maxCols))]
+    const map: Record<number, number> = { 2: 600, 3: 400, 4: 320, 5: 280, 6: 240 }
+    return map[Math.min(6, Math.max(2, maxCols))]
   }, [maxCols])
 
-  // cap container width so we never exceed maxCols visually
-  const gapPx = 16 // Tailwind gap-4
-  const maxGridWidth = `calc(${cardMinPx}px * ${maxCols} + ${gapPx}px * (${maxCols} - 1))`
+  const gapPx = 16
+  const maxGridWidth = '100%'
 
-  // Derived search inputs
   const userPageSize = searchFilters.pageSize || 24
   const searchTerm = searchFilters.searchTerm?.trim() || ''
 
@@ -114,20 +110,16 @@ export default function Modules() {
     [client, keyInstance, searchTerm, userPageSize, sortModules, state.modules, state.hasMore, state.loading]
   )
 
-  // Initial + search/sort changes
   useEffect(() => {
     if (!keyInstance) return
     resetAndFetch()
   }, [keyInstance, searchTerm, sort, userPageSize, resetAndFetch])
 
-  // Fetch for current state.page when reset or when page changes
   useEffect(() => {
     if (!keyInstance) return
     fetchPage(1, false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyInstance, searchTerm, sort, userPageSize])
 
-  // Infinite scroll
   useEffect(() => {
     if (!sentinelRef.current) return
     const el = sentinelRef.current
@@ -143,7 +135,6 @@ export default function Modules() {
     return () => io.disconnect()
   }, [state.loading, state.hasMore, state.page, fetchPage])
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === '[') { e.preventDefault(); decCols() }
@@ -159,9 +150,8 @@ export default function Modules() {
 
   return (
     <div className="min-h-screen bg-black text-green-500 font-mono">
-      {/* Sticky toolbar */}
       <header className="sticky top-0 z-40 border-b border-green-900/40 bg-black/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-3 py-2 flex items-center gap-3">
+        <div className="mx-auto px-3 py-2 flex items-center gap-3">
           <div className="flex-1 truncate">
             <span className="tracking-wide">modules</span>
             <span className="mx-2 text-green-400/70">•</span>
@@ -221,9 +211,8 @@ export default function Modules() {
         </div>
       </header>
 
-      {/* Error banner */}
       {state.error && (
-        <div className="mx-auto max-w-7xl px-3">
+        <div className="mx-auto px-3">
           <div className="mt-3 flex items-center justify-between p-2 border border-red-500 text-red-400 rounded">
             <span>error: {state.error}</span>
             <div className="flex items-center gap-2">
@@ -241,7 +230,6 @@ export default function Modules() {
         </div>
       )}
 
-      {/* Create modal */}
       {showCreateForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
           <div className="border border-green-500 bg-black p-3 rounded w-full max-w-3xl">
@@ -251,7 +239,6 @@ export default function Modules() {
       )}
 
       <main className="p-3" role="main">
-        {/* Empty state */}
         {!state.loading && state.modules.length === 0 && !state.error && (
           <div className="mx-auto max-w-3xl my-20 text-center">
             <div className="text-green-300/80 mb-3">
@@ -266,12 +253,11 @@ export default function Modules() {
           </div>
         )}
 
-        {/* Grid */}
         <div
           role="list"
           className="grid gap-4 mx-auto"
           style={{
-            gridTemplateColumns: `repeat(auto-fit, minmax(${cardMinPx}px, 1fr))`,
+            gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinPx}px, 1fr))`,
             maxWidth: maxGridWidth,
           }}
         >
@@ -281,7 +267,6 @@ export default function Modules() {
             </div>
           ))}
 
-          {/* Loading skeletons for next page */}
           {state.loading &&
             Array.from({ length: Math.max(3, Math.min(userPageSize, maxCols * 2)) }).map((_, i) => (
               <div
@@ -291,10 +276,8 @@ export default function Modules() {
             ))}
         </div>
 
-        {/* Sentinel for infinite scroll */}
         <div ref={sentinelRef} className="h-8" />
 
-        {/* Fallback centered spinner for first load */}
         {state.loading && state.modules.length === 0 && (
           <div className="py-10 text-center">
             <Loading />

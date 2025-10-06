@@ -67,7 +67,7 @@ class Dev:
 
     def __init__(self, 
                  provider: str = 'model.openrouter', 
-                 model: Optional[str] = 'anthropic/claude-opus-4.1',
+                 model: Optional[str] = 'anthropic/claude-sonnet-4.5',
                  safety = True,
                  **kwargs):
         self.provider = c.mod(provider)(model=model)
@@ -181,17 +181,16 @@ class Dev:
         return step
 
     def get_plan(self, output:str) -> list:
-        step_text = ''
+        text = ''
         plan = []
-        anchors = self.anchors['tool']
         for ch in output:
-            step_text += ch
+            text += ch
             c.print(ch, end='')
-            if anchors[0] in step_text and anchors[1] in step_text:
-                plan_step = self.load_step(text)
-                plan.append(plan_step)
-                c.print( f"\nPLAN STEP ADDED: {plan_step}", color='green')
-                step_text = ''
+            is_plan_step = self.anchors['tool'][0] in text and self.anchors['tool'][1] in text
+            if is_plan_step:
+                plan.append(self.load_step(text))
+                text = ''
+        
         c.print("Plan:", plan, color='yellow')
         return plan
 
@@ -208,12 +207,12 @@ class Dev:
         """
         Find files in a directory matching a specific pattern.
         """
-        result = self.tool('select.files')(path=path, query=query, trials=4)
+        result = self.tool('select_files')(path=path, query=query, trials=4)
         content = str(result)
         size = len(content)
         c.print(f"path={path} max_size={max_size} size={size}", color='cyan')
         if size > max_size:
-            summarize  = self.tool('sum.sumfile')
+            summarize  = self.tool('sumfile')
             new_results = {}
             print(f"Content size {size} exceeds max_size {max_size}, summarizing...", color='red')
             futures = [c.submit(summarize, {'content': v, "query": query}, timeout=timeout) for k, v in result.items()]
@@ -227,10 +226,8 @@ class Dev:
 
     tools_prefix = f"{__file__.split('/')[-2]}/tool"
 
-    def tools(self, search=None, ignore_terms=['docker_image', 'content', 'select/files'], tools_prefix=tools_prefix, include_terms=[], update=False) -> List[str]:
-        tool_files = c.files(os.path.dirname(__file__), search=tools_prefix)
-        tools = [f.split(tools_prefix)[-1].replace('.py', '')[1:] for f in tool_files]
-        print(tools)
+    def tools(self, search=None, ignore_terms=['docker_image', 'content', 'select/files'], tools_prefix='dev.tool.', include_terms=[], update=False) -> List[str]:
+        tools = c.mods(tools_prefix, folder=0)
         def filter_tool(tool: str) -> bool:
             global search
             if any(ignore in tool for ignore in ignore_terms):
@@ -240,6 +237,7 @@ class Dev:
             return True
         result = []
         for tool in tools:
+            tool = tool.replace(tools_prefix,  '')
             if filter_tool(tool):
                 if search: 
                     if search not in tool:
@@ -248,6 +246,7 @@ class Dev:
                 result.append(tool)
         return result
 
+        
     def toolbelt(self, verbose=True) -> Dict[str, str]:
         """
         Map each tool to its schema.
