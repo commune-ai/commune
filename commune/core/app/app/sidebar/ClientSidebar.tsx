@@ -1,17 +1,17 @@
 'use client'
-import { useState } from 'react'
 import { Sidebar } from './Sidebar'
+import { useSidebarContext } from '../context/SidebarContext'
 
 export function ClientSidebar({ children }: { children: React.ReactNode }) {
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
+  const { isSidebarExpanded, toggleSidebar } = useSidebarContext()
 
   return (
     <>
       <Sidebar 
         isExpanded={isSidebarExpanded} 
-        onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)} 
+        onToggleExpand={toggleSidebar} 
       />
-      <main className={`pt-28 transition-all duration-300 ${isSidebarExpanded ? 'ml-64' : 'ml-16'}`}>
+      <main className={`pt-28 transition-all duration-300 ${isSidebarExpanded ? 'ml-64 pl-8' : 'ml-16 pl-8'}`}>
         <div className="min-h-screen">
           {children}
         </div>

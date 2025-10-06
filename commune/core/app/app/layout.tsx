@@ -7,6 +7,7 @@ import { SearchProvider } from './context/SearchContext'
 import { ClientSidebar } from './sidebar/ClientSidebar'
 import "react-responsive-modal/styles.css"
 import "@/app/globals.css"
+import { SidebarProvider } from './context/SidebarContext'
 
 export const metadata: Metadata = {
   title: "dhub",
@@ -27,10 +28,12 @@ export default function RootLayout({
       <body className={`${inter.className} h-full relative bg-black`}>
         <UserProvider>
           <SearchProvider>
-            <Header />
-            <ClientSidebar>
-              {children}
-            </ClientSidebar>
+            <SidebarProvider>
+              <Header />
+              <ClientSidebar>
+                {children}
+              </ClientSidebar>
+            </SidebarProvider>
           </SearchProvider>
         </UserProvider>
       </body>

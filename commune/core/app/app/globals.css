@@ -16,13 +16,11 @@ body {
   font-family: var(--retro-font);
 }
 
-/* Override all font families to use retro font */
 * {
   font-family: var(--retro-font) !important;
   box-sizing: border-box;
 }
 
-/* Terminal cursor effect */
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
@@ -33,7 +31,6 @@ body {
   animation: blink 1s infinite;
 }
 
-/* Simple IBM mode styling */
 .ibm-border {
   border: 1px solid #00ff00;
 }
@@ -43,7 +40,6 @@ body {
   text-shadow: 0 0 2px #00ff00;
 }
 
-/* Simplified animations */
 .perspective-1000 {
   perspective: 1000px;
 }
@@ -60,12 +56,10 @@ body {
   transform: rotateY(180deg);
 }
 
-/* Simplified panel animations */
 .slide-panel {
   transition: transform 0.2s linear;
 }
 
-/* Terminal-style scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   background: black;
@@ -85,12 +79,10 @@ body {
   background: #00cc00;
 }
 
-/* Remove all fancy effects for IBM simplicity */
 a, button {
   transition: none;
 }
 
-/* Terminal grid effect */
 .terminal-grid {
   background-image: 
     repeating-linear-gradient(
@@ -102,8 +94,31 @@ a, button {
     );
 }
 
-/* Force retro font everywhere */
 h1, h2, h3, h4, h5, h6, p, span, div, button, input, textarea, select, pre, code {
   font-family: var(--retro-font) !important;
   letter-spacing: 0.05em;
+}
+
+.module-page h1 {
+  font-size: 2.5rem !important;
+}
+
+.module-page h2 {
+  font-size: 2rem !important;
+}
+
+.module-page h3 {
+  font-size: 1.75rem !important;
+}
+
+.module-page p, .module-page div {
+  font-size: 1.25rem !important;
+}
+
+.module-page code {
+  font-size: 1.125rem !important;
+}
+
+.module-page button {
+  font-size: 1.125rem !important;
 }

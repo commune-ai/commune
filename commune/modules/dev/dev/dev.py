@@ -174,10 +174,8 @@ class Dev:
 
     def load_step(self, text):
         text = text.split(self.anchors['tool'][0])[1].split(self.anchors['tool'][1])[0]
-        try:
-            step = json.loads(text)
-        except json.JSONDecodeError:
-            step = self.tool('fix_json')(text)
+        print("STEP:", text, color='yellow')
+        step = json.loads(text)
         return step
 
     def get_plan(self, output:str) -> list:
@@ -189,7 +187,7 @@ class Dev:
             is_plan_step = self.anchors['tool'][0] in text and self.anchors['tool'][1] in text
             if is_plan_step:
                 plan.append(self.load_step(text))
-                text = ''
+                text = text.split(self.anchors['tool'][1])[-1]
         
         c.print("Plan:", plan, color='yellow')
         return plan

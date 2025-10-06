@@ -1,3 +1,3 @@
-export { Footer } from './Footer'
-export { Loading } from './Loading'
-export { CopyButton } from './CopyButton'
+export { default as Footer } from './Footer'
+export { default as Loading } from './Loading'
+export { default as CopyButton } from './CopyButton'

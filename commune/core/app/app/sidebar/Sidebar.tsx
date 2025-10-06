@@ -1,28 +1,28 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Home, Package, Info, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { Home, Package, Info, ChevronLeft, ChevronRight } from 'lucide-react'
+
+interface NavItem {
+  icon: any
+  label: string
+  href: string
+}
 
 interface SidebarProps {
   isExpanded: boolean
   onToggleExpand: () => void
 }
 
+const NAV_ITEMS: NavItem[] = [
+  { icon: Home, label: 'HOME', href: '/' },
+  { icon: Package, label: 'MODULES', href: '/modules' },
+  { icon: Info, label: 'ABOUT', href: '/about' },
+]
+
 export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const navItems = [
-    { icon: Home, label: 'HOME', href: '/' },
-    { icon: Package, label: 'MODULES', href: '/modules' },
-    { icon: Info, label: 'ABOUT', href: '/about' },
-  ]
-
-  const filteredNavItems = navItems.filter(item =>
-    item.label.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
   return (
     <div 
-      className={`fixed left-0 top-0 h-full bg-black border-r border-green-500 z-50 transition-all duration-300 ${
+      className={`fixed left-0 top-0 h-full bg-black border-r border-green-500 z-40 transition-all duration-300 ${
         isExpanded ? 'w-64' : 'w-16'
       }`}
     >
@@ -33,43 +33,12 @@ export const Sidebar = ({ isExpanded, onToggleExpand }: SidebarProps) => {
         {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <div className="p-4 border-b border-green-500">
-        <h2 className={`text-green-500 font-mono uppercase transition-all duration-300 ${
-          isExpanded ? 'text-xl' : 'text-sm text-center'
-        }`}>
-          {isExpanded ? 'NAVIGATION' : 'NAV'}
-        </h2>
-      </div>
-
-      {isExpanded && (
-        <div className="p-4 border-b border-green-500">
-          <div className="relative flex items-center border border-green-500 rounded-lg">
-            <Search size={16} className="absolute left-3 text-green-500" />
-            <input
-              type="text"
-              placeholder="SEARCH..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-transparent text-green-500 placeholder-green-500/50 pl-10 pr-8 py-2 focus:outline-none font-mono text-sm uppercase"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 text-green-500 hover:text-green-400"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <nav className="p-4">
+      <nav className="p-4 mt-20">
         <ul className="space-y-4">
-          {filteredNavItems.map((item) => {
+          {NAV_ITEMS.map((item, index) => {
             const Icon = item.icon
             return (
-              <li key={item.href}>
+              <li key={`${item.href}-${index}`}>
                 <a 
                   href={item.href} 
                   className="flex items-center gap-3 text-green-500 hover:text-green-400 font-mono uppercase transition-colors"
