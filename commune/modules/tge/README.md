@@ -1,34 +1,161 @@
+# MOD Token Generation Event (TGE)
 
+## Overview
 
-phase 1 (10/15/2025 -> 01/01/2026) (1 million tokens)
+MOD token distribution follows a three-phase approach designed to reward early holders, incentivize long-term commitment, and align with protocol usage.
 
+---
 
-Initial Distribution (Claimable Airdrop)
-- initial distirbution of holders will be 1 million tokens on mainnet launch 
-- holders of comai will need to proove they hold tokens on either ethereum, solana or mainnet (please bridge off of mexc prior to october 15th)
-- holders will need to manually confirm the creation of $MOD from their comai, which will disitrbute proportionally to 1 million, without any dilution for certain holders. 
+## Phase 1: Initial Distribution (10/15/2025 → 01/01/2026)
 
+**Total Supply: 1,000,000 MOD**
 
-Phase 2 (12/01/2025 -> 01/01/2026) Stake-Time (3.2 million tokens)
+### Claimable Airdrop
 
-- For the rest of the 3.2 million, stake time will be in effect based on the initial 1 millon tokens
-- each wallet holder will need to choose a time period to lock their tokens up to 2 years.
-- the staketime multiplier curve provides you staketime tokens baed on the multiplier , 0x for no locking (opting out), 1x for 1 year, and 4x for 2 years. 
-- The vesting curve will distirbuted linearly over the course of the lock period, providing people who stake longer 
+- Initial distribution of **1 million tokens** on mainnet launch
+- COMAI holders must prove holdings on Ethereum, Solana, or Mainnet
+  - ⚠️ **Bridge off MEXC before October 15th, 2025**
+- Holders manually confirm creation of $MOD from COMAI
+- Distribution is **proportional** with **no dilution** for certain holders
 
+---
 
-Tokenized Vesting
+## Phase 2: Stake-Time Rewards (12/01/2025 → 01/01/2026)
 
-Your vesting can be sold on the market and you can fractionalize your vesting into staketime tokens, we will provide an amm module that will be based on uniswap v4 for a modular uniswap and will allow people to pair modchain with staketime
+**Total Supply: 3,200,000 MOD**
 
-phase 3 (proof of contribution) (12/01/2025 -> inf)
+### Unified Lock & Multiplier Curve System
 
-- any new tokens generated will be generated based on the nominal US dollars that will be used through the protocal through either the following options
-    -  locking liquidity into the protocal 
-    - using the modules that are verified by the telemetry through paying in usdc/usdt via solana or base
+**IMPORTANT:** The lock curve and multiplier curve are **identical** - they represent the same quadratic relationship.
 
-- the price of minting will be decided based on 1 usd, where 1 usd added to the protocal will mint 1 new modchain. 
+Wallet holders choose a lock period (up to 2 years) to earn multiplied rewards:
 
-- if the price of modchain falls bellow this peg, the price will mint at a 10 pecent surcharge, forcing people to buy from the dexes or use the protocal to aquire newly minted tokens
-- if the price is above 1 dollar, the chain will mint at a 10 percent discount
-- the max amount of tokens that can be minted a day will follow the bitcoin inflation curve (scaled with 42 million), meaning that the protocal will only sell at most 14,400 tokens a day (2x7200), and will follow the inflation curve of bitcoin. 
+| Lock Period | Multiplier | Example (1000 MOD) |
+|-------------|------------|--------------------||
+| 0 days (opt-out) | **0x** | 0 MOD |
+| 1 year (365 days) | **1x** | 1,000 MOD |
+| 2 years (730 days) | **4x** | 4,000 MOD |
+
+**Unified Formula:** `Lock Curve = Multiplier Curve = (lock_days / 365)²`
+
+![Lock Multiplier Curve](public/lock_multiplier.png)
+
+### Vesting Curve
+
+- **Linear vesting** over the chosen lock period
+- Rewards distributed proportionally as time progresses
+- Longer stakes = more total tokens + extended vesting
+
+**Example:**
+- Lock 1000 MOD for 2 years → Earn 4000 staketime tokens
+- After 1 year: 2000 tokens vested
+- After 2 years: 4000 tokens fully vested
+
+![Vesting Schedule](public/vesting_curve.png)
+
+### Tokenized Vesting
+
+- **Vesting positions are tradeable** on secondary markets
+- Fractionalize vesting into **staketime tokens**
+- AMM module based on **Uniswap v4** for modular swaps
+- Pair MODCHAIN with staketime tokens for liquidity
+
+---
+
+## Phase 3: Proof of Contribution (12/01/2025 → ∞)
+
+### Minting Mechanism
+
+New tokens generated based on **nominal USD value** contributed to the protocol:
+
+#### Contribution Methods
+1. **Locking liquidity** into the protocol
+2. **Using verified modules** via telemetry (pay in USDC/USDT on Solana or Base)
+
+#### Minting Rules
+
+- **Base Rate:** 1 USD = 1 MOD minted
+- **Dynamic Pricing:**
+  - MOD < $1.00 → **10% surcharge** (encourages DEX buying)
+  - MOD > $1.00 → **10% discount** (encourages protocol minting)
+
+#### Supply Cap
+
+- **Daily mint limit** follows Bitcoin's inflation curve (scaled to 42M max supply)
+- **Max daily mints:** 14,400 MOD (2 × 7200 blocks)
+- Halving schedule mirrors Bitcoin's scarcity model
+
+---
+
+## Technical Implementation
+
+### Vesting & Multiplier Curves
+
+See `tge/curves.py` for mathematical implementation:
+
+```python
+from tge.curves import VestingCurves
+
+# Calculate multiplier (same as lock curve)
+multiplier = VestingCurves.lock_multiplier(730)  # 4.0x for 2 years
+
+# Calculate vested tokens
+vested = VestingCurves.vested_tokens(
+    days_elapsed=365,
+    lock_period_days=730,
+    base_tokens=1000
+)  # 2000 tokens after 1 year of 2-year lock
+
+# Get full distribution details
+dist = VestingCurves.phase2_distribution(
+    initial_allocation=1000,
+    lock_days=730
+)
+```
+
+### Visualization
+
+Generate PNG images:
+
+```python
+import commune as c
+tge = c.module('tge')
+tge.save_images()  # Creates public/*.png files
+```
+
+**Available Charts:**
+- Token distribution pie chart
+- Phase 1 timeline
+- Claim progress gauge
+- **Unified lock/multiplier curve** (0x → 4x, same curve)
+- **Vesting schedule** (linear distribution)
+
+---
+
+## Key Dates
+
+| Date | Event |
+|------|-------|
+| **10/15/2025** | Phase 1 begins (airdrop claims open) |
+| **12/01/2025** | Phase 2 begins (stake-time rewards) |
+| **12/01/2025** | Phase 3 begins (proof of contribution) |
+| **01/01/2026** | Phase 1 & 2 end |
+
+---
+
+## Summary
+
+- **Phase 1:** Fair airdrop to COMAI holders (1M MOD)
+- **Phase 2:** Quadratic rewards for long-term lockers (3.2M MOD) - **Lock Curve = Multiplier Curve**
+- **Phase 3:** Sustainable minting tied to protocol usage (∞)
+
+**Total Initial Supply:** 4.2M MOD  
+**Max Supply:** 42M MOD (Bitcoin-style inflation)
+
+---
+
+## Resources
+
+- **Code:** `tge/tge.py` (visualization) & `tge/curves.py` (math)
+- **AMM:** Uniswap v4-based module for staketime token trading
+- **Telemetry:** Verified module usage tracking for Phase 3 minting
