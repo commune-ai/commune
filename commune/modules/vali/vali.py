@@ -1,79 +1,84 @@
 
-import commune as c
 import os
 import pandas as pd
 from typing import *
 import inspect
+from copy import deepcopy
+
+import commune as c
+print = c.print
 class Vali:
     endpoints = ['score', 'scoreboard']
     def __init__(self,
-
                     network= 'local', # for local chain:test or test # for testnet chain:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
-                    batch_size : int = 128, # the batch size of the most parallel tasks
-                    task : str= 'task', # score function
-                    key : str = None, # the key for the module
+                    batch_size : int = 12, # the batch size of the most parallel tasks
+                    task : str= 'vali.task', # score function
+                    params = None, # the parameters for the task
+                    key : str = 'vali', # the key for the module
                     tempo : int = 60, # the time between epochs
-                    timeout : int = 3, # timeout per evaluation of the module
-                    update : bool =True, # update during the first epoch
-                    run_loop : bool = True, # This is the key that we need to change to false
+                    timeout : int = 32, # timeout per evaluation of the module
+                    update : bool =False, # update during the first epoch
+                    loop : bool = False, # This is the key that we need to change to false
                     verbose: bool = True, # print verbose output
                     path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
+                    subnet = None, # the subnet to use for the network
                  **kwargs): 
 
         self.epoch_time = 0
         self.vote_time = 0 # the time of the last vote (for voting networks)
         self.epochs = 0 # the number of epochs
-        self.subnet = None    
         self.timeout = timeout
         self.batch_size = batch_size
         self.verbose = verbose
-        self.key = c.get_key(key)
+        self.set_key(key)
         self.set_task(task)
-        self.set_network(network=network, tempo=tempo,  search=search,  path=path, update=update)
-        if run_loop:
-            c.thread(self.run_loop) if run_loop else ''
+        self.auth = c.mod('auth')()
+        self.set_network(network=network, subnet=subnet, tempo=tempo,  search=search,  path=path, update=update)
+        if loop:
+            c.thread(self.run_loop) 
+            
+    def set_key(self, key):
+        key = c.get_key(key)
+        assert hasattr(key, 'key_address'), f'Key {key} does not have a key_address'
+        self.key = key
+        c.print(f'VALI KEY --> {self.key}', color='yellow')
+        return self.key
 
     def set_network(self, 
                     network:Optional[str] = None, 
                     tempo:int= 10, 
                     search:str=None, 
                     path:str=None, 
-                    update = False):
+                    subnet=None,
+                    update = True) -> str:
         if not hasattr(self, 'network'):
             self.network = 'local'
         self.network = network or self.network
+        if '/' in self.network:
+            self.subnet = self.network.split('/')[0]
+            self.network = self.network.split('/')[1]
+        else:
+            self.subnet = subnet or 0
+
         self.tempo = tempo
         self.storage_path = self.get_path(self.network + '/' + self.network)
         self.search = search
-        self.net = c.module(self.network)() 
-        self.sync(update=update)
-
-    def sync(self, update=False):
-        self.params = self.net.params(subnet=self.subnet, max_age=self.tempo, update=update)
-        self.modules = self.net.modules(subnet=self.subnet, max_age=self.tempo, update=update)        
+        self.net = c.mod(self.network)() 
         # create some extra helper mappings
-        self.key2module = {m['key']: m for m in self.modules if 'key' in m}
-        self.name2module = {m['name']: m for m in self.modules if 'name' in m}
-        self.url2module = {m['url']: m for m in self.modules if 'url' in m}
-        if self.search:
-            self.modules = [m for m in self.modules if any(str(self.search) in str(v) for v in m.values())]
-        return self.params
+        self.mods = self.net.mods(search=search,  update=update)
+        print(self.mods, 'mods')
+        self.namespace = {m['name']: m['url'] for m in self.mods if 'name' in m and 'url' in m}
+        self.key2module = {m['key']: m for m in self.mods if 'key' in m}
+        self.name2module = {m['name']: m for m in self.mods if 'name' in m}
+        self.url2module = {m['url']: m for m in self.mods if 'url' in m}
+        return self.network
     
     def set_task(self, task: Union[str, 'callable', int]):
-        if isinstance(task, str):
-            task = c.module(task)()
-        assert hasattr(task, 'forward'), f'Task {task} does not have a forward method'
-        self.task = task
-        task_path = task.__module__ + '.' + task.__class__.__name__
-        task_code = c.content(task_path)
-        task_hash = c.hash(task_code)
-        self.task.info  = {
-            'name': task.__class__.__name__.lower(),
-            'schema': c.schema(task_path),
-            'code': task_code,
-            'cid': task_hash, # the content id of the code of the task
-        }
+        self.task = c.mod(task)()
+        assert hasattr(self.task, 'forward'), f'Task {task} does not have a forward method'
+        self.task.info = {'name': self.task.__class__.__name__}
+        return self.task.info
 
     def get_path(self, path):
         return os.path.expanduser(f'~/.commune/vali/{path}')
@@ -98,39 +103,37 @@ class Vali:
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
 
-
-
     def get_module(self, module:Union[str, dict]):
         if isinstance(module, str):
-            if module in self.key2module:
-                module = self.key2module[module]
+            if module in self.url2module:
+                module = self.url2module[module]
             elif module in self.name2module:
                 module = self.name2module[module]
-            elif module in self.url2module:
-                module = self.url2module[module]
+            elif module in self.key2module:
+                module = self.key2module[module]
             else:
-                raise ValueError(f'Module not found {module}')
+                raise ValueError(f'Module {module} not found in url2module, name2module or key2module')
+        if isinstance(module, dict):
+            assert all(k in module for k in ['url', 'key']), f'Module {module} does not have url and key'
         return module
-    def forward(self,  module:Union[str, dict], **params):
+
+    def forward(self, module:Union[str, dict], **params):
         module = self.get_module(module)
+        t0 = c.time()
+        result = self.task.forward( c.client(url=module['url'], key=self.key), **params)
+        module['params'] = params
+        module['result'] = result
+        module['score'] =  result.get('score', 0) if isinstance(result, dict) else result
         module['time'] = c.time()
-        client = c.client(module['url'], key=self.key)
-        c.print(f'Sample(task={self.task.info["name"]} module={module["name"]} url={module["url"]})')
-        result = self.task.forward(client, **params)
-        # prepare the module for the result
-        assert 'score' in result, f'Module {module["name"]} does not have a score {result}'
-        data = {**module, **result}
-        data['params'] = params
-        data['result'] = result
-        data['time'] = c.time()
-        data['duration'] = c.time() - module['time']
-        data['vali'] = self.key.key_address
-        data['task'] = self.task.info["name"]
-        data['path'] = self.get_module_path(data['key'])
-        data['proof'] = c.sign(c.hash(data), key=self.key, mode='dict')
-        self.verify_proof(data) # verify the proof
-        c.put_json(data['path'], data)
-        return data
+        module['duration'] = c.time() - t0
+        module['proof'] = self.auth.headers(module, key=self.key)
+        self.save_result(module) # save the module interaction
+        return module
+
+    def save_result(self, module: Union[str, dict]):
+        self.verify_proof(module) # verify the proof
+        path = self.get_module_path(module['key'])
+        c.put_json(path, module)
 
     def get_module_path(self, module:str):
         return self.storage_path + '/' + module + '.json'
@@ -140,47 +143,50 @@ class Vali:
         return c.get_json(path)
 
     def verify_proof(self, module:dict):
-        module = c.copy(module)
-        proof = module.pop('proof', None)
-        assert c.verify(proof), f'Invalid Proof {proof}'
+        proof = module.get('proof', None)
 
-    def epoch(self, features=['score', 'key', 'duration', 'name'], **kwargs):
-        self.sync()
-        n = len(self.modules)
-        batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
+        assert self.auth.verify_headers(proof), f'Invalid Proof {proof}'
+
+    def epoch(self, search=None, result_features=['score', 'key', 'duration', 'name'], key=None, **kwargs):
+        search = search or self.search
+        self.set_network(search=search, **kwargs)
+        n = len(self.mods)
+        if key:
+            self.set_key(key)
+        batches = [self.mods[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
+        print(f'Running epoch {self.epochs} with {n} modules in {len(batches)} batches of size {self.batch_size}')
         num_batches = len(batches)
-        epoch_info = {
-            'epochs' : self.epochs,
-            'task': self.task.info['name'],
-            'key': self.key.key_address,
-            'batch_size': self.batch_size,
-        }
         results = []
+        filter_result = lambda x: isinstance(x, dict) and 'score' in x and x['score'] > 0
         for i, batch in enumerate(batches):
             futures = []
-            future2module = {}
             for m in batch:
                 print(f'Batch {i}/{num_batches} {m["name"]} {m["url"]}')
-                future = c.submit(self.forward, [m], timeout=self.timeout)
-                future2module[future] = m
-                
-            for future in c.as_completed(future2module):
-                try:
-                    m = future2module[future]
-                    result = future.result()
-                    if isinstance(result, dict) and 'score' in result:
-                        results.append(result)
-                    else: 
-                        c.print(f'Error({m["name"]}, result={result})')
-                except Exception as e:
-                    print(f'Error in batch {i} {c.detailed_error(e)}')
+                future = c.submit(self.forward, {"module": m} , timeout=self.timeout)
+                futures.append(future)
+            try:
+                batch_results = c.wait(futures, timeout=self.timeout)
+                results.extend(batch_results)
+            except TimeoutError as e:
+                print(f'Timeout in batch {i} for module {future2module[future]}')
 
         self.epochs += 1
         self.epoch_time = c.time()
         self.vote(results)
         if len(results) > 0:
-            return c.df(results)[features].sort_values(by='score', ascending=False)
+            df = c.df(results)
+            try:
+                return df[result_features].sort_values(by='score', ascending=False)
+            except Exception as e:
+                print(f'Error sorting DataFrame: {e}')
         else:
+            epoch_info = {
+                'epochs' : self.epochs,
+                'task': self.task.info['name'],
+                'key': self.key.key_address,
+                'batch_size': self.batch_size,
+            }
+
             return c.df([{'success': False, 'msg': 'No results to vote on', 'epoch_info': epoch_info}])
 
     @property
@@ -249,36 +255,26 @@ class Vali:
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
 
     def tasks(self):
-        return c.modules(search='task.')
+        return c.mods(search='task.')
 
-    @classmethod
-    def test(cls ,  n=2, 
-                tag = 'vali_test_net',  
-                miner='module', 
-                trials = 5,
-                tempo = 4,
-                update=True,
-                path = '/tmp/commune/vali_test',
-                network='local'
-                ):
-            Vali  = c.module('vali')
-            test_miners = [f'{miner}::{tag}{i}' for i in range(n)]
-            modules = test_miners
-            search = tag
-            assert len(modules) == n, f'Number of miners not equal to n {len(modules)} != {n}'
-            for m in modules:
-                c.serve(m)
-            namespace = c.namespace()
-            for m in modules:
-                assert m in namespace, f'Miner not in namespace {m}'
-            vali = Vali(network=network, search=search, path=path, update=update, tempo=tempo, run_loop=False)
-            scoreboard = []
-            while len(scoreboard) < n:
-                c.sleep(1)
-                scoreboard = vali.epoch()
-                trials -= 1
-                assert trials > 0, f'Trials exhausted {trials}'
-            for miner in modules:
-                c.print(c.kill(miner))
-            assert c.server_exists(miner) == False, f'Miner still exists {miner}'
-            return {'success': True, 'msg': 'subnet test passed'}
+
+    def test(self , 
+                    miner='module', 
+                    trials = 20,
+                    tempo = 1,
+                    update=True,
+                    path = '/tmp/commune/vali_test',
+                    network='local'
+                    ):
+                Vali  = c.mod('vali')
+                c.serve(miner)
+                vali = Vali(network=network, search=miner, path=path, update=update, tempo=tempo, run_loop=False)
+                scoreboard = []
+                while len(scoreboard) != 1:
+                    c.sleep(1)
+                    scoreboard = vali.epoch(update=update)
+                    trials -= 1
+                    assert trials > 0, f'Trials exhausted {trials}'
+                c.kill(miner)
+                assert c.server_exists(miner) == False, f'Miner still exists {miner}'
+                return {'success': True, 'msg': 'subnet test passed'}

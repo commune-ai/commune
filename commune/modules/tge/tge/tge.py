@@ -109,5 +109,4 @@ class tge:
         os.makedirs(output_dir, exist_ok=True)
         figures = self.plots()
         for name, fig in figures.items():
-            fig.write_image(f'{output_dir}/{name}.png', width=1200, height=650)
         return f'Images saved to {output_dir}/'

@@ -126,6 +126,9 @@ class Mod:
 
     def go(self, module=None, **kwargs):
         module = module or self.name
+        if os.path.exists(str(module)): 
+            return self.cmd(f'code {module}')
+
         if self.mod_exists(module):
             path = self.dirpath(module)
         else:
@@ -191,9 +194,7 @@ class Mod:
         cmd = f'docker build -f {dockerfile} -t {tag} {dirpath}'
         print(cmd)
         return  self.cmd(cmd, cwd=dirpath)
-
-
-
+        
     def modname(self, obj=None):
         obj = obj or Mod
         if  isinstance(obj, str):
@@ -410,6 +411,10 @@ class Mod:
     def utils(self, search=None):
         return self.get_utils(search=search)
 
+    def relpath(self, path:str, start:str=None) -> str:
+        start = start or os.getcwd()
+        return os.path.relpath(path, start=start)
+
     def routes(self, obj=None):
         obj = obj or self
         routes = {}
@@ -422,22 +427,23 @@ class Mod:
             routes[k].append(v)
         return routes
 
-    def fn2route(self): 
-        routes = self.routes()
-        fn2route = {}
-        for k,v in routes.items():
-            for f in v:
-                if isinstance(f, dict) and 'from' in f and 'to' in f:
-                    from_fn = f['from']
-                    to_fn = f['to']
-                elif isinstance(f, list):
-                    from_fn = f[0]
-                    to_fn = f[1]
-                else: 
-                    from_fn = f
-                    to_fn = f  
-                fn2route[to_fn] = k + '/' + from_fn
-        return fn2route
+    def fn2mod(self, search=None, update=True, core_only = True, verbose=False):
+        fn2mod = {}
+        path = self.get_path('fn2mod')
+        fn2mod = self.get(path, {}, update=update)
+        if len(fn2mod) == 0:
+            mods = self.core_mods() if core_only else self.mods()
+            for m in mods:
+                try:
+                    for fn in self.fns(m):
+                        fn2mod[fn] = m
+                except Exception as e:
+                    if verbose:
+                        print(f'Error getting fns for {m}: {e}', )
+            self.put(path, fn2mod)    
+        if search != None:
+            fn2mod = {k:v for k,v in fn2mod.items() if search in k or search in v}    
+        return fn2mod
 
     def secret(self, key:str = None, seed=None, update=False, tempo=None, **kwargs) -> str:
         secret = self.get('secret', {}, update=update, max_age=tempo)
@@ -524,7 +530,7 @@ class Mod:
                  **kwargs) -> str:
         if not path.endswith('.json'):
             path = path + '.json'
-        path = self.get_path(path)
+        path = self.abspath(path)
         if isinstance(data, dict):
             data = json.dumps(data)
         self.put_text(path, data)
@@ -542,10 +548,10 @@ class Mod:
             return env.get(key, None)
         return env
 
-    def rm(self, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/', './']):
+    def rm(self, path:str, possible_extensions = ['json'], avoid_paths = ['~', '/']):
         avoid_paths = list(set((avoid_paths)))
-        path = self.get_path(path)
-        avoid_paths = [self.get_path(p) for p in avoid_paths] 
+        path = self.abspath(path)
+        avoid_paths = [self.abspath(p) for p in avoid_paths] 
         assert path not in avoid_paths, f'Cannot remove {path}'
         path_exists = lambda p: os.path.exists(p)
         if not path_exists(path): 
@@ -564,7 +570,7 @@ class Mod:
     
     def glob(self, path:str='./', depth:Optional[int]=4, recursive:bool=True, files_only:bool = True, include_hidden=False):
         import glob
-        path = self.get_path(path)
+        path = self.abspath(path)
         if depth != None:
             if isinstance(depth, int) and depth > 0:
                 paths = []
@@ -590,7 +596,7 @@ class Mod:
         return paths
     
     def get_json(self, path:str,default:Any=None, **kwargs):
-        path = self.get_path(path)
+        path = self.abspath(path)
 
         # return self.util('get_json')(path, default=default, **kwargs)
         if not path.endswith('.json'):
@@ -632,7 +638,7 @@ class Mod:
 
     def put_text(self, path:str, text:str, key=None) -> None:
         # Get the absolute path of the file
-        path = self.get_path(path)
+        path = self.abspath(path)
         dirpath = os.path.dirname(path)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
@@ -657,7 +663,7 @@ class Mod:
         this path is relative to the module path if you dont specifcy ./ or ~/ or /
         which means its based on the module path
         """
-        path = self.get_path(path)
+        path = self.abspath(path)
         try:
             ls_files = os.listdir(path)
         except Exception as e:
@@ -680,6 +686,7 @@ class Mod:
         '''
         Puts a value in the config
         '''
+        k = self.get_path(k)
         encrypt = encrypt or password != None
         if encrypt or password != None:
             v = self.encrypt(v, password=password)
@@ -690,7 +697,6 @@ class Mod:
             k:str, 
             default: Any=None, 
             max_age:str = None,
-            full :bool = False, 
             update :bool = False,
             password : str = None,
             verbose = False,
@@ -709,31 +715,22 @@ class Mod:
         if not isinstance(data, dict):
             return default
         if update:
-            max_age = 0
+            return default
         if max_age != None:
+            # check if the data is expired
             timestamp = 0
             for k in ['timestamp', 'time']:
                 if k in data:
                     timestamp = data[k]
                     break
-            age = int(time.time() - timestamp)
-            if age > max_age: # if the age is greater than the max age
-                if verbose:
-                    print(f'TooOld(path={k} age={age} max_age={max_age})')
+            expired =  (time.time() - float(timestamp)) > max_age
+            if expired:
                 return default
-        
-        if not full:
-            if isinstance(data, dict):
-                if 'data' in data:
-                    data = data['data']
-            if isinstance(data, str) and data.startswith('{') and data.endswith('}'):
-                data = data.replace("'",'"')
-                data = json.loads(data)
-        return data
-    
+        return data['data']
+
     def get_text(self, path: str, **kwargs ) -> str:
         # Get the absolute path of the file
-        path = self.get_path(path)
+        path = self.abspath(path)
         from commune.utils import get_text
         return get_text(path, **kwargs)
 
@@ -816,9 +813,7 @@ class Mod:
                 self.print(self.detailed_error(e), color='red', verbose=verbose)
         return schema
 
-    def code(self, obj = None, search=None, full=False,  *args, **kwargs) -> Union[str, Dict[str, str]]:
-        if full:
-            return self.content(obj, search=search)
+    def code(self, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if '/' in str(obj):
             obj = self.fn(obj)
         elif hasattr(self, obj):
@@ -835,8 +830,6 @@ class Mod:
         get the content of the module as a dict of file path to file content
         return a dict of file path to file content
         """
-        if '/' in str(module):
-            return self.code(module, **kwargs)
         module = module or 'mod'
         dirpath = self.dirpath(module)
         content = self.file2text(dirpath)
@@ -892,9 +885,7 @@ class Mod:
     core_modules = core_mods
 
     def local_mods(self) -> List[str]:
-        core_mods = self.core_mods()
-        mods = self.mods()
-        return [m for m in mods if m not in core_mods]
+        return list(self.local_tree().keys())
     local_modules = local_mods
 
     def module2schema(self, module=None, max_age=30, update=False, core=True, verbose=False) -> List[str]:
@@ -919,8 +910,8 @@ class Mod:
             key=None,
             url = None, 
             public =  False, # whether to include the source code of the module
-            owner = None, # what is the key that is hosting this module
             fns = None, # which functions to include in the schema
+            desc = False, 
             tag_divider = '::',
             **kwargs):
         """
@@ -932,11 +923,9 @@ class Mod:
             module, tag = module.split('::')
         cid = self.cid(module)
         key = self.get_key(key or module)
-        owner = owner or self.owner()
         info =  {
                 'name': name, 
                 'key': key.address,  
-                'owner': owner,
                 'cid': cid,
                 'time': time.time(),
                 'public': bool(public),
@@ -951,11 +940,16 @@ class Mod:
                 info['schema'] = {}
         if url: 
             info['url'] = url
+        if desc:
+            info['desc'] = self.desc(module)
         info['signature'] = self.sign(info, key=key)
         assert self.verify_info(info), f'Invalid signature {info["signature"]}'
         return  info
 
     card = info 
+
+    def desc(self, module='module', **kwargs):
+        return self.fn('desc/')(module, **kwargs)
 
     def verify_info(self, info:Union[str, dict]=None, **kwargs) -> bool:
         """
@@ -1069,6 +1063,9 @@ class Mod:
     def hosts(self):
         return self.fn('remote/hosts')()
 
+
+    def host(self):
+        return self.key().address
     def how(self, module, query, *extra_query) : 
         code = self.code(module)
         query = ' '.join([query, *extra_query])
@@ -1090,18 +1087,6 @@ class Mod:
             classes.extend(v)
         return classes  
 
-    def password(self, max_age=None, update=False, **kwargs):
-        """
-        Get the password for the module
-        """
-        path = self.get_path('password')
-        pwd = self.get(path, None, max_age=max_age, update=update,**kwargs)
-        if pwd == None:
-            pwd = self.hash(self.mnemonic() + str(time.time()))
-            self.put(path, pwd)
-            self.print('Generating new password', color='blue')
-        return pwd
-
     def mod2readme(self): 
         mod2readme = {}
         for mod in self.mods():
@@ -1112,8 +1097,7 @@ class Mod:
                 del mod2readme[mod]
             else:
                 mod2readme[mod] = self.get_text(mod2readme[mod][0])
-        return len(str(mod2readme))
-            
+        return len(str(mod2readme))    
 
     def mnemonic(self, words=24):
         """
@@ -1132,19 +1116,6 @@ class Mod:
             return ' '.join(mnemonic.split()[:words])
         return self.mod('key')().generate_mnemonic(words=words)
 
-    def path2relative(self, path='./'):
-        """
-        Converts a path to a relative path (for instance ~/foo/bar.py to ./foo/bar.py)
-        """
-        path = self.get_path(path)
-        pwd = os.getcwd()
-        home_path = self.home_path
-        prefixe2replacement = {pwd: './', home_path: '~/'}
-        for pre, rep in prefixe2replacement.items():
-            if path.startswith(pre):
-                path = path[len(pre):]
-                path = rep + path[len(pre):]
-        return path
     
     def path2objectpath(self, path:str, **kwargs) -> str:
         """
@@ -1292,7 +1263,6 @@ class Mod:
     def object_exists(self, path:str, verbose=False)-> Any:
         return self.obj_exists(path, verbose=verbose)
 
-    
     def mod_exists(self, module:str, **kwargs) -> bool:
         '''
         Returns true if the module exists
@@ -1312,16 +1282,6 @@ class Mod:
     
     def locals(self, **kwargs):
         return list(self.get_tree(self.pwd(), **kwargs).keys())
-
-    
-    def check_info(self,info, features=['key', 'hash', 'time', 'name', 'schema']):
-        try:
-            assert isinstance(info, dict), 'info is not a dictionary'
-            for feature in features:
-                assert feature in info, f'{feature} not in info'
-        except Exception as e:
-            return False
-        return True
 
     def cwd(self, mod=None):
         if mod:
@@ -1386,6 +1346,7 @@ class Mod:
                 key_options = [k for k in tree.keys() if path in k]
                 if len(key_options) >= 1:
                     path =  key_options[0]
+                    return tree[path]
             else:
                 return tree[path]
         path = tree.get(path, path)
@@ -1412,7 +1373,7 @@ class Mod:
         if anchor_file:
             classes =  self.classes(anchor_file)
             assert len(classes) > 0, f'No classes found in {anchor_file}'
-            class_obj_path = classes[0]
+            class_obj_path = classes[-1]
             if self.name + '.' + self.name in class_obj_path:
                 class_obj_path = class_obj_path.replace(self.name + '.' + self.name, self.name)
             return self.obj(class_obj_path)
@@ -1469,8 +1430,6 @@ class Mod:
     def local_tree(self, search=None, depth=4, **kwargs):
         return self.get_tree(os.getcwd(), depth=depth,  search=search, **kwargs )
 
-
-
     def tree(self, search=None, **kwargs):
         return {
             **self.mods_tree(search=search, **kwargs),
@@ -1498,9 +1457,13 @@ class Mod:
                     dirpath = p
                     break
             if dirpath == None:
-                tree = self.tree()
+                tree = self.tree(folders=True)
                 if module in tree:
                     dirpath = tree[module]
+                else: 
+                    key_options = [k for k in tree.keys() if module in k]
+                    if len(key_options) >= 1:
+                        dirpath =  tree[key_options[0]]
             return dirpath
 
     dp = dirpath
@@ -1657,16 +1620,15 @@ class Mod:
         context = self.context(path=self.core_path)
         return self.mod('agent')().ask(f'given the code {self.code(module)} and CONTEXT OF COMMUNE {context} anster wht following question: {query}', preprocess=False)
     
-    def ask(self, *args, module=None, mod=None, path='./' , context=False,  ai=0,  **kwargs):
-        module = module or mod
+    def ask(self, *args, mod=None, path='./' , stream=1, context=False, **kwargs):
         # commune_readmes = self.readmes(path=path)
-        if module != None:
-            args = [self.code(module)] + list(args)
+        if mod != None:
+            args = [self.code(mod)] + list(args)
         if context:
             context = self.context(path=path)
             args = [f'CONTEXT OF COMMUNE {context}'] + list(args)
         msg = ' '.join(list(map(str, args)))
-        return self.module("openrouter")().forward(msg, **kwargs) 
+        return self.module("openrouter")().forward(msg, stream=stream, **kwargs) 
 
     def readmes(self,  path='./', search=None, avoid_terms=['/mods/']):
         files =  self.files(path)
@@ -1724,8 +1686,11 @@ class Mod:
             configs = [f for f in configs if search in f]
         return configs
 
-    def serve(self, module:str = 'module', port:int=None, **kwargs):
-        return self.fn('pm/serve')(module=module, port=port, **kwargs)
+    def serve(self, mod:str = 'module', port:int=None, remote=True, **kwargs):
+        return self.fn('server/serve')(mod, port=port, remote=remote, **kwargs)
+
+    def exec(self, module:str = 'module', *args, **kwargs):
+        return self.fn('pm/exec')(module, *args, **kwargs)
 
     def app(self, module=None, **kwargs):
         if module:
@@ -1789,22 +1754,27 @@ class Mod:
         path = self.dirpath(module)
         return os.path.exists(path + '/.git')
 
-    def cpmod(self, from_module:str = 'dev', to_module:str = 'dev2'):
+    def cpmod(self, from_module:str = 'dev', to_module:str = 'dev2', force=True):
         """
         Copy the module to the git repository
         """
         from_path = self.dirpath(from_module)
         if not os.path.exists(from_path):
             raise Exception(f'Mod {from_path} does not exist')
-        to_path = self.mods_path + '/' + to_module
+        to_path = self.mods_path + '/' + to_module.replace('.', '/')
         if os.path.exists(to_path):
-            if input(f'Path {to_path} already exists. Do you want to remove it? (y/n)'):
-                self.rm(to_path)
-        self.cp(from_path, to_path)
-        assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+            if force or input(f'Path {to_path} already exists. Do you want to remove it? (y/n)') == 'y':
+                for f in self.files(to_path):
+                    print(f'Removing {f}')
+                    self.rm(f)
+        from_files = self.files(from_path)
+        for f in from_files:
+            self.cp(f, to_path + '/' + f[len(from_path)+1:])
+        # assert os.path.exists(to_path), f'Failed to copy {from_path} to {to_path}'
+        assert self.cid(from_module) == self.cid(to_module), f'Failed to copy {from_path} to {to_path}'
         return { 
-                'from': {'module': from_module, 'path': from_path}, 
-                'to': {'path': to_path, 'module': to_module}
+                'from': {'module': from_module, 'path': from_path, 'cid': self.cid(from_module)}, 
+                'to': {'path': to_path, 'module': to_module, 'cid': self.cid(to_module)},
                 } 
 
     def mvmod(self, from_module:str = 'dev', to_module:str = 'dev2'):
@@ -1812,7 +1782,7 @@ class Mod:
         Move the module to the git repository
         """
         from_path = self.dirpath(from_module)
-        to_path = self.dirpath(to_module)
+        to_path = self.mods_path + '/' + to_module.replace('.', '/')
         return self.mv(from_path, to_path)
 
     mv_mod = mvmod
@@ -1824,8 +1794,6 @@ class Mod:
         path = self.dirpath(module)
         assert os.path.exists(path), f'Mod {module} does not exist'
         self.rm(path)
-        self.rm_module_gitignore(module)
-        self.tree(update=1)
         return {'success': True, 'msg': 'removed module'}
 
     def address2key(self, *args, **kwargs):
@@ -1884,8 +1852,8 @@ class Mod:
         return hasattr(self.module(module)(), k)
 
     def hash(self, obj, mode='sha256', **kwargs):
-        from commune.utils import get_hash
-        return get_hash(obj, mode=mode, **kwargs)
+        from commune.utils import hash
+        return self.obj('commune.utils.hash')(obj, mode=mode, **kwargs)
 
     def test(self, module = None,  **kwargs) ->  Dict[str, str]:
         return self.fn('test/forward')( module=module,  **kwargs )

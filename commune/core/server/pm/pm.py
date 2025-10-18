@@ -6,87 +6,192 @@ import commune as c
 import subprocess
 import json
 from datetime import datetime
-
+import yaml  
 class PM:
     """
-    A module for interacting with Docker.
+    A mod for interacting with Docker.
     """
 
     def __init__(self,  
                 path = os.path.expanduser('~/commune'), 
                 image = None, # default image name is the folder name
-                storage_path='~/.commune/server/pm', 
+                store_path='~/.commune/server', 
+                working_dir = '/app',
                 **kwargs):
     
+        self.working_dir = working_dir
         self.path = path
-        self.image = (image or path.split('/')[-1].lower()) + ':latest'
-        self.store = c.mod('store')(storage_path)
-        # if not self.is_docker_daemon_on():
-        #     self.start_docker_daemon()
+        self.store = c.mod('store')(store_path)
 
-
-    def serve(self, 
-                module='api', 
+    def forward(self, 
+                mod='api', 
                 port=None, 
-                image=None, 
-                working_dir='/app', 
+                key = None,
+                image='commune:latest', 
                 daemon=True, d = None, # daemon
-                remote=True,
-                name = None,
                 cwd = None,
-                include_storage=True,
+                volumes = None,
                 env={},
-                **params):
-        image = image or self.image
-        daemon = daemon if d is None else d
-        module = module or 'module'
-        port = port or c.free_port()
-        params['remote'] = 0
-        params['port'] = port
-        cmd = f"c server/serve {module} { self.params2cmd(params)}"
-        if not remote:
-            return os.system(cmd)
-        if '::' in module:
-            name = self.name2process(name or module)
-            module = module.split('::')[0]
-        name = name or module
-        if image == None:
-            obj = c.mod(module)
-            if hasattr(obj, 'image'):
-                image = getattr(obj, 'image')
-            
-        lib_path = c.lib_path
-        storage_path = c.storage_path
-        docker_lib_path = c.lib_path.replace(c.home_path, '/root')
-        docker_storage_path = storage_path.replace(c.home_path, '/root')
-        volumes = {
-            lib_path: docker_lib_path,
-            storage_path: docker_storage_path
-        }
-        if module not in c.anchor_names:
-            mod_path = c.dirpath(module)
-            docker_mods_path = mod_path.replace(c.home_path, '/root')
-            volumes[mod_path] = docker_mods_path
-        cwd = cwd or c.dirpath(module)
-        params = {
-            'name': name, 
+                params = None, 
+                **extra_params):
+        """
+        Runs a mod as a Docker container with port forwarding as a server.
+        """
+        env = env or {}
+        params = {**(params or {}), **(extra_params or {})}
+        daemon = daemon if d is None else bool(d)
+        params.update({'port': port or c.free_port(), 'key': key or mod, 'remote': False, 'mod': mod})
+        cmd = f"c server/serve {self.params2cmd(params)}"
+        volumes = self.volumes(mod, key=params['key'])
+        dirpath = c.dirpath(mod)
+        print(volumes)
+        docker_dirpath = self.convert_docker_path(dirpath)
+        print(f'Starting server {mod} from image {image} on port {params["port"]} in {"daemon" if daemon else "foreground"} mode...')
+        result = self.run(name=mod, 
+                          image=image, 
+                          port=params['port'], 
+                          cmd=cmd, 
+                          daemon=daemon, 
+                          env=env, 
+                          volumes=volumes, 
+                          cwd=cwd or dirpath, 
+                          working_dir='/app')
+        while True:
+            try:
+                result = c.call(mod+'/info')
+                if 'key' in result and 'cid' in result:
+                    break
+                return result
+            except Exception as e:
+                print(f'Waiting for server {mod} to start... Error: {e}')
+                c.sleep(2)
+        return result
+
+    def run(self,
+            name : str = "mod",
+            image: str = 'commune:latest',
+            fn = 'fn',
+            cwd: Optional = None, 
+            cmd: str = None,
+            volumes: Dict = None,
+            resources: Union[List, str, bool] = None,
+            shm_size: str = '100g',
+            sudo: bool = False,
+            build: bool = False,
+            network_mode: Optional = None,  # 'host', 'bridge', etc.
+            port: int = None,
+            ports: Union[List, Dict[int, int]] = None,
+            daemon: bool = True,
+            remote: bool = False,
+            entrypoint: Optional[str] = None,
+            env: Optional[Dict] = None,
+            working_dir = None,
+            compose_path: str = None,
+            restart: str = 'unless-stopped'
+            ) -> Dict:
+        """
+        Generate and run a Docker container using docker-compose.
+        """ 
+        working_dir = working_dir or self.working_dir  
+        name = self.name2process(name)
+        # Build the service configuration
+        service_config = {
             'image': image,
-            'port': port,
-            'cmd': cmd,
-            'working_dir': working_dir, 
-            'daemon': daemon,
-            'volumes': volumes,
-            'env': env,
-            'cwd': cwd       
+            'container_name': name,
+            'restart': restart
+        }
+        # Handle command
+        if cmd:
+            service_config['entrypoint'] = f'bash -c "{cmd}"'
+        # Handle network
+        if network_mode:
+            service_config['network_mode'] = network_mode
+        # Handle GPU configuration
+        if resources:
+            service_config['deploy'] = {'resources': resources}
+        # Configure shared memory
+        if shm_size:
+            service_config['shm_size'] = shm_size
+        
+        # Handle port mappings
+        if self.server_exists(name):
+            self.kill(name)
+        
+        if port:
+            assert not c.port_used(port), f'Port {port} is already in use'
+            ports = {port: port}
+            service_config['ports'] = [f'{host}:{container}' for host, container in ports.items()]
+        # Handle volume mappings
+        if volumes:
+            if isinstance(volumes, dict):
+                service_config['volumes'] = [f'{c.abspath(k)}:{v}' for k, v in volumes.items()]
+            elif isinstance(volumes, list):
+                service_config['volumes'] = volumes
+        # Handle environment variables
+        if env:
+            if isinstance(env, dict):
+                env = [f"{k}={v}" for k,v in env.items()]
+            assert isinstance(env, list)
+            service_config['environment'] = env
+
+        service_config['working_dir'] = working_dir
+
+        if build: 
+            if isinstance(build, dict):
+                service_config['build'] = build
+            elif isinstance(build, bool) and build:
+                service_config['build'] = {'context': './', 'dockerfile': 'Dockerfile'}
+            elif isinstance(build, str):
+                service_config['build'] = {'context': build, 'dockerfile': 'Dockerfile'}
+            service_config['image'] = f'{name}:latest'
+        # Build the complete docker-compose configuration
+        compose_config = {
+            'services': {
+                name: service_config
             }
-        return self.run(name=name, 
-                        image=image, 
-                        port=port, 
-                        cmd=cmd, 
-                        working_dir=working_dir, 
-                        daemon=daemon, 
-                        volumes=volumes, 
-                        cwd=cwd)
+        }
+
+        # Add networks if needed
+        if network_mode and network_mode != 'host':
+            compose_config['networks'] = {
+                net: {
+                    'driver': 'bridge'
+                }
+            }
+    
+        # Write the docker-compose file
+        cwd = cwd or os.getcwd()
+        if compose_path is None:
+            compose_path = cwd + '/docker-compose.yml' 
+        compose_path = os.path.expanduser(compose_path)
+        if not os.path.exists(compose_path):
+            c.put_yaml(compose_path, compose_config)
+        # Run docker-compose
+        compose_cmd = ['sudo'] if sudo else []
+        compose_cmd.extend(['docker-compose', '-f', compose_path, 'up'])
+        # Run the container
+        print(f'Starting container {name} from image {image} on port {port}')
+        if bool(daemon):
+            compose_cmd.append('-d')
+        command_str = ' '.join(compose_cmd)
+        command_str = f'cd {cwd} && ' + command_str
+        try:
+            os.system(command_str)
+        except Exception as e:
+            print(f'Error running docker-compose: {e}')
+        # remove the compose file if not daemon
+        os.remove(compose_path)
+        return  {'compose_file': compose_config['services'][name], 'cwd': cwd, 'name': name, 'status': 'running', 'command': command_str}
+
+    def process_info(self, name):
+        """ info of the process, the memory, cpu, etc"""
+        stats = self.stats()
+
+        if 'name' in stats.columns:
+            info = stats[stats['name'] == self.name2process(name)]
+            if len(info) > 0:
+                return info.iloc[0].to_dict()
+        return {}
 
     def process2name(self, container):
         return container.replace('__', '::')
@@ -129,12 +234,6 @@ class PM:
     def dockerfiles(self, mod='mod'):
         """
         List all Dockerfiles in the specified path.
-        
-        Args:
-            path (str): Path to search for Dockerfiles. Defaults to current directory.
-            
-        Returns:
-            List[str]: List of Dockerfile paths.
         """
         dockerfiles = []
         path = c.dp(mod)
@@ -152,26 +251,14 @@ class PM:
 
     def has_dockerfile(self, mod='mod'):
         """
-        Check if a Dockerfile exists in the specified module path.
-        
-        Args:
-            mod (str): Module name or path to check for Dockerfile.
-            
-        Returns:
-            bool: True if a Dockerfile exists, False otherwise.
+        Check if a Dockerfile exists in the specified mod path.
         """
         dockerfiles = self.dockerfiles(mod)
         return len(dockerfiles) > 0
 
     def dockerfile_path(self, mod='mod'):
         """
-        Get the path to the Dockerfile in the specified module.
-        
-        Args:
-            mod (str): Module name or path to check for Dockerfile.
-            
-        Returns:
-            str: Path to the Dockerfile if it exists, otherwise None.
+        Get the path to the Dockerfile in the specified mod.
         """
         dockerfiles = self.dockerfiles(mod)
         # choose the shortest dockerfile path
@@ -183,13 +270,8 @@ class PM:
         dockerfiles = sorted(dockerfiles, key=len)
         return dockerfiles[0] if len(dockerfiles) > 0 else None
 
-
     def dockerfile(self, mod='mod'):
         return c.get_text(self.dockerfile_path(mod))
-
-    def fork(self,  from_mod='mod', to_mod='mod'):
-        return self.forward(f'make sure the source can have a docker container that has the contents of the current dockerfile --> {dockerfile}', src=src)
-
 
     def build(self,
               path: Optional[str] = None,
@@ -200,17 +282,6 @@ class PM:
               env: Dict[str, str] = {}) -> Dict[str, Any]:
         """
         Build a Docker image from a Dockerfile.
-
-        Args:
-            path (Optional[str]): Path to the Dockerfile. Defaults to None.
-            tag (Optional[str]): Tag for the image. Defaults to None.
-            sudo (bool): Use sudo. Defaults to False.
-            verbose (bool): Enable verbose output. Defaults to True.
-            no_cache (bool): Disable cache during build. Defaults to False.
-            env (Dict[str, str]): Environment variables. Defaults to {}.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the status, tag, and result of the build.
         """
         if mod:
             path = c.dirpath(mod)
@@ -218,177 +289,11 @@ class PM:
         if os.path.isdir(path):
             assert os.path.exists(os.path.join(path, 'Dockerfile'))
         tag = tag or path.split('/')[-1]
-
         print(f'Building Docker image from {path} with tag {tag}')
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
         return os.system('cd ' + path + ' && ' + cmd)
-
-
-    def run(self,
-            name : str = "commune",
-            image: str = 'commune:latest',
-            fn = 'fn',
-            cwd: Optional = None, 
-            cmd: str = None,
-            volumes: Dict = None,
-            gpus: Union[List, str, bool] = False,
-            shm_size: str = '100g',
-            sudo: bool = False,
-            build: bool = False,
-            net: Optional = None,  # 'host', 'bridge', etc.
-            port: int = None,
-            ports: Union[List, Dict[int, int]] = None,
-            daemon: bool = True,
-            remote: bool = False,
-            entrypoint: Optional[str] = None,
-            env: Optional[Dict] = None,
-            working_dir = '/app',
-            compose_path: str = None,
-            restart: str = 'unless-stopped'
-            ) -> Dict:
-        """
-        Generate and run a Docker container using docker-compose.
-        """
-        import yaml
-
-        
-        name = name or image.split('::')[0].replace('/', '_')
-        
-        # Build the service configuration
-        service_config = {
-            'image': image,
-            'container_name': name,
-            'restart': restart
-        }
-        
-        # Handle command
-        if cmd:
-            service_config['entrypoint'] = f'bash -c "{cmd}"'
-        
-        # Handle network
-        if net:
-            service_config['network_mode'] = net
-        
-        # Handle GPU configuration
-        if gpus:
-            
-            service_config['deploy'] = {
-                'resources': {
-                    'reservations': {
-                        'devices': []
-                    }
-                }
-            }
-
-            if isinstance(gpus, list):
-                for gpu in gpus:
-                    service_config['deploy']['resources']['reservations']['devices'].append({
-                        'driver': 'nvidia',
-                        'device_ids': gpus,
-                        'capabilities': ['gpu']
-                    })
-            elif isinstance(gpus, str):
-                if gpus == 'all':
-                    service_config['deploy']['resources']['reservations']['devices'].append({
-                        'driver': 'nvidia',
-                        'count': 'all',
-                        'capabilities': ['gpu']
-                    })
-                else:
-                    service_config['deploy']['resources']['reservations']['devices'].append({
-                        'driver': 'nvidia',
-                        'device_ids': [gpus],
-                        'capabilities': ['gpu']
-                    })
-            elif gpus == True:
-                service_config['deploy']['resources']['reservations']['devices'].append({
-                    'driver': 'nvidia',
-                    'count': 'all',
-                    'capabilities': ['gpu']
-                })
-        
-        # Configure shared memory
-        if shm_size:
-            service_config['shm_size'] = shm_size
-        
-        # Handle port mappings
-        if self.server_exists(name):
-            self.kill(name)
-        if port:
-            assert not c.port_used(port), f'Port {port} is already in use'
-            ports = {port: port}
-        
-        if ports:
-            if isinstance(ports, list):
-                ports = {port: port for port in ports}
-            service_config['ports'] = [f'{host}:{container}' for host, container in ports.items()]
-        
-        # Handle volume mappings
-        if volumes:
-            if isinstance(volumes, dict):
-                service_config['volumes'] = [f'{c.abspath(k)}:{v}' for k, v in volumes.items()]
-            elif isinstance(volumes, list):
-                service_config['volumes'] = volumes
-        
-        # Handle environment variables
-        if env:
-            if isinstance(env, dict):
-                env = [f"{k}={v}" for k,v in env.items()]
-            assert isinstance(env, list)
-            service_config['environment'] = env
-         
-        service_config['working_dir'] = working_dir
-
-        if build: 
-            if isinstance(build, dict):
-                service_config['build'] = build
-            elif isinstance(build, bool) and build:
-                service_config['build'] = {'context': os.path.dirname(c.abspath(fn)), 'dockerfile': 'Dockerfile'}
-            elif isinstance(build, str):
-                service_config['build'] = {'context': build, 'dockerfile': 'Dockerfile'}
-            service_config['image'] = f'{name}:latest'
-        # Build the complete docker-compose configuration
-        compose_config = {
-            'services': {
-                name: service_config
-            }
-        }
-
-        
-        # Add networks if needed
-        if net and net != 'host':
-            compose_config['networks'] = {
-                net: {
-                    'driver': 'bridge'
-                }
-            }
-    
-        # Write the docker-compose file
-        cwd = cwd or os.getcwd()
-        if compose_path is None:
-            compose_path = cwd + '/docker-compose.yml' 
-        compose_path = os.path.expanduser(compose_path)
-        if not os.path.exists(compose_path):
-            c.put_yaml(compose_path, compose_config)
-        
-        # Run docker-compose
-        compose_cmd = ['sudo'] if sudo else []
-        compose_cmd.extend(['docker-compose', '-f', compose_path, 'up'])
-        # Run the container
-        if bool(remote or daemon):
-            compose_cmd.append('-d')
-        command_str = ' '.join(compose_cmd)
-        command_str = f'cd {cwd} && ' + command_str
-        print(f'Running command: {command_str}')
-        try:
-            os.system(command_str)
-        except Exception as e:
-            print(f'Error running docker-compose: {e}')
-        # remove the compose file if not daemon
-        os.remove(compose_path)
-        return  {'compose_file': compose_config['services'][name], 'cwd': cwd, 'name': name, 'status': 'running', 'command': command_str}
 
     def enter(self, contianer): 
         cmd = f'docker exec -it {contianer} bash'
@@ -397,27 +302,12 @@ class PM:
     def exists(self, name: str) -> bool:
         """
         Check if a container exists.
-
-        Args:
-            name (str): The name of the container.
-
-        Returns:
-            bool: True if the container exists, False otherwise.
         """
         return name in self.servers()
         
     def kill(self, name: str, sudo: bool = False, verbose: bool = True, prune: bool = False) -> Dict[str, str]:
         """
         Kill and remove a container.
-
-        Args:
-            name (str): The name of the container.
-            sudo (bool): Use sudo.
-            verbose (bool): Enable verbose output.
-            prune (bool): Prune unused Docker resources.
-
-        Returns:
-            Dict[str, str]: A dictionary containing the status and name of the container.
         """
         if not self.exists(name):
             return {'status': 'not_found', 'name': name}
@@ -434,13 +324,6 @@ class PM:
     def kill_all(self, sudo: bool = False, verbose: bool = True) -> Dict[str, str]:
         """
         Kill all running containers.
-
-        Args:
-            sudo (bool): Use sudo.
-            verbose (bool): Enable verbose output.
-
-        Returns:
-            Dict[str, str]: A dictionary indicating the status of the operation.
         """
         try:
             for container in self.servers():
@@ -452,12 +335,6 @@ class PM:
     def images(self, df: bool = True) -> Union[pd.DataFrame, Any]:
         """
         List all Docker images.
-
-        Args:
-            to_records (bool): Convert to records.
-
-        Returns:
-            Union[pd.DataFrame, Any]: A DataFrame or records of Docker images.
         """
         text = c.cmd('docker images')
         rows = []
@@ -485,17 +362,6 @@ class PM:
              since: Optional[str] = None) -> str:
         """
         Get container logs with advanced options.
-
-        Args:
-            name (str): The name of the container.
-            sudo (bool): Use sudo.
-            follow (bool): Follow the logs.
-            verbose (bool): Enable verbose output.
-            tail (int): Number of lines to tail.
-            since (Optional[str]): Show logs since timestamp.
-
-        Returns:
-            str: The container logs.
         """
         follow = f if f is not None else follow
         name = self.name2process(name)
@@ -516,12 +382,6 @@ class PM:
     def prune(self, all: bool = False) -> str:
         """
         Prune Docker resources.
-
-        Args:
-            all (bool): Prune all unused resources.
-
-        Returns:
-            str: The result of the prune command.
         """
         cmd = 'docker system prune -f' if all else 'docker container prune -f'
         try:
@@ -532,25 +392,12 @@ class PM:
     def get_path(self, path: str) -> str:
         """
         Get the path to a Docker-related file.
-
-        Args:
-            path (str): The path to the file.
-
-        Returns:
-            str: The full path to the file.
         """
         return os.path.expanduser(f'~/.commune/pm/{path}')
 
     def stats(self, max_age=60, update=False) -> pd.DataFrame:
         """
         Get container resource usage statistics.
-
-        Args:
-            max_age (int): Maximum age of cached data in seconds.
-            update (bool): Force update of data.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the container statistics.
         """
         path = self.get_path(f'container_stats.json')
         stats = c.get(path, [], max_age=max_age, update=update)
@@ -587,9 +434,6 @@ class PM:
     def ps(self) -> List[str]:
         """
         List all running Docker containers.
-
-        Returns:
-            List[str]: A list of container names.
         """
         try:
             text = c.cmd('docker ps')
@@ -606,35 +450,18 @@ class PM:
             c.print(f"Error listing containers: {e}", color='red')
             return []
 
-
-    def exec(self, name: str, cmd: str, *extra_cmd) -> str:
+    def exec(self, name: str, cmd: str, *extra_cmd, **cmd_kwargs) -> str:
         """
         Execute a command in a running Docker container.
-
-        Args:
-            name (str): The name of the container.
-            cmd (str): The command to execute.
-            *extra_cmd: Additional command arguments.
-
-        Returns:
-            str: The output of the command.
         """
         if len(extra_cmd) > 0:
-            cmd = ' '.join([cmd] + list(extra_cmd))
-        
-        return c.cmd(f'docker exec {name} bash -c "{cmd}"')
+            cmd = ' '.join([cmd] + list(extra_cmd)) + self.params2cmd(cmd_kwargs)
+        cmd = f'docker exec {name} bash -c "{cmd}"'
+        return os.system(cmd)
 
     def container_stats(self, max_age=10, update=False, cache_dir="./docker_stats") -> pd.DataFrame:
         """
         Get resource usage statistics for all containers.
-
-        Args:
-            max_age (int): Maximum age of cached data in seconds
-            update (bool): Force update of data
-            cache_dir (str): Directory to store cached data
-
-        Returns:
-            pd.DataFrame: A DataFrame containing statistics for all containers
         """
         # Create cache directory if it doesn't exist
         os.makedirs(cache_dir, exist_ok=True)
@@ -732,14 +559,6 @@ class PM:
     def start(self, name: str, image: str, **kwargs) -> Dict[str, Any]:
         """
         Start a container (PM2-like interface).
-
-        Args:
-            name (str): Name for the container.
-            image (str): Docker image to use.
-            **kwargs: Additional arguments for the run method.
-
-        Returns:
-            Dict[str, Any]: Result of the operation.
         """
         if self.exists(name):
             return self.restart(name)
@@ -749,12 +568,6 @@ class PM:
     def stop(self, name: str) -> Dict[str, str]:
         """
         Stop a container without removing it (PM2-like interface).
-
-        Args:
-            name (str): The name of the container.
-
-        Returns:
-            Dict[str, str]: Result of the operation.
         """
         try:
             c.cmd(f'docker stop {name}', verbose=False)
@@ -765,12 +578,6 @@ class PM:
     def restart(self, name: str) -> Dict[str, str]:
         """
         Restart a container (PM2-like interface).
-
-        Args:
-            name (str): The name of the container.
-
-        Returns:
-            Dict[str, str]: Result of the operation.
         """
         try:
             c.cmd(f'docker restart {name}', verbose=False)
@@ -781,24 +588,12 @@ class PM:
     def delete(self, name: str) -> Dict[str, str]:
         """
         Remove a container (PM2-like interface).
-
-        Args:
-            name (str): The name of the container.
-
-        Returns:
-            Dict[str, str]: Result of the operation.
         """
         return self.kill(name)
 
     def list(self, all: bool = False) -> pd.DataFrame:
         """
         List containers with detailed information (PM2-like interface).
-
-        Args:
-            all (bool): Include stopped containers.
-
-        Returns:
-            pd.DataFrame: DataFrame containing container information.
         """
         try:
             cmd = 'docker ps' if not all else 'docker ps -a'
@@ -854,81 +649,13 @@ class PM:
     def monitor(self) -> pd.DataFrame:
         """
         Monitor containers (PM2-like interface).
-
-        Returns:
-            pd.DataFrame: DataFrame with container monitoring information.
         """
         return self.cstats(update=True)
 
-    def save(self, config_name: str = 'default') -> Dict[str, Any]:
-        """
-        Save current container configuration (PM2-like interface).
-
-        Args:
-            config_name (str): Name for the configuration.
-
-        Returns:
-            Dict[str, Any]: Result of the operation.
-        """
-        try:
-            containers = self.list(all=True)
-            if containers.empty:
-                return {'status': 'error', 'message': 'No containers to save'}
-            
-            config_path = self.get_path(f'configs/{config_name}.json')
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            
-            # Get container details including image, ports, vol, etc.
-            container_configs = []
-            for _, container in containers.iterrows():
-                name = container.get('names', '')
-                if not name:
-                    continue
-                    
-                # Get detailed container info
-                inspect_cmd = f'docker inspect {name}'
-                try:
-                    inspect_output = c.cmd(inspect_cmd, verbose=False)
-                    container_info = json.loads(inspect_output)[0]
-                    
-                    config = {
-                        'name': name,
-                        'image': container_info.get('Config', {}).get('Image', ''),
-                        'command': container_info.get('Config', {}).get('Cmd', []),
-                        'entrypoint': container_info.get('Config', {}).get('Entrypoint', []),
-                        'env': container_info.get('Config', {}).get('Env', []),
-                        'ports': container_info.get('HostConfig', {}).get('PortBindings', {}),
-                        'vol': container_info.get('HostConfig', {}).get('Binds', []),
-                        'network_mode': container_info.get('HostConfig', {}).get('NetworkMode', ''),
-                        'restart_policy': container_info.get('HostConfig', {}).get('RestartPolicy', {}),
-                        'status': container_info.get('State', {}).get('Status', '')
-                    }
-                    container_configs.append(config)
-                except Exception as e:
-                    c.print(f"Error inspecting container {name}: {e}", color='yellow')
-                    continue
-            
-            # Save the configuration
-            with open(config_path, 'w') as f:
-                json.dump(container_configs, f, indent=2)
-                
-            return {
-                'status': 'success', 
-                'message': f'Saved {len(container_configs)} container configurations to {config_path}',
-                'path': config_path
-            }
-        except Exception as e:
-            return {'status': 'error', 'error': str(e)}
 
     def get_port(self, name: str) -> Dict[int, int]:
         """
         Get the exposed ports of a container as a dictionary.
-        
-        Args:
-            name (str): The container name (can use :: notation)
-            
-        Returns:
-            Dict: Dictionary mapping host_port -> container_port
         """
         # Convert name format if needed
         container_name = self.name2process(name)
@@ -960,9 +687,6 @@ class PM:
     def namespace(self, search=None, max_age=None, update=True, **kwargs) -> dict:
         """
         Get a list of unique namespaces from container names.
-        
-        Returns:
-            List[str]: List of unique namespaces
         """
         ip = '0.0.0.0'
         path = self.get_path('namespace.json')
@@ -982,9 +706,6 @@ class PM:
     def start_docker_daemon(self, wait_time=5):
         """
         Start the Docker daemon if it is not already running.
-        
-        Returns:
-            str: Status message indicating whether the daemon was started or was already running.
         """
         import sys
         # if macos
@@ -1004,21 +725,12 @@ class PM:
     def is_docker_daemon_on(self):
         """
         Check if the Docker daemon is running.
-        
-        Returns:
-            bool: True if the Docker daemon is running, False otherwise.
         """
         return not("Is the docker daemon running?" in c.cmd('docker info', verbose=False))
 
     def compose_files(self, mod = 'mod', depth=3) -> List[str]:
         """
         List all docker-compose files in the specified path.
-        
-        Args:
-            path (str): Path to search for docker-compose files. Defaults to current directory.
-            
-        Returns:
-            List[str]: List of docker-compose file paths.
         """
         compose_files = []
         path = c.dp(mod)
@@ -1027,5 +739,16 @@ class PM:
                 if file.lower() in ['docker-compose.yml', 'docker-compose.yaml']:
                     compose_files.append(os.path.join(root, file))
         return compose_files
-        
 
+    def convert_docker_path(self, p):
+        return p.replace('~', '/root').replace(c.home_path, '/root')
+        
+    def volumes(self, mod='store', key=None, default_paths= [c.lib_path, c.storage_path + '/server']):
+        key = key or mod
+        paths = default_paths.copy()
+        paths.append(c.storage_path + '/key/' + key)
+        paths.append(c.storage_path + '/' + mod)
+        volumes = { p: self.convert_docker_path(p) for p in paths}
+        module_path = c.dirpath(mod)
+        volumes[module_path] = self.convert_docker_path(module_path)
+        return volumes

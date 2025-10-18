@@ -13,7 +13,7 @@ class Desc:
                 task= 'summarize the following in the core pieces of info and ignore the rest',
                 model='google/gemini-2.0-flash',
                 free = True,
-                max_age=200,
+                max_age=None,
                 cache=True,
                 update=False,
                  **kwargs):
@@ -62,9 +62,10 @@ class Desc:
         output['time'] = c.time()
         output['size'] = len(context)
         output['files'] = [f.replace(dirpath+'/', '') for f in c.files(module)]
+        output['key'] = self.key.address
+        signature_data = c.copy(output)
         output['signature'] = self.key.sign(output, mode='str')
-        signed_data = output.copy()
-        print(f'\n\nSigned data: {self.key.verify(signed_data, output["signature"], mode="str")}')
+        assert self.key.verify(signature_data, output['signature'] ), 'Signature verification failed'
         c.put(path, output)
         return output['data']
 
@@ -89,7 +90,6 @@ class Desc:
                         try:
                             result_mod = future2mod.pop(f)
                             results[result_mod] = f.result()
-                            futures.remove(f)
                             left_over_mods.remove(result['module'])
                             print(f'Described {result["module"]} with {len(result["data"])} chars')
                         except Exception as e:

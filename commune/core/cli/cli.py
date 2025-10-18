@@ -114,14 +114,40 @@ class Cli:
         # ---- PARAMS ----
         params = {'args': [], 'kwargs': {}} 
         parsing_kwargs = False
+        json_object_detected = False
         if len(argv) > 0:
             for arg in argv:
+                if json_object_detected:
+                    # we are in the middle of a json object, keep appending to the last key
+                    last_key = list(params['kwargs'].keys())[-1]
+                    params['kwargs'][last_key] += ' ' + arg
+                    if arg.endswith('}'):
+                        # end of json object
+                        json_object_detected = False
+                        # try to parse the json object
+                        print(f'Parsing json object for key {last_key}: {params["kwargs"][last_key]}', argv)
+                        params['kwargs'][last_key] = json.loads(params['kwargs'][last_key])
+    
+                    continue
                 if '=' in arg:
                     parsing_kwargs = True
                     key, value = arg.split('=')
+                    # is value a json object? 
+                    if value.startswith('{'):
+                        json_object_detected = True
+                        json_str = value
+                        if value.endswith('}'):
+                            json_object_detected = False
+                            try:
+                                value = json.loads(value)
+                            except:
+                                pass
+                        
                     params['kwargs'][key] = self.str2python(value)
+                
                 else:
-                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                    
+                    assert parsing_kwargs is False, f'Cannot mix positional and keyword arguments {argv}'
                     params['args'].append(self.str2python(arg))        
         return argv, params
 
@@ -135,6 +161,7 @@ class Cli:
             # scenario 1: no arguments, use the default function
             fn = self.default_fn
         elif len(argv) > 0 :
+            
             if hasattr(module_obj, argv[0]):
                 fn = argv.pop(0)
             elif argv[0].endswith('/'):
@@ -151,8 +178,16 @@ class Cli:
                 # scenario 7: first argument is the module name c module fn *args **kwargs
                 module = argv.pop(0)
                 fn = argv.pop(0)
+
             else:
-                return {'error': f'Function {fn} not found in module {module}'}
+                fn2mod = c.fn2mod()
+                if argv[0] in fn2mod:
+                    # scenario 3: first argument is the function name so we will look it up in the fn2mod
+                    print(f'Found function {argv[0]} in module {fn2mod[argv[0]]}')
+                    fn = argv.pop(0)
+                    module = fn2mod[fn]
+                else:
+                    return {'error': f'Function {fn} not found in module {module}'}
         else:
             # scenario 2: no arguments, use the default function
             fn = self.default_fn

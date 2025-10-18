@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 
 # Create output directory
-os.makedirs('public', exist_ok=True)
+os.makedirs('images', exist_ok=True)
 
 # Lock Multiplier Curve (0x -> 4x) - SAME AS MULTIPLIER CURVE
 lock_days = np.linspace(0, 730, 100)
@@ -22,7 +22,7 @@ plt.title('Phase 2: Lock Curve = Multiplier Curve (Unified)', fontsize=14, fontw
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
-plt.savefig('public/lock_multiplier.png', dpi=150, bbox_inches='tight')
+plt.savefig('images/lock_multiplier.png', dpi=150, bbox_inches='tight')
 plt.close()
 
 # Vesting Curve
@@ -40,9 +40,9 @@ plt.title('Phase 2: Vesting Schedule (Linear Distribution)', fontsize=14, fontwe
 plt.grid(True, alpha=0.3)
 plt.legend(fontsize=11)
 plt.tight_layout()
-plt.savefig('public/vesting_curve.png', dpi=150, bbox_inches='tight')
+plt.savefig('images/vesting_curve.png', dpi=150, bbox_inches='tight')
 plt.close()
 
 print('✓ Generated lock_multiplier.png (UNIFIED: Lock Curve = Multiplier Curve)')
 print('✓ Generated vesting_curve.png')
-print('✓ All curves saved to public/ directory')
+print('✓ All curves saved to images/ directory')

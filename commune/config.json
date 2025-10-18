@@ -9,6 +9,7 @@
                     "or" : "model.openrouter",
                     "wallet": "chain.wallet",
                     "r" :  "remote",
+                    "docker": "server.pm",
                     "ch" :  "chain",
                     "local": "server",
                     "mc" : "modchain",
@@ -18,10 +19,10 @@
                     "tracker": "server/tracker",
                     "serializer": "server/serializer",
                     "middleware": "server/middleware",
-                    "api": "app/api",
                     "openrouter": "model/openrouter"
                 },
 
+    "routes": {},
     "expose" : ["forward", "info"],
     "port_range": [50050, 50150],
     "links": {

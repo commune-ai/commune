@@ -14,7 +14,6 @@ class Tx:
                 tx_path = '~/.commune/server/tx' , 
                 serializer='serializer',
                 auth = 'auth',
-                private = False,
                 roles = ['client', 'server'], # the roles that need to sign the transaction
                 tx_schema = {
                     'mod': str,
@@ -24,14 +23,14 @@ class Tx:
                     'schema': dict,
                     'client': dict,  # client auth
                     'server': dict,  # server auth
-                    'hash': str
+                    'id': str
                 }, # the schema of the transaction
                 key:str = None, 
                  version='v0'):
 
         self.key = c.key(key)
         self.version = version
-        self.store = c.mod('store')(f'{tx_path}/{self.version}', private=private, key=self.key)
+        self.store = c.mod('store')(f'{tx_path}/{self.version}', key=key)
         self.tx_schema = tx_schema
         self.tx_features = list(self.tx_schema.keys())
         self.serializer = c.mod(serializer)()
@@ -74,7 +73,7 @@ class Tx:
             'client': auths['client'], # the client auth (dict)
             'server': auths['server'], # the server auth (dict)
         }
-        tx['hash'] = c.hash(tx) # the hash of the transaction (str)
+        tx['id'] = c.hash(tx) # the hash of the transaction (str)
         assert self.verify(tx)
         # 
         tx_path = f'{tx["client"]["key"]}/{tx["server"]["key"]}/{fn}_{auths["client"]["time"]}'
@@ -146,35 +145,31 @@ class Tx:
             server= None,
             n = None,
             max_age:float = 3600, 
-            features:list = ['mod', 'fn', 'params', 'cost', 'duration',  'age', 'client', 'server', 'time', 'hash'],
-            shorten_features = ['client', 'server',  'hash'],
-            index = 'hash'
+            features:list = ['mod', 'fn', 'params', 'cost', 'duration', 'age', 'client', 'time'],
+            shorten_features = ['client', 'server'],
             ):
         path = None
         if client is not None:
             path = f'{client}/'
         if server is not None:
             path = f'*/{server}' if path is not None else f'/{server}/'
-        txs = [x for x in self.store.values(path, search=search) if self.is_tx(x)] 
-        txs = c.df(txs)
+        txs = [x for x in self.store.values(path) if self.is_tx(x)] 
+        df = c.df(txs)
         current_time = time.time()
-        if len(txs) == 0:
-            return txs    
-        df = txs
-    
+        if len(df) == 0:
+            return df    
         df['time_start_utc'] = df['client'].apply(lambda x: float(x['time']))
         df['age'] = time.time() - df['time_start_utc']
         df = df[df['age'] <  max_age] if max_age is not None else df
         df['time_end_utc'] = df['server'].apply(lambda x: float(x['time']))
         df['duration'] = df['time_end_utc'] - df['time_start_utc']
-
-        df['time'] = df['time_end_utc'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(x)))
-
-        addres2key = c.address2key()
+        # utc time to local t
+        df['time'] = df['time_start_utc'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(x)))
         df['params'] = df['params'].apply(self.transform_params)
         df['cost'] = df['schema'].apply(lambda x: x['cost'] if 'cost' in x else 0)
         df['client'] = df['client'].apply(lambda x: x['key'])
         df['server'] = df['server'].apply(lambda x: x['key'])
+        
         shorten_fn = lambda x: x if len(x) <= 10 else x[:4] + '...' + x[-4:]
         for f in shorten_features:
             if f in df.columns:
@@ -184,7 +179,7 @@ class Tx:
         if n is not None:
             df = df.head(n)
         df = df[features] if features is not None else df
-        df = df.set_index(index, drop=True)
+        # df = df.set_index(index, drop=True)
             
         return df
 

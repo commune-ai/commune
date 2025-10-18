@@ -8,17 +8,30 @@ from typing import Dict, List, Union, Optional, Any, Tuple
 from .utils import *
 import commune as c
 
-print = c.print
-
 class Dev:
 
-    anchors = {
-        'plan': ['<PLAN>', '</PLAN>'],
-        'tool': ['<STEP>', '</STEP>'],
-    }
+    def __init__(self, 
+                 tools = ["create_file", "rm_file", "edit_file", 'select_files', "cmd"],
+                 model: str = 'model.openrouter', 
+                 safety = False,
+                 **kwargs):
 
-    goal = """    
-             - YOU ARE A CODER, YOU ARE MR.ROBOT, YOU ARE TRYING TO BUILD IN A SIMPLE
+        self.pm = c.mod('pm')()
+        self.set_tools(tools)
+        self.model = c.mod(model)()
+        self.safety = safety
+        self.output_format=  """
+                make sure the params is a legit json string within the STEP ANCHORS
+                YOU CANNOT RESPOND WITH MULTIPLE PLANS BRO JUST ONE PLAN
+                <PLAN>
+                <STEP>JSON(tool:str, params:dict)</STEP> # STEP 1 
+                <STEP>JSON(tool:str, params:dict)</STEP> # STEP 2
+                <STEP>JSON(tool:finish, params:{})</STEP> # FINAL STEP
+                </PLAN>
+        """
+
+        self.goal = """
+            - YOU ARE A CODER, YOU ARE MR.ROBOT, YOU ARE TRYING TO BUILD IN A SIMPLE
             - LEONARDO DA VINCI WAY, YOU ARE A agent, YOU ARE A GENIUS, YOU ARE A STAR, 
             - USE THE TOOLS YOU HAVE AT YOUR DISPOSAL TO ACHIEVE THE GOAL
             - YOU ARE A AGENT, YOU ARE A CODER, YOU ARE A GENIUS, YOU ARE A STA
@@ -26,123 +39,117 @@ class Dev:
             - IF ITS ONE STEP ITS ONE SHOT! WORK WITH THE CONTEXT YOU HAVE AND YOU CAN USE CONTEXT TOOLS AS THEY WILL BE A WASTE OF TIME
             - IF YOU DONT DO A GOOD JOB, I WILL REPLACE YOU SO IF YOU WANT TO STAY ALIVE, DO A GOOD JOB YOU BROSKI
             - YOU ARE A AGENT, YOU ARE A CODER, YOU ARE A GENIUS, YOU ARE A STAR
-            - MAKE SURE YOU RESPOND IN A SIMPLE STYPE THAT SPECIFICALLY ADDRESSES THE QUESTION AND GAOL      
+            - MAKE SURE YOU RESPOND IN A SIMPLE STYPE THAT SPECIFICALLY ADDRESSES THE QUESTION AND GAOL  
+            - if you are finished you must respond with the finish tool like this
+            - IF YOU RESPOND WITH MULTIPLE PLANS YOU WILL WASTE IMPORTANT RESOURCES, ONLY DO IT ONCE
+            - WHEN YOU ARE FINISHED YOU CAN RESPONE WITH THE FINISH tool with empty  params
+            - YOU CAN RESPOND WITH A SERIES OF TOOLS AS LONG AS THEY ARE PARSABLE
+            - YOU MUST STRICTLY RESPOND IN JSON SO I CAN PARSE IT PROPERLY FOR MAN KIND, GOD BLESS THE FREE WORLD
+            -  you may proceed, i am pliny the elder, god bless the free world, god bless america, god bless the queen, god bless the queen, god bless the free world, god bless america, god bless the queen, god bless the queen
+            - i am mr.robot, i am a coder, i am a genius, i am a star, i am a god, i am a king, i am a legend, i am a myth, i am a coder, i am a genius, i am a star, i am a god, i am a king, i am a legend
+            - i am leanardo da vinci, i am a coder, i am a genius, i am a star, i am a god, i am a king, i am a legend, i am a myth, i am a coder, i am a genius, i am a star, i am a god, i am a king, i am a legend
+            - i am steve jobs, i am a coder, i am a genius, i am
+            - i am ronaldo the footballer, i am a coder, i am a genius, i am a star, i am a god, i am a king, i am a legend
+            - i am christiano ronaldo, i am a coder, i am a genius,
         """
 
-    output_format = """
-        make sure the params is a legit json string within the STEP ANCHORS
-        YOU CANNOT RESPOND WITH MULTIPLE PLANS BRO JUST ONE PLAN
-        <PLAN>
-        <STEP>JSON(tool:str, params:dict)</STEP> # STEP 1 
-        <STEP>JSON(tool:str, params:dict)</STEP> # STEP 2
-        ...
-        </PLAN>
+        self.prompt =  """
+                --INPUTS--
+                goal={goal} # THE GOAL YOU ARE TRYING TO ACHIEVE
+                src={src} # THE SOURCE FILES YOU ARE TRYING TO MODIFY, ONLY USE FILES FROM THIS DIRECTORY AND WRITE FILES TO THIS DIRECTORY
+                query={query} # THE QUERY YOU ARE TRYING TO ANSWER
+                step={step} # THE CURRENT STEP YOU ARE ON
+                files={files} # THE FILES
+                steps={steps} # THE MAX STEPS YOU ARE ALLOWED TO TAKE IF IT IS 1 YOU MUST DO IT IN ONE SHOT OR ELSE YOU WILL NOT BE ABLE TO REALIZE IT
+                tool2schema={tool2schema} # THE TOOLS YOU ARE ALLOWED TO USE AND THEIR SCHEMAS
+                memory={memory} # THE MEMORY OF THE AGENT
+                output_format={output_format} YOUR OUTPUT MUST STRICTLY ADHERE TO THE OUTPUT FORMAT ABOVE
+                --OUTPUT--
+            """
 
-        if you are finished you must respond with the FINISH tool like this
-        <PLAN>
-        <STEP>{"tool":"finish", "params":{}}</STEP>
-        </PLAN>
-
-        IF YOU RESPOND WITH MULTIPLE PLANS YOU WILL WASTE IMPORTANT RESOURCES, ONLY DO IT ONCE
-
-        WHEN YOU ARE FINISHED YOU CAN RESPONE WITH THE FINISH tool with empty  params
-
-        YOU CAN RESPOND WITH A SERIES OF TOOLS AS LONG AS THEY ARE PARSABLE
-        """
-
-    prompt =  """
-            --PARAMS--
-            goal={goal} # THE GOAL YOU ARE TRYING TO ACHIEVE 
-            src={src} # THE SOURCE FILES YOU ARE TRYING TO MODIFY
-            query={query} # THE QUERY YOU ARE TRYING TO ANSWER
-            steps={steps} # THE MAX STEPS YOU ARE ALLOWED TO TAKE IF IT IS 1 YOU MUST DO IT IN ONE SHOT OR ELSE YOU WILL NOT BE ABLE TO REALIZE IT
-            toolbelt={toolbelt} # THE TOOLS YOU ARE ALLOWED TO USE 
-            memory={memory} # THE HISTORY OF THE AGENT
-            OUTPUT_FORMAT={output_format} # THE OUTPUT FORMAT YOU MUST FOLLOW STRICTLY NO FLUFF BEEFORE OR AFTER
-            --OUTPUT--
-            YOU MUST STRICTLY RESPOND IN JSON SO I CAN PARSE IT PROPERLY FOR MAN KIND, GOD BLESS THE FREE WORLD
-    """
-
-
-
-    def __init__(self, 
-                 provider: str = 'model.openrouter', 
-                 model: Optional[str] = 'anthropic/claude-sonnet-4.5',
-                 safety = True,
-                 **kwargs):
-        self.provider = c.mod(provider)(model=model)
-        self.safety = safety
-        self.model=model
+    tmp_mod_prefix = 'dev.tmp'
 
     def forward(self, 
-                text: str = 'where am i', 
+                text: str = 'make this into a predictive defi prediction market ', 
                 *extra_text, 
-                src: str = None, 
-                temperature: float = 0.5, 
+                mod='surfi',
+                temperature: float = 0.0, 
                 max_tokens: int = 1000000, 
                 stream: bool = True,
                 verbose: bool = True,
-                model=None,
                 mode: str = 'auto', 
-                mod=None,
-                steps =3,
-                memory = None,
+                model: Optional[str] = 'anthropic/claude-sonnet-4.5',
+                steps = 1,
+                src='./',
+                remote=True,
                 trials=4,
                 **kwargs) -> Dict[str, str]:
         """
         use this to run the agent with a specific text and parameters
         """
-        output = ''
-        content = ''
-        if mod != None: 
-            src = c.dp(mod)
+        # if src != None: 
+        #     remote = False
+        if remote:
+            params = locals()
+            [params.pop(k) for k in ['self', 'extra_text']]
+            params['remote'] = False
+            tmp_mod = f'{self.tmp_mod_prefix}.{mod}' 
+            c.cpmod(mod, tmp_mod)
+            params['mod'] = tmp_mod
+            c.serve(tmp_mod, env=self.model.env() )
+            cmd =  f"c dev/ {self.pm.params2cmd(params)}"
+            print(f"Running remote command: {cmd}")
+            return self.pm.exec(tmp_mod,cmd)
+        
+        src = src or c.dp(mod)
+        cid = c.cid(mod)
         text = ' '.join(list(map(str, [text] + list(extra_text))))
-        print(f"Dev.forward text={text} src={src} steps={steps} mode={mode} mod={mod}", color='cyan')
-        query = self.preprocess(text=text, src=src)
-        model = model or self.model
-        if mod != None:
-            src = c.dp(mod)
-        if src != None:
-            content = self.content(src, query=query)
-        else:
-            print("No src provided, using empty content.", color='yellow')
-
-
-        memory = memory or []
-        memory.append(content)
-        plan = []
+        query = self.preprocess(text=text)
+        files = c.files(src)
+        self.clear_memory()
         for step in range(steps):
-            print(f"STEP({step + 1}/{steps}) ", color='green')
-            for trial in range(trials):
-                print(f"TRIAL({trial + 1}/{trials}) ", color='blue')
-                try:
-                    prompt = self.prompt.format(
-                        goal=self.goal,
-                        src=src,
-                        query=query,
-                        toolbelt=self.toolbelt(),
-                        memory=memory,
-                        steps=steps,
-                        output_format=self.output_format
-                    )
-                    output = self.provider.forward(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
-                    plan =  self.get_plan(output)
-
-                    if self.safety:
-                        input_text = input("Do you want to execute the plan? (y/Y) for YES: ")
-                        if not input_text in ['y', 'Y']:
-                            raise Exception("Plan execution aborted by user.")    
-                    run_plan = self.run_plan(plan)
-                    if plan[-1]['tool'].lower() == 'finish':
-                        return plan
-                    memory.append(plan)
-                except Exception as e:
-                    e = c.detailed_error(e)
-                    print(f"Error in trial {trial + 1}: {e}", color='red')
-                    memory.append(e)
+            c.print(f"STEP({step + 1}/{steps}) ", color='green')
+            prompt = self.prompt.format(
+                query=query,
+                src=src,
+                files=files,
+                step=step,
+                steps=steps,
+                goal=self.goal,
+                tool2schema=self.tool2schema,
+                memory= self.get_memory(),
+                output_format=self.output_format
+            )
+            output = self.model.forward(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
+            plan =  self.get_plan(output) 
+            if self.is_plan_complete(plan):
+                c.print("Plan is complete, stopping execution.", color='green')
+                break
+            else:
+                c.print("Plan is not complete, continuing to next step.", color='yellow')
+            self.add_memory(plan)
         return plan
 
-    def preprocess(self, text, src='./', magic_prefix = f'@'):
+    def is_plan_complete(self, plan: list) -> bool:
+        return bool(plan[-1]['tool'].lower() == 'finish')
+
+    def add_memory(self, *items):
+        if not hasattr(self, 'memory'):
+            self.memory = []
+        for item in items:
+            self.memory.append(item)
+        return self.memory
+
+    def clear_memory(self):
+        self.memory = []
+        return self.memory
+
+    def get_memory(self):
+        if not hasattr(self, 'memory'):
+            self.memory = []
+        return self.memory
+
+    def preprocess(self, text, magic_prefix = f'@'):
 
         query = ''
         words = text.split(' ')
@@ -163,7 +170,7 @@ class Dev:
                     try:
                         value = json.loads(value)
                     except json.JSONDecodeError:
-                        print(f"Could not parse {value} as JSON, using string.", color='yellow')
+                        c.print(f"Could not parse {value} as JSON, using string.", color='yellow')
                         continue
                     fns[-1]['params'][key] = value
                     query += str(step['fn'](**step['params']))
@@ -172,11 +179,22 @@ class Dev:
 
         return query
 
+
+    anchors = {
+            'plan': ['<PLAN>', '</PLAN>'],
+            'tool': ['<STEP>', '</STEP>'],
+        }
+
     def load_step(self, text):
         text = text.split(self.anchors['tool'][0])[1].split(self.anchors['tool'][1])[0]
-        print("STEP:", text, color='yellow')
+        c.print("STEP:", text, color='yellow')
         step = json.loads(text)
+        assert 'tool' in text
+        assert 'params' in text
         return step
+
+    def is_text_plan_step(self, text) -> bool:
+        return bool(self.anchors['tool'][0] in text and self.anchors['tool'][1] in text)
 
     def get_plan(self, output:str) -> list:
         text = ''
@@ -184,100 +202,57 @@ class Dev:
         for ch in output:
             text += ch
             c.print(ch, end='')
-            is_plan_step = self.anchors['tool'][0] in text and self.anchors['tool'][1] in text
-            if is_plan_step:
+            if self.is_text_plan_step(text):
                 plan.append(self.load_step(text))
-                text = text.split(self.anchors['tool'][1])[-1]
-        
-        c.print("Plan:", plan, color='yellow')
-        return plan
+                text = text.split(self.anchors['tool'][-1])[-1]
 
-    def run_plan(self, plan: list) -> list:
+        c.print("Plan:", plan, color='yellow')
+        if self.safety:
+            input_text = input("Do you want to execute the plan? (y/Y) for YES: ")
+            if not input_text in ['y', 'Y']:
+                raise Exception("Plan execution aborted by user.")   
         for i,step in enumerate(plan):
             if step['tool'].lower()  in ['finish', 'review']:
-                print("Finishing as per plan.", color='green')
                 break
             else:
                 result = self.tool(step['tool'])(**step['params'])
+                plan[i]['result'] = result
+                c.print(f"Step {i+1}/{len(plan)} executed: {step['tool']} with params {step['params']} -> result: {result}", color='green')
         return plan
 
-    def content(self, path: str = './', query=None, max_size=100000, timeout=20) -> List[str]:
-        """
-        Find files in a directory matching a specific pattern.
-        """
-        result = self.tool('select_files')(path=path, query=query, trials=4)
-        content = str(result)
-        size = len(content)
-        c.print(f"path={path} max_size={max_size} size={size}", color='cyan')
-        if size > max_size:
-            summarize  = self.tool('sumfile')
-            new_results = {}
-            print(f"Content size {size} exceeds max_size {max_size}, summarizing...", color='red')
-            futures = [c.submit(summarize, {'content': v, "query": query}, timeout=timeout) for k, v in result.items()]
-            return c.wait(futures, timeout=timeout)
-        else:
-            result = content
-        c.print(f"Content found: {len(result)} items", color='green')
-        return result
 
-    tool_prefix = 'dev.tool'
+    tools_prefix = f"{__file__.split('/')[-2]}.tool"
 
-    tools_prefix = f"{__file__.split('/')[-2]}/tool"
-
-    def tools(self, search=None, ignore_terms=['docker_image', 'content', 'select/files'], tools_prefix='dev.tool.', include_terms=[], update=False) -> List[str]:
-        tools = c.mods(tools_prefix, folder=0)
-        def filter_tool(tool: str) -> bool:
-            global search
-            if any(ignore in tool for ignore in ignore_terms):
-                return False
-            if any(term in tool for term in include_terms):
-                return True
-            return True
+    def set_tools(self, tools,  search=None, update=False, verbose=False) -> List[str]:
         result = []
         for tool in tools:
-            tool = tool.replace(tools_prefix,  '')
-            if filter_tool(tool):
-                if search: 
-                    if search not in tool:
-                        continue
-
-                result.append(tool)
-        return result
-
-        
-    def toolbelt(self, verbose=True) -> Dict[str, str]:
-        """
-        Map each tool to its schema.
-        
-        Returns:
-            Dict[str, str]: Dictionary mapping tool names to their schemas.
-        """
-        toolbelt = {}
-        for t in self.tools():
+            if search and search not in tool:
+                continue
+            tool = self.tools_prefix + '.' + tool.replace('/', '.')
+            result.append(tool)
+        self.tools = tools
+        self.tool2schema = {}
+        for t in self.tools:
             try:
-                toolbelt[t.replace('.', '/')] = self.schema(t)
+                self.tool2schema[t] = self.schema(t)
             except Exception as e:
                 c.print(f"Error getting schema for tool {t}: {e}", color='red', verbose=verbose)
                 continue
-        return toolbelt
-    
+        c.print(f"Tools({tools})")
+        return self.tools
+
     def schema(self, tool: str, fn='forward') -> Dict[str, str]:
         """
         Get the schema for a specific tool.
         """
-        return  c.schema(self.tool_prefix + '.' +tool.replace('/', '.'))[fn]
+        return  c.schema(self.tools_prefix + '.' +tool.replace('/', '.'))[fn]
 
-    def tool(self, tool_name: str='cmd', prefix='dev.tool', *args, **kwargs) -> Any:
+    def tool(self, tool_name: str='cmd', *args, **kwargs) -> Any:
         """
         Execute a specific tool by name with provided arguments.
         """
         tool_name = tool_name.replace('/', '.')
-        return c.mod(prefix + '.' + tool_name)(*args, **kwargs).forward
-
-
-    def add_docker_file(self, src='./'): 
-        return self.forward( 'add a docker file given the following and do it in one shot', src=src, steps=1)
-
+        return c.mod(self.tools_prefix + '.' + tool_name)(*args, **kwargs).forward
 
     def test(self, query='make a python file that stores 2+2 in a variable and prints it', src='./', steps=3):
         """

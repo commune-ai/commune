@@ -15,7 +15,7 @@ class Store:
     def item_path(self, item):
         return self.resolve_path(item + '.json')
 
-    def put(self, k, v):
+    c sut(self, k, v):
         k = self.item_path(k)
         return c.put_json(k, v)
 

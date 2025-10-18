@@ -452,7 +452,7 @@ def color():
     return random_color()
     
 
-def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
+def hash( x, mode: str='sha256',*args,**kwargs) -> str:
     import hashlib
     x = python2str(x)
     if mode == 'keccak':
@@ -467,7 +467,7 @@ def get_hash( x, mode: str='sha256',*args,**kwargs) -> str:
         y =  hashlib.sha256(x.encode()).hexdigest()
     elif mode == 'sha512':
         y =  hashlib.sha512(x.encode()).hexdigest()
-    elif mode =='sha3_512':
+    elif mode in ['sha3512', ]:
         y =  hashlib.sha3_512(x.encode()).hexdigest()
     else:
         raise ValueError(f'unknown mode {mode}')

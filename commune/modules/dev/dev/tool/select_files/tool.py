@@ -24,11 +24,12 @@ class SelectFiles:
               n: int = 10, 
               mod=None,
               content: bool = True,
+              avoid_paths: List[str] = ['.git', '__pycache__', 'node_modules', '.venv', 'venv', '.env'],
                **kwargs) -> List[str]:
-
         if mod:
             path = c.dirpath(mod)
-        files = c.fn('dev.tool.select/')(
+        files = c.files(path)
+        files = c.fn('select_options/')(
             query=query,
             options= c.files(path),
             n=n,
@@ -53,7 +54,8 @@ class SelectFiles:
         dirpath = os.path.dirname(__file__)
         query = f'i want to find the {__file__} file'
         results = self.forward(path=dirpath, query=query, n=1)
-        assert __file__ in results, f"Expected {dirpath} in results, got {results}"
+        result_files = [os.path.abspath(os.path.expanduser(f)) for f in results]
+        assert __file__ in result_files, f"Expected {dirpath} in results, got {result_files}"
         print(f"Test results: {results}", color="green")
         return {
             "success": True,

@@ -38,7 +38,7 @@ Wallet holders choose a lock period (up to 2 years) to earn multiplied rewards:
 
 **Unified Formula:** `Lock Curve = Multiplier Curve = (lock_days / 365)²`
 
-![Lock Multiplier Curve](public/lock_multiplier.png)
+![Lock Multiplier Curve](images/lock_multiplier.png)
 
 ### Vesting Curve
 
@@ -51,7 +51,7 @@ Wallet holders choose a lock period (up to 2 years) to earn multiplied rewards:
 - After 1 year: 2000 tokens vested
 - After 2 years: 4000 tokens fully vested
 
-![Vesting Schedule](public/vesting_curve.png)
+![Vesting Schedule](images/vesting_curve.png)
 
 ### Tokenized Vesting
 
@@ -120,7 +120,7 @@ Generate PNG images:
 ```python
 import commune as c
 tge = c.module('tge')
-tge.save_images()  # Creates public/*.png files
+tge.save_images()  # Creates images/*.png files
 ```
 
 **Available Charts:**

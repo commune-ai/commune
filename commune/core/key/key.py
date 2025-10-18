@@ -95,18 +95,18 @@ class Key:
             if len(private_key) != 64:
                 private_key = sr25519.pair_from_seed(private_key)[1]
             public_key = sr25519.public_from_secret_key(private_key)
-            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
+            address = ss58_encode(public_key, ss58_format=self.ss58_format)
         elif crypto_type == "ecdsa":
             private_key = private_key[0:32] if len(private_key) > 32 else private_key
             assert len(private_key) == 32, f'private_key should be 32 bytes, got {len(private_key)}'
             private_key_obj = PrivateKey(private_key)
             public_key = private_key_obj.public_key.to_address()
-            key_address = private_key_obj.public_key.to_checksum_address()
+            address = private_key_obj.public_key.to_checksum_address()
         elif crypto_type == "ed25519":       
             private_key = private_key[:32]    
             assert len(private_key) == 32  
             public_key, private_key = ed25519_zebra.ed_from_seed(private_key)
-            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
+            address = ss58_encode(public_key, ss58_format=self.ss58_format)
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
@@ -116,9 +116,9 @@ class Key:
         self.crypto_type = self.crypto_type_id = self.crypto_type_map[crypto_type] # the integer value of the crypto type
         self.private_key = private_key
         self.public_key = public_key
-        self.key_address = self.address = self.ss58_address =  key_address
+        self.address = self.key_address = self.ss58_address =  address
         self.multiaddress = self.multi()
-        return {'key_address':key_address, 'crypto_type':crypto_type}
+        return {'address':address, 'crypto_type':crypto_type}
 
     def get_crypto_type(self, crypto_type=None):
         if crypto_type == None:
@@ -147,7 +147,7 @@ class Key:
             key = self.new_key( private_key=private_key, crypto_type=crypto_type, mnemonic=mnemonic, **kwargs)
             key_json = json.loads(key.to_json())
             assert crypto_type == self.get_crypto_type(key_json['crypto_type']), f'crypto_type mismatch {crypto_type} != {key_json["crypto_type"]}'
-            path = self.get_path(path) + '/' + crypto_type+ '/' + key.key_address + '.json'
+            path = self.get_path(path) + '/' + crypto_type+ '/' + key.address + '.json'
             c.put(path, key_json)
             assert self.key_exists(path, crypto_type=crypto_type), f'key does not exist at {path}'
         return self.get_key(path, crypto_type=crypto_type)
@@ -184,7 +184,7 @@ class Key:
         
         crypto_type = self.get_crypto_type(crypto_type)
 
-        if hasattr(path, 'key_address'):
+        if hasattr(path, 'address'):
             return path
 
         if 'type' in kwargs:
@@ -297,7 +297,7 @@ class Key:
     @property
     def name(self):
         if not hasattr(self, '_key_name'):
-            self._key_name = self.key_name(self.key_address, crypto_type=self.crypto_type)
+            self._key_name = self.key_name(self.address, crypto_type=self.crypto_type)
         return self._key_name
 
     def get_data(self, key:str, crypto_type=None):
@@ -313,6 +313,12 @@ class Key:
         return data
 
     key_info = key_data = get_data
+
+    def _rm_all_keys(self):
+        if input(f'Are you sure to remove {self.storage_path} (y to continue)') == 'y': 
+            return c.rm(self.storage_path)
+        else:
+            return 'RM_ALL_KEYS ABORTED'
 
     def rm_key(self, key=None, crypto_type=None, **kwargs):
         key2path = self.key2path(crypto_type=crypto_type)
@@ -512,7 +518,7 @@ class Key:
                     'data':data.decode(),
                     'crypto_type':crypto_type,
                     'signature':signature.hex(),
-                    'address': self.key_address}
+                    'address': self.address}
         elif mode == 'bytes':
             signature = signature
         else:
@@ -565,10 +571,21 @@ class Key:
     def decrypt(self, data, password=None, key=None):  
         return self.get_encryption_key(password=password, key=key).decrypt(data)
 
+    def password_circuit(self, x):
+        return
+
+    def password(self, udpate=False):
+        x = c.get('password', update=udpate)
+        if x != None:
+            return x
+        x = self.time()
+        x =  c.hash(str(x * x + 2 * x + 1))
+        return c.hash(str(x))
+
     def get_encryption_key(self,  password:str=None, key:Optional[str]=None):
         from .aes import AesKey
         if password == None:
-            password = (self if key == None else self.get_key(key)).private_key
+            password = self.password()
         # if password is a key, use the key's private key as password
         return AesKey(password)
 
@@ -577,14 +594,23 @@ class Key:
         assert not self.is_key_encrypted(path), f'{path} already encrypted'
         path = self.get_key_path(path)
         data = c.get(path)
-        key = self.get_key(key)
-        enc_data = key.encrypt(deepcopy(data), password=password)
-        enc_text = {'data': enc_data,  "key_address": data['key_address'], "crypto_type": data['crypto_type'], 'encrypted': True}
+        enc_data = self.encrypt(deepcopy(data), password=password)
+        if not isinstance(data, dict): 
+            return False
+        enc_text = {'data': enc_data,  "address": data['address'], "crypto_type": data['crypto_type'], 'encrypted': True}
         c.put(path, enc_text)
         return enc_text
     
     def is_key_encrypted(self, key, data=None, crypto_type=None):
         return self.is_encrypted(self.get_data(key, crypto_type=crypto_type) )
+    def encrypted_keys(self, crypto_type=None):
+        crypto_type = self.get_crypto_type(crypto_type)
+        keys = self.keys(crypto_type=crypto_type)
+        encrypted_keys = []
+        for k in keys:
+            if self.is_key_encrypted(k, crypto_type=crypto_type):
+                encrypted_keys.append(k)
+        return encrypted_keys
     
     def decrypt_key(self, path = 'test.enc', crypto_type=None , password=None, key=None):
         crypto_type = self.get_crypto_type(crypto_type)
@@ -593,17 +619,55 @@ class Key:
         path = self.get_key_path(path, crypto_type=crypto_type)
         data = self.get_data(path, crypto_type=crypto_type)
         assert self.is_encrypted(data), f'{path} not encrypted'
-        key = self.get_key(key, crypto_type=crypto_type)
-        dec_text =  key.decrypt(data['data'], password=password, key=key)
+        dec_text =  self.decrypt(data['data'], password=password, key=key)
         c.put(path, dec_text)
         assert not self.is_key_encrypted(path, crypto_type=crypto_type ), f'failed to decrypt {path}'
         loaded_key = self.get_key(path, crypto_type=crypto_type)
-        return { 'path':path , 'key_address': loaded_key.ss58_address,'crypto_type': loaded_key.crypto_type}
+        return { 'path':path , 'address': loaded_key.ss58_address,'crypto_type': loaded_key.crypto_type}
+
+    password_path = storage_path+'/password'
+    min_password_chars = 8
+    
+    def set_password(self, password):
+        assert len(password) >= self.min_password_chars
+        return c.put(self.password_path, password)
+
+    def get_password(self, max_age=3600, update=False):
+        password =  c.get(self.password_path, max_age=max_age, udate=update)
+        if password == None: 
+            c.rm(self.password_path)
+            password = input(f'Your password is expired, please reset it (min_chars={self.min_password_chars})')
+            self.set_password(password)
+        return password
+
+
+    def encrypt_all_keys(self, password=None, crypto_type=None):
+        crypto_type = self.get_crypto_type(crypto_type)
+        keys = self.keys(crypto_type=crypto_type)
+        encrypted_keys = {}
+        for k in keys:
+            if not self.is_key_encrypted(k, crypto_type=crypto_type):
+                encrypted_keys[k] = self.encrypt_key(k, password=password, crypto_type=crypto_type)
+            else:
+                print(f'skipping {k}, already encrypted')
+        return encrypted_keys
+
+    def decrypt_all_keys(self, password=None, key=None, crypto_type=None):
+        crypto_type = self.get_crypto_type(crypto_type)
+        keys = self.keys(crypto_type=crypto_type)
+        decrypted_keys = {}
+        for k in keys:
+            if self.is_key_encrypted(k, crypto_type=crypto_type):
+                print(f'decrypting {k}')
+                decrypted_keys[k] = self.decrypt_key(k, password=password, key=key, crypto_type=crypto_type)
+            else:
+                print(f'skipping {k}, not encrypted')
+        return decrypted_keys
 
     def __str__(self):
         crypto_type = self.get_crypto_type(self.crypto_type)
-        name = self.key_name(self.key_address, crypto_type=crypto_type)
-        return  f'<Key(address={self.key_address} name={name} crypto_type={crypto_type} >'
+        name = self.key_name(self.address, crypto_type=crypto_type)
+        return  f'<Key(address={self.address} name={name} crypto_type={crypto_type} >'
         
     def is_encrypted(self, data):
         if isinstance(data, str):
@@ -664,5 +728,5 @@ class Key:
 
     def multi(self,key=None, crypto_type=None):
         key = self.get_key(key, crypto_type=crypto_type ) if key != None else self
-        return key.crypto_type_name + '/' + key.key_address
+        return key.crypto_type_name + '/' + key.address
     

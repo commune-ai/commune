@@ -8,8 +8,10 @@ import commune as c
 import random
 
 class OpenRouter:
+
     api_path = 'apikeys' # path to store api keys (relative to storage_path)
     env_varname = 'OPENROUTER_API_KEY' # environment variable name for api key
+
     def __init__(
         self,
         api_key = None,
@@ -55,6 +57,7 @@ class OpenRouter:
         system_prompt: str = None,
         stream: bool = False,
         model:str = None,
+        free = False,
         max_tokens: int = 10000000,
         temperature: float = 1.0,
         **kwargs
@@ -72,6 +75,8 @@ class OpenRouter:
         Returns:
         Generator[str] | str: A generator for streaming responses or the full streamed response.
         """
+        if free: 
+            model = self.free_models()[0]
         model = model or self.model
         prompt = prompt or system_prompt
         if len(extra_text) > 0:
@@ -80,7 +85,7 @@ class OpenRouter:
         prompt = prompt or self.prompt
         message = message + prompt if prompt else message
         model = self.resolve_model(model)
-        model_info = self.get_model_info(model)
+        model_info = self.model_info(model)
         num_tokens = len(message)
         print(f'Sending {num_tokens} tokens -> {model}')
         max_tokens = min(max_tokens, model_info['context_length'] - num_tokens)
@@ -116,11 +121,11 @@ class OpenRouter:
         
     generate = forward
 
-    def history(self, path:str = None, max_age:int = 0, update:bool = False):
+    def history(self, path:str = None, update:bool = False):
         """
         Get the history of the last requests
         """
-        history = self.store.items('history', max_age=max_age, update=update)
+        history = self.store.items('history', update=update)
         return history
 
     def resolve_model(self, model=None):
@@ -142,12 +147,10 @@ class OpenRouter:
         """
         get the api keys
         """
-        api_key = api_key or 'OPENROUTER_API_KEY'
-        env_varname = self.env_varname
+        api_key = api_key or self.env_varname
         # first check environment variable
-        if env_varname in os.environ:
-            return os.environ[env_varname]
-
+        if self.env_varname in os.environ:
+            return os.environ[self.env_varname]
         keys = self.store.get(self.api_path, [])
         if len(keys) > 0:
             return random.choice(keys)
@@ -174,8 +177,8 @@ class OpenRouter:
         self.store.put(self.api_path, keys)
         return keys
 
-    def model2info(self, search: str = None, path='models', max_age=100, update=False):
-        models = self.store.get(path, default={}, max_age=max_age, update=update)
+    def model2info(self, search: str = None, path='models',  update=False):
+        models = self.store.get(path, default={},  update=update)
         if len(models) == 0:
             print('Updating models...')
             response = requests.get(self.url + '/models')
@@ -184,13 +187,21 @@ class OpenRouter:
         models = self.filter_models(models, search=search)
         return {m['id']:m for m in models}
     
-    def models(self, search: str = None, path='models', max_age=60, update=False):
-        return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
+    def models(self, search: str = None, path='models', update=False):
+        return list(self.model2info(search=search, path=path, update=update).keys())
+
+    def free_models(self, search: str = None, path='models',  update=False):
+        models = self.models()
+        free_models = [m for m in models if 'free' in m]
+        return free_models
+
+    def free_model(self):
+        return c.choice(self.free_models())
     
-    def model_infos(self, search: str = None, path='models', max_age=0, update=False):
-        return list(self.model2info(search=search, path=path, max_age=max_age, update=update).values())
+    def model_infos(self, search: str = None, path='models',  update=False):
+        return list(self.model2info(search=search, path=path, update=update).values())
     
-    def get_model_info(self, model):
+    def model_info(self, model):
         model = self.resolve_model(model)
         model2info = self.model2info()
         return model2info[model]
@@ -225,7 +236,7 @@ class OpenRouter:
         if 'messages' in params: # chat model
             text = params.get('messages', '')
             model = self.resolve_model(model)
-            model_info = self.get_model_info(model)
+            model_info = self.model_info(model)
             pricing = model_info['pricing']
             tokens = self.get_token_count(text)
             cost = tokens * pricing['completion'] + tokens * pricing['prompt']
@@ -233,7 +244,7 @@ class OpenRouter:
         elif 'prompt' in params: # text model
             text = params.get('prompt', '')
             model = self.resolve_model(model)
-            model_info = self.get_model_info(model)
+            model_info = self.model_info(model)
             pricing = model_info['pricing']
             tokens = self.get_token_count(text)
             cost = tokens * pricing['completion'] + tokens * pricing['prompt']
@@ -241,6 +252,7 @@ class OpenRouter:
     
         else:
             raise ValueError('Cannot compute cost for non-chat models yet.')
+
     def test(self):
         response  =  self.forward('Hello, how are you?', stream=False)
         print(response)
@@ -249,5 +261,10 @@ class OpenRouter:
         stream_response = self.forward('Hello, how are you?', stream=True)
         print(next(stream_response))
         return {'status': 'success'}
+
+    def env(self): 
+        return {
+            'OPENROUTER_API_KEY': self.api_key()
+        }
 
 

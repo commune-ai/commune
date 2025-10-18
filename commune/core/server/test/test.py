@@ -4,21 +4,23 @@ import commune as c
 Server = c.mod('server')
 class ServerTestMixin(Server):
     def test_server(self, 
-                        server = 'module::test_serving', 
-                        key="test_deployer", 
+                        server = 'module', 
+                        key="server", 
                         trials=5):
             c.serve(server, key=key)
             info = {}
             for i in range(trials): 
                 try:
                     info = c.call(server+'/info')
-                    if 'key' in info: 
-                        assert info['key'] == c.key(key).ss58_address
-                        return {'success': True, 'msg': 'server test passed'}
-                except  Exception as e: 
-                    c.print('Exception in server test',e)
-   
-                c.sleep(2)
+                except Exception as e:
+                    c.print(f'warning: failed to connect to server {server}, trial {i}/{trials}, error: {e}')
+                    c.sleep(1)
+                    continue
+                print(f'info: {info}')
+                if 'key' in info: 
+                    assert info['key'] == c.key(key).ss58_address, f"Server key {info['key']} does not match expected {c.key(key).ss58_address}"
+                    return {'success': True, 'msg': 'server test passed'}
+
             raise Exception(f"Failed to connect to server {server} after {trials} trials, last info: {info}")
 
     def test_executor(self):

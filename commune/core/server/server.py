@@ -72,11 +72,11 @@ class Server:
                 server_auth = self.auth.headers(data={'fn': fn, 'params': params, 'result': gen_result, 'cost': cost})
 
                 self.tracker.forward(
-                    mod=self.name,
+                    mod=self.info["name"],
                     fn=fn, # 
                     params=params, # params of the inputes
                     result=gen_result,
-                    schema=self.schema[fn],
+                    schema=self.schema.get(fn, {}),
                     client=request['client'],
                     server=server_auth, 
                     key=self.key)
@@ -91,11 +91,11 @@ class Server:
             params = request['params']
             server_auth = self.auth.generate(data={"fn": fn, "params": params, "result": result})
             tx = self.tracker.forward(
-                mod=self.name,
+                mod=self.info["name"],
                 fn=fn, # 
                 params=params, # params of the inputes
                 result=result,
-                schema=self.schema[fn],
+                schema=self.schema.get(fn, {}),
                 client=request['client'], # client auth
                 server= server_auth , 
                 key=self.key)
@@ -152,12 +152,11 @@ class Server:
             fns = [fn for fn in fns if not fn.startswith('_') ]
         fns = list(set(fns + helper_fns))
         schema = c.schema(self.mod, public=self.public)
-        self.schema= {fn: schema[fn] for fn in fns if fn in schema}
-        self.fns = sorted(list(self.schema.keys()))
+        self.schema = {fn: schema[fn] for fn in fns if fn in schema}
+        self.fns = sorted(list(set(list(self.schema.keys()) + helper_fns)))
         return schema
         
     def get_port(self, port:Optional[int]=None):
-        
         port = port or c.free_port()
         return port
 
@@ -211,7 +210,7 @@ class Server:
              mod = None, # the mod to rate on
              ) -> float:
         if mod == None:
-            mod = self.name
+            mod = self.info["name"]
         if '/' in user:
             mod, user = user.split('/')
         path = f'results/{mod}/{fn}/{user}'
@@ -231,8 +230,6 @@ class Server:
             # check if the user has a role
             if user in self.roles:
                 role = roles[user]
-
-
             if not hasattr(self, 'address2key'):
                 self.address2key = c.address2key()
             if user in self.address2key:
@@ -355,37 +352,29 @@ class Server:
               mod: Union[str, 'Module', Any] = None, # the mod in either a string
               params:Optional[dict] = None,  # kwargs for the mod
               port :Optional[int] = None, # name of the server if None, it will be the mod name
-              name = None, # name of the server if None, it will be the mod name
               fns = None, # list of fns to serve, if none, it will be the endpoints of the mod
               key = None, # the key for the server
               cwd = None, # the cwd to run the server in
               remote = False, # whether to run the server remotely
               host = '0.0.0.0',
+              volumes = None, 
               public=False,
+              env = None,
               server_mode = 'http',
+              daemon = True, 
               **extra_params 
               ):
         port = self.get_port(port)
         mod = mod or 'mod'
-        name = name or mod
+        key = key or mod
         params = {**(params or {}), **extra_params}
         if remote:
-            return c.fn('pm/serve')(mod=mod, params=params, name=name, fns=fns, port=port, key=key, cwd=cwd)
-        if self.exists(name):
-            self.kill(name) # kill the server if it exists
-        mod = mod or 'mod'
-        if isinstance(mod, str):
-            if '::' in mod:
-                name = mod
-                mod = '::'.join(name.split('::')[:-1])
+            return c.fn('pm/')(mod, params=params, port=port, key=key, cwd=cwd, daemon=daemon, volumes=volumes, env=env)
         self.public = public
         self.mod = c.mod(mod)(**(params or {}))
-        self.name = name = name or mod 
-        self.key = c.key(key or self.name)
-        # add the endpoints
-        self.set_fns(fns) 
+        self.key = c.key(key)
         self.info = c.info(mod, key=self.key, public=self.public, schema=False)
-        self.info['name'] = self.name
+        self.set_fns(fns) 
         self.info['schema'] = self.schema
         self.info['url'] = f"{server_mode}://{host}:{port}"
         self.mod.info = self.info
@@ -400,7 +389,21 @@ class Server:
         self.app = FastAPI()
         self.app.add_middleware(CORSMiddleware,allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
         self.app.post("/{fn}")(server_fn)
-        c.print(f'Serving({self.info})', color='green')
-        self.store.put(f'servers/{self.name}', self.info)
-        uvicorn.run(self.app,  host='0.0.0.0', port=port, loop='asyncio')
-        return {'success':True, 'message':f'Set mod to {self.name}'}
+        self.show_info()
+        try:
+            uvicorn.run(self.app,  host='0.0.0.0', port=port, loop='asyncio')
+        except KeyboardInterrupt:
+            print('Shutting down server', color='red')
+        return {'success':True, 'message':f'Set mod to {self.info["name"]}'}
+
+    def show_info(self):
+        print('--- Server Info ---', color='green', verbose=self.verbose)
+        shorten_v = lambda fn: fn[:6] + '...' + fn[-4:] if len(fn) > 12 else fn
+        shorten_keys = ['key', 'cid', 'signature']
+        show_info = self.info.copy()
+        show_info.pop('schema', None)
+        show_info['fns'] = self.fns
+        
+        print(show_info, color='green', verbose=self.verbose)
+        print('-------------------', color='green', verbose=self.verbose)
+        return show_info

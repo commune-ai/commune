@@ -13,6 +13,7 @@ import importlib
 import inspect
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
+import commune as c
 
 
 class MCP:
@@ -172,22 +173,6 @@ class MCP:
         
         return matches
 
-
-    @classmethod
-    def create_module(cls, name: str, methods: Dict = None) -> type:
-        """
-        Factory function to create new module classes dynamically.
-        
-        Args:
-            name: Name of the new module class
-            base_class: Base class to inherit from (default: MCP)
-            methods: Dictionary of method names to functions
-        
-        Returns:
-            New module class
-        """
-        methods = methods or {}
-        return type(name, (MCP,), methods)
 
     @staticmethod
     def test():

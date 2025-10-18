@@ -68,6 +68,7 @@ class Dev:
     def __init__(self, 
                  provider: str = 'model.openrouter', 
                  model: Optional[str] = 'anthropic/claude-opus-4.1',
+                 tools = ['create_file']
                  safety = True,
                  **kwargs):
         self.provider = c.mod(provider)(model=model)
